@@ -360,6 +360,7 @@ async function doRedExecute(tactic, commandIndices) {
 
   send(`\n[BLACK ICE] ${tactic} emulation complete.`);
   completeTask(tid);
+  broadcast('red_done', { tactic });
   return output;
 }
 
@@ -496,7 +497,12 @@ async function handleWsMessage(ws, msg) {
       break;
     }
     case 'red_execute': {
-      const output = await doRedExecute(msg.tactic, msg.commandIndices);
+      try {
+        await doRedExecute(msg.tactic, msg.commandIndices);
+      } catch (e) {
+        broadcast('terminal', { type: 'error', text: `[BLACK ICE] ${e.message}`, channel: 'red' }, 'red');
+        broadcast('red_done', { tactic: msg.tactic, error: e.message });
+      }
       break;
     }
     case 'chat': {

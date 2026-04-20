@@ -233,7 +233,7 @@ const Hunt = ({ huntOut, hunting, doHunt }) => {
 };
 
 // ═══ AGENT TAB ═══
-const AgentTab = ({ hasKey, setShowSettings, autoRun, stopAuto, startAuto, autoMax, setAutoMax, autoMode, setAutoMode, autoRound, pendingCmd, approve, autoOut, chat, chatLoad, doChat, chatIn, setChatIn, doExec, send, setShowTasks, provider }) => {
+const AgentTab = ({ hasKey, setShowSettings, autoRun, stopAuto, startAuto, autoMax, setAutoMax, autoMode, setAutoMode, autoRound, pendingCmd, approve, autoOut, chat, chatLoad, doChat, chatIn, setChatIn, doExec, send, setShowTasks, provider, execOut, clearExecOut }) => {
   const cr = useRef();
   useEffect(() => { if (cr.current) cr.current.scrollTop = cr.current.scrollHeight; }, [chat]);
   return (
@@ -273,6 +273,13 @@ const AgentTab = ({ hasKey, setShowSettings, autoRun, stopAuto, startAuto, autoM
         </div>
       </div>}
       {autoOut.length > 0 && <div style={{ flexShrink: 0 }}><Term lines={autoOut} mh={180} /></div>}
+      {execOut.length > 0 && <div style={{ flexShrink: 0, marginTop: 6 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <span style={{ color: 'var(--cyan)', fontSize: 9, fontFamily: 'var(--fd)', letterSpacing: 2 }}>EXEC OUTPUT</span>
+          <button className="btn s" onClick={clearExecOut} style={{ borderColor: 'var(--td)', color: 'var(--td)', fontSize: 8, padding: '4px 8px' }}>CLEAR</button>
+        </div>
+        <Term lines={execOut} mh={160} />
+      </div>}
       {chat.length === 0 && <div style={{ flexShrink: 0, marginBottom: 6 }}>
         <div style={{ textAlign: 'center', margin: '10px 0', padding: 10, border: '1px dashed #ff2d9544', borderRadius: 2 }}>
           <div style={{ color: 'var(--mag)', fontSize: 12 }}>N E T G H O S T  A I</div>
@@ -309,10 +316,9 @@ const AgentTab = ({ hasKey, setShowSettings, autoRun, stopAuto, startAuto, autoM
 };
 
 // ═══ BLACK ICE — PREVIEW + CONFIRM ═══
-const RedTab = ({ send, redOut, preview }) => {
+const RedTab = ({ send, redOut, preview, setPreview, clearRedOut, running, setRunning }) => {
   const [selected, setSelected] = useState(null);
   const [checkedCmds, setCheckedCmds] = useState([]);
-  const [running, setRunning] = useState(false);
 
   const tactics = [
     { id: 'cred-dump', mitre: 'T1003.001', name: 'CREDENTIAL DUMPING', detect: 87 },
@@ -332,6 +338,8 @@ const RedTab = ({ send, redOut, preview }) => {
     setSelected(t.id);
     setPreview(null);
     setCheckedCmds([]);
+    clearRedOut();
+    setRunning(false);
     send('red_preview', { tactic: t.id });
   };
 
@@ -341,6 +349,7 @@ const RedTab = ({ send, redOut, preview }) => {
 
   const executeSelected = () => {
     if (!selected) return;
+    clearRedOut();
     setRunning(true);
     send('red_execute', { tactic: selected, commandIndices: checkedCmds.length > 0 ? checkedCmds : undefined });
   };
@@ -431,6 +440,8 @@ function App() {
   const [pendingCmd, setPendingCmd] = useState(null);
   const [autoMode, setAutoMode] = useState(false);
   const [redOut, setRedOut] = useState([]);
+  const [redRunning, setRedRunning] = useState(false);
+  const [execOut, setExecOut] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
   const [tasks, setTasks] = useState([]);
   const [showTasks, setShowTasks] = useState(false);
@@ -446,7 +457,9 @@ function App() {
       else if (d.channel === 'harden') setHardenOut(p => [...p, l]);
       else if (d.channel === 'hunt') setHuntOut(p => [...p, l]);
       else if (d.channel === 'red') setRedOut(p => [...p, l]);
+      else if (d.channel === 'chat') setExecOut(p => [...p, l]);
     });
+    on('red_done', () => setRedRunning(false));
     on('chat_response', d => { setChat(p => [...p, d]); setChatLoad(false); });
     on('chat_history', d => setChat(d.map(h => ({ role: h.role, content: h.content }))));
     on('chat_cleared', () => setChat([]));
@@ -498,8 +511,8 @@ function App() {
       {tab === 'scan' && <Scan scanMode={scanMode} setScanMode={setScanMode} scanTarget={scanTarget} setScanTarget={setScanTarget} doScan={doScan} scanning={scanning} scanOut={scanOut} />}
       {tab === 'harden' && <Harden hardenOut={hardenOut} hardening={hardening} doHarden={doHarden} />}
       {tab === 'hunt' && <Hunt huntOut={huntOut} hunting={hunting} doHunt={doHunt} />}
-      {tab === 'agent' && <AgentTab hasKey={hasKey} setShowSettings={setShowSettings} autoRun={autoRun} stopAuto={stopAuto} startAuto={startAuto} autoMax={autoMax} setAutoMax={setAutoMax} autoMode={autoMode} setAutoMode={setAutoMode} autoRound={autoRound} pendingCmd={pendingCmd} approve={approve} autoOut={autoOut} chat={chat} chatLoad={chatLoad} doChat={doChat} chatIn={chatIn} setChatIn={setChatIn} doExec={doExec} send={send} setShowTasks={setShowTasks} provider={providerInfo.provider} />}
-      {tab === 'red' && <RedTab send={send} redOut={redOut} preview={redPreview} />}
+      {tab === 'agent' && <AgentTab hasKey={hasKey} setShowSettings={setShowSettings} autoRun={autoRun} stopAuto={stopAuto} startAuto={startAuto} autoMax={autoMax} setAutoMax={setAutoMax} autoMode={autoMode} setAutoMode={setAutoMode} autoRound={autoRound} pendingCmd={pendingCmd} approve={approve} autoOut={autoOut} chat={chat} chatLoad={chatLoad} doChat={doChat} chatIn={chatIn} setChatIn={setChatIn} doExec={doExec} send={send} setShowTasks={setShowTasks} provider={providerInfo.provider} execOut={execOut} clearExecOut={() => setExecOut([])} />}
+      {tab === 'red' && <RedTab send={send} redOut={redOut} preview={redPreview} setPreview={setRedPreview} clearRedOut={() => setRedOut([])} running={redRunning} setRunning={setRedRunning} />}
       <div className="tbar">
         {[{ id: 'home', i: '>_', l: 'DECK' }, { id: 'scan', i: '((◉))', l: 'RECON' }, { id: 'harden', i: '◇', l: 'FORT' }, { id: 'hunt', i: '◎', l: 'GHOST' }, { id: 'agent', i: '⬡', l: 'AI' }, { id: 'red', i: '⚡', l: 'ICE' }].map(t => (
           <button key={t.id} className={`tbtn ${tab === t.id ? 'a' : ''}`} onClick={() => setTab(t.id)}>
