@@ -1,0 +1,15 @@
+{
+  "name": "purplebruce-v4",
+  "version": "4.0.0",
+  "description": "Purple Bruce Cyberdeck v4.0 — Real Purple Team Platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.16.0",
+    "better-sqlite3": "^11.8.0",
+    "uuid": "^9.0.0"
+  }
+}

@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Purple Bruce v4.2 — Cyberdeck</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--void:#030308;--bg:#0a0610;--surface:#0f0b1a;--card:#140e22;--border:#1e1635;--red:#ff003c;--rg:#ff003c88;--cyan:#00f0ff;--mag:#ff2d95;--gold:#f5a623;--green:#39ff14;--purple:#8b5cf6;--text:#d4d0e0;--tb:#f0ecff;--td:#6b6480;--tm:#3d3655;--f:'Share Tech Mono','Courier New',monospace;--fd:'Orbitron','Share Tech Mono',monospace}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--text);font-family:var(--f);overflow-x:hidden}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--void)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+input,textarea,select{font-family:var(--f)}input::placeholder{color:var(--tm)}
+.crt{position:fixed;inset:0;pointer-events:none;z-index:9999;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px)}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}@keyframes pulse{0%,100%{opacity:.6}50%{opacity:1}}
+.pulse{animation:pulse 2s infinite}
+.tbar{position:fixed;bottom:0;left:0;right:0;z-index:100;background:var(--void);border-top:1px solid #ff003c22;display:flex;padding:6px 0 10px}
+.tbtn{flex:1;background:0;border:0;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:4px 0}
+.tbtn .i{font-size:14px;transition:.2s}.tbtn .l{font-size:7px;font-family:var(--fd);letter-spacing:2px}
+.tbtn.a .i{color:var(--red);text-shadow:0 0 8px var(--rg)}.tbtn.a .l{color:var(--red)}.tbtn:not(.a) .i,.tbtn:not(.a) .l{color:var(--tm)}
+.btn{background:0;border:1px solid var(--red);border-radius:2px;padding:10px 16px;color:var(--red);font-size:11px;font-weight:700;font-family:var(--fd);letter-spacing:3px;text-transform:uppercase;cursor:pointer;box-shadow:0 0 15px #ff003c22}
+.btn:disabled{border-color:var(--tm);color:var(--tm);box-shadow:none;cursor:default}
+.btn.s{padding:7px 12px;font-size:9px}.btn.cy{border-color:var(--cyan);color:var(--cyan)}.btn.mg{border-color:var(--mag);color:var(--mag)}.btn.gn{border-color:var(--green);color:var(--green)}
+.inp{width:100%;background:var(--void);border:1px solid var(--border);border-radius:2px;padding:10px 12px;color:var(--text);font-size:12px;outline:0}
+.inp:focus{border-color:var(--cyan)}
+.tout{background:var(--void);border:1px solid var(--border);border-radius:4px;padding:10px 12px;max-height:500px;overflow-y:auto;font-size:11px;line-height:1.7}
+.tl{white-space:pre-wrap;word-break:break-word}.tl.stdout{color:var(--td)}.tl.stderr,.tl.warn{color:var(--gold)}.tl.error{color:var(--red)}.tl.info{color:var(--cyan)}.tl.cmd{color:var(--tb);font-weight:700}.tl.next{color:var(--mag)}
+.cb{max-width:85%;border-radius:4px;padding:8px 12px}.cb.user{align-self:flex-end;background:#8b5cf622;border:1px solid #8b5cf644}.cb.assistant{align-self:flex-start;background:var(--card);border:1px solid var(--border)}
+.md{flex:1;background:0;border:1px solid var(--border);border-radius:2px;padding:7px 4px;color:var(--td);font-size:9px;font-family:var(--fd);letter-spacing:1px;cursor:pointer}.md.a{background:#ff003c22;border-color:var(--red);color:var(--red)}
+.tc{background:var(--card);border:1px solid var(--border);border-radius:4px;padding:8px 10px;cursor:pointer;text-align:left;width:100%}.tc.a{background:#ff003c15;border-color:#ff003c66}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:var(--surface);border-radius:4px;padding:24px;width:100%;max-width:500px;max-height:80vh;overflow-y:auto}
+.chk{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--card);border:1px solid var(--border);border-radius:3px;margin-bottom:4px;cursor:pointer;font-size:11px}
+.chk:hover{border-color:var(--red)}
+.chk input{accent-color:var(--red)}
+</style>
+</head>
+<body>
+<div class="crt"></div>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+function useWS() {
+  const ws = useRef(null), handlers = useRef({}), [conn, setConn] = useState(false);
+  const connect = useCallback(() => {
+    const w = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`);
+    w.onopen = () => { setConn(true); ws.current = w; };
+    w.onclose = () => { setConn(false); ws.current = null; setTimeout(connect, 2000); };
+    w.onmessage = e => { try { const m = JSON.parse(e.data); handlers.current[m.type]?.(m.data, m.channel); } catch {} };
+  }, []);
+  useEffect(() => { connect(); return () => ws.current?.close(); }, [connect]);
+  const send = useCallback((a, d = {}) => { if (ws.current?.readyState === 1) ws.current.send(JSON.stringify({ action: a, ...d })); }, []);
+  const on = useCallback((t, h) => { handlers.current[t] = h; }, []);
+  return { send, on, conn };
+}
+
+function Term({ lines, mh = 500 }) {
+  const r = useRef();
+  useEffect(() => { if (r.current) r.current.scrollTop = r.current.scrollHeight; }, [lines]);
+  return (
+    <div ref={r} className="tout" style={{ maxHeight: mh, marginTop: 10 }}>
+      {lines.map((l, i) => <div key={i} className={`tl ${l.type || 'stdout'}`}>{l.text}</div>)}
+      <span style={{ color: 'var(--cyan)', opacity: .6, animation: 'blink 1s infinite' }}>█</span>
+    </div>
+  );
+}
+
+// ═══ SETTINGS MODAL ═══
+const SettingsModal = ({ provider, grokHasKey, grokMask, veniceHasKey, veniceMask, setShowSettings, send }) => {
+  const [grokKeyIn, setGrokKeyIn] = useState('');
+  const [veniceKeyIn, setVeniceKeyIn] = useState('');
+  return (
+    <div className="modal-overlay">
+      <div className="modal" style={{ border: '1px solid var(--cyan)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <span style={{ color: 'var(--cyan)', fontSize: 14, fontFamily: 'var(--fd)', letterSpacing: 3 }}>SETTINGS</span>
+          <button className="btn s" onClick={() => setShowSettings(false)} style={{ borderColor: 'var(--td)', color: 'var(--td)' }}>CLOSE</button>
+        </div>
+
+        <div style={{ color: 'var(--td)', fontSize: 10, marginBottom: 12 }}>AI PROVIDER</div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <button className={`btn s ${provider === 'grok' ? 'gn' : ''}`} onClick={() => send('set_provider', { provider: 'grok' })} style={provider !== 'grok' ? { borderColor: 'var(--td)', color: 'var(--td)' } : {}}>GROK 3</button>
+          <button className={`btn s ${provider === 'venice' ? 'mg' : ''}`} onClick={() => send('set_provider', { provider: 'venice' })} style={provider !== 'venice' ? { borderColor: 'var(--td)', color: 'var(--td)' } : {}}>VENICE.AI</button>
+        </div>
+
+        <div style={{ color: 'var(--td)', fontSize: 10, marginBottom: 6 }}>GROK API KEY (x.ai)</div>
+        {grokHasKey && <div style={{ color: 'var(--green)', fontSize: 10, marginBottom: 4 }}>✓ {grokMask}</div>}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+          <input value={grokKeyIn} onChange={e => setGrokKeyIn(e.target.value)} placeholder="xai-..." type="password" className="inp" style={{ flex: 1 }} />
+          <button className="btn s gn" onClick={() => { if (grokKeyIn.trim()) { send('set_key', { key: grokKeyIn.trim(), provider: 'grok' }); setGrokKeyIn(''); } }}>SAVE</button>
+        </div>
+
+        <div style={{ color: 'var(--td)', fontSize: 10, marginBottom: 6 }}>VENICE.AI API KEY</div>
+        {veniceHasKey && <div style={{ color: 'var(--green)', fontSize: 10, marginBottom: 4 }}>✓ {veniceMask}</div>}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+          <input value={veniceKeyIn} onChange={e => setVeniceKeyIn(e.target.value)} placeholder="venice-..." type="password" className="inp" style={{ flex: 1 }} />
+          <button className="btn s mg" onClick={() => { if (veniceKeyIn.trim()) { send('set_key', { key: veniceKeyIn.trim(), provider: 'venice' }); setVeniceKeyIn(''); } }}>SAVE</button>
+        </div>
+
+        <div style={{ color: 'var(--tm)', fontSize: 9, marginTop: 8 }}>Active: {provider === 'venice' ? 'Venice.ai (llama-3.3-70b)' : 'Grok 3 mini (xAI)'}</div>
+      </div>
+    </div>
+  );
+};
+
+// ═══ TASK MODAL ═══
+const TaskModal = ({ setShowTasks, tasks, send }) => {
+  return (
+    <div className="modal-overlay">
+      <div className="modal" style={{ border: '1px solid var(--cyan)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <span style={{ color: 'var(--cyan)', fontSize: 14, fontFamily: 'var(--fd)', letterSpacing: 3 }}>TASK MANAGER</span>
+          <button className="btn s" onClick={() => setShowTasks(false)} style={{ borderColor: 'var(--td)', color: 'var(--td)' }}>CLOSE</button>
+        </div>
+        <button className="btn s cy" onClick={() => send('task_list')} style={{ marginBottom: 12 }}>REFRESH</button>
+        {tasks.length === 0 ? <div style={{ color: 'var(--tm)', fontSize: 12, padding: 20, textAlign: 'center' }}>No tasks</div> :
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {tasks.map(t => (
+              <div key={t.id} style={{ background: 'var(--card)', border: `1px solid ${t.status === 'running' ? 'var(--green)' : t.status === 'killed' ? 'var(--red)' : 'var(--border)'}`, borderRadius: 4, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ color: t.status === 'running' ? 'var(--green)' : 'var(--td)', fontSize: 11, fontFamily: 'var(--fd)' }}>{t.type.toUpperCase()}</div>
+                  <div style={{ color: 'var(--text)', fontSize: 10, marginTop: 2 }}>{t.label}</div>
+                  <div style={{ color: 'var(--tm)', fontSize: 9, marginTop: 2 }}>{t.id} | {t.status}</div>
+                </div>
+                {t.status === 'running' && t.alive && <button className="btn s" onClick={() => send('task_kill', { id: t.id })}>KILL</button>}
+              </div>
+            ))}
+          </div>}
+      </div>
+    </div>
+  );
+};
+
+// ═══ HOME ═══
+const Home = ({ status, autoRun, autoRound, autoMode, tasks, setTab, setShowSettings, setShowTasks, provider }) => {
+  return (
+    <div style={{ padding: '12px 16px 100px' }}>
+      <div style={{ textAlign: 'center', marginBottom: 16 }}>
+        <pre style={{ color: 'var(--red)', fontSize: 6.5, lineHeight: 1.05, textShadow: '0 0 8px var(--rg)', whiteSpace: 'pre', margin: 0 }}>{`██████╗ ██╗   ██╗██████╗ ██████╗ ██╗     ███████╗
+██╔══██╗██║   ██║██╔══██╗██╔══██╗██║     ██╔════╝
+██████╔╝██║   ██║██████╔╝██████╔╝██║     █████╗
+██╔═══╝ ██║   ██║██╔══██╗██╔═══╝ ██║     ██╔══╝
+██║     ╚██████╔╝██║  ██║██║     ███████╗███████╗
+╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚══════╝╚══════╝
+██████╗ ██████╗ ██╗   ██╗ ██████╗███████╗
+██╔══██╗██╔══██╗██║   ██║██╔════╝██╔════╝
+██████╔╝██████╔╝██║   ██║██║     █████╗
+██╔══██╗██╔══██╗██║   ██║██║     ██╔══╝
+██████╔╝██║  ██║╚██████╔╝╚██████╗███████╗
+╚═════╝ ╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚══════╝`}</pre>
+        <div style={{ color: 'var(--red)', fontSize: 9, fontFamily: 'var(--fd)', letterSpacing: 4, marginTop: 8 }} className="pulse">⚠ GOD MODE ACTIVE ⚠</div>
+        <div style={{ color: 'var(--td)', fontSize: 8, marginTop: 4 }}>v4.2 | {provider === 'venice' ? 'Venice.ai' : 'Grok'} | Purple Team</div>
+      </div>
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 4, padding: '12px 14px', marginBottom: 14 }}>
+        <div style={{ color: 'var(--red)', fontSize: 10, fontFamily: 'var(--fd)', letterSpacing: 3, marginBottom: 8 }}>SYSTEM STATUS</div>
+        {[['USER', status.user], ['KERNEL', status.kernel], ['IP', status.ip], ['AI', provider === 'venice' ? 'Venice.ai // llama-3.3-70b' : 'Grok-3-mini // xAI', 'var(--mag)'], ['AGENT', autoRun ? `ACTIVE R${autoRound} ${autoMode ? '[AUTO]' : '[APR]'}` : 'STANDBY', autoRun ? 'var(--green)' : 'var(--td)'], ['TASKS', `${tasks.filter(t => t.status === 'running').length} running`, 'var(--cyan)']].map(([k, v, c]) => (
+          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px solid #1e163511' }}>
+            <span style={{ color: 'var(--td)', fontSize: 10 }}>{k}</span>
+            <span style={{ color: c || 'var(--text)', fontSize: 10, maxWidth: '65%', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right' }}>{v || '...'}</span>
+          </div>
+        ))}
+      </div>
+      <div onClick={() => setTab('agent')} style={{ border: '1px solid var(--red)', borderRadius: 4, padding: '14px 0', textAlign: 'center', marginBottom: 14, cursor: 'pointer', boxShadow: '0 0 20px var(--rg),inset 0 0 20px var(--rg)' }} className="pulse">
+        <span style={{ color: 'var(--red)', fontSize: 13, fontFamily: 'var(--fd)', letterSpacing: 4 }}>☠ GOD MODE: RUNNING HOT ☠</span>
+      </div>
+      <div style={{ color: 'var(--red)', fontSize: 10, fontFamily: 'var(--fd)', letterSpacing: 3, marginBottom: 8 }}>MODULES</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+        {[{ i: '((◉))', l: 'RECON', t: 'scan', c: 'var(--cyan)' }, { i: '◇', l: 'FORTRESS', t: 'harden', c: 'var(--green)' }, { i: '◎', l: 'GHOST', t: 'hunt', c: 'var(--gold)' }, { i: '⬡', l: 'NETGHOST', t: 'agent', c: 'var(--mag)' }, { i: '⚡', l: 'BLACK ICE', t: 'red', c: 'var(--red)' }, { i: '⊞', l: 'TASKS', t: '_tasks', c: 'var(--cyan)' }, { i: '⚙', l: 'SETTINGS', t: '_cfg', c: 'var(--td)' }].map(m => (
+          <button key={m.t} onClick={() => m.t === '_cfg' ? setShowSettings(true) : m.t === '_tasks' ? setShowTasks(true) : setTab(m.t)} style={{ background: 'var(--card)', border: `1px solid ${m.c}33`, borderRadius: 4, padding: '12px 6px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 18, color: m.c }}>{m.i}</span>
+            <span style={{ color: m.c, fontSize: 8, fontFamily: 'var(--fd)', letterSpacing: 2 }}>{m.l}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ═══ SCAN ═══
+const Scan = ({ scanMode, setScanMode, scanTarget, setScanTarget, doScan, scanning, scanOut }) => {
+  return (
+    <div style={{ padding: '12px 16px 100px' }}>
+      <div style={{ borderLeft: '2px solid var(--cyan)', paddingLeft: 12, marginBottom: 14 }}>
+        <span style={{ color: 'var(--cyan)', fontSize: 13, fontFamily: 'var(--fd)', letterSpacing: 4 }}>FULL SPECTRUM RECON</span>
+        <div style={{ color: 'var(--td)', fontSize: 10, marginTop: 4 }}>Network enum // CVE map // OS fingerprint</div>
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+        {['QUICK', 'STANDARD', 'FULL', 'STEALTH'].map(m => <button key={m} className={`md ${scanMode === m ? 'a' : ''}`} onClick={() => setScanMode(m)}>{m}</button>)}
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        <input value={scanTarget} onChange={e => setScanTarget(e.target.value)} placeholder="target IP / hostname / CIDR" className="inp" style={{ flex: 1 }} onKeyDown={e => e.key === 'Enter' && doScan()} />
+        <button className="btn s" onClick={doScan} disabled={scanning || !scanTarget.trim()}>{scanning ? '◇' : 'RAZE'}</button>
+      </div>
+      {scanOut.length > 0 && <Term lines={scanOut} />}
+    </div>
+  );
+};
+
+const Harden = ({ hardenOut, hardening, doHarden }) => {
+  return (
+    <div style={{ padding: '12px 16px 100px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+        <div style={{ borderLeft: '2px solid var(--green)', paddingLeft: 12 }}>
+          <span style={{ color: 'var(--green)', fontSize: 13, fontFamily: 'var(--fd)', letterSpacing: 4 }}>FORTRESS PROTOCOL</span>
+          <div style={{ color: 'var(--td)', fontSize: 10, marginTop: 4 }}>Hardening audit // CIS Benchmark</div>
+        </div>
+        <button className="btn s" onClick={doHarden} disabled={hardening}>{hardening ? '◇' : 'AUDIT'}</button>
+      </div>
+      {hardenOut.length === 0 && !hardening ? <div style={{ textAlign: 'center', padding: '60px 20px' }}><div style={{ fontSize: 36, opacity: .3 }}>◇</div><div style={{ color: 'var(--tm)', fontSize: 12, marginTop: 8 }}>Run AUDIT to engage Fortress Protocol</div></div> : null}
+      {hardenOut.length > 0 && <Term lines={hardenOut} />}
+    </div>
+  );
+};
+
+const Hunt = ({ huntOut, hunting, doHunt }) => {
+  return (
+    <div style={{ padding: '12px 16px 100px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+        <div style={{ borderLeft: '2px solid var(--gold)', paddingLeft: 12 }}>
+          <span style={{ color: 'var(--gold)', fontSize: 13, fontFamily: 'var(--fd)', letterSpacing: 4 }}>GHOST PROTOCOL</span>
+          <div style={{ color: 'var(--td)', fontSize: 10, marginTop: 4 }}>Threat hunting // Rootkit // Persistence</div>
+        </div>
+        <button className="btn s" onClick={doHunt} disabled={hunting}>{hunting ? '◇' : 'HUNT'}</button>
+      </div>
+      {huntOut.length === 0 && !hunting ? <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--tm)', fontSize: 12 }}>{'>> Choom, start the hunt'}</div> : null}
+      {huntOut.length > 0 && <Term lines={huntOut} />}
+    </div>
+  );
+};
+
+// ═══ AGENT TAB ═══
+const AgentTab = ({ hasKey, setShowSettings, autoRun, stopAuto, startAuto, autoMax, setAutoMax, autoMode, setAutoMode, autoRound, pendingCmd, approve, autoOut, chat, chatLoad, doChat, chatIn, setChatIn, doExec, send, setShowTasks, provider }) => {
+  const cr = useRef();
+  useEffect(() => { if (cr.current) cr.current.scrollTop = cr.current.scrollHeight; }, [chat]);
+  return (
+    <div style={{ padding: '12px 16px 100px', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 90px)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6, flexShrink: 0 }}>
+        <div style={{ borderLeft: '2px solid var(--mag)', paddingLeft: 12 }}>
+          <span style={{ color: 'var(--mag)', fontSize: 13, fontFamily: 'var(--fd)', letterSpacing: 4 }}>NETGHOST AI</span>
+          <span style={{ fontSize: 9, padding: '2px 8px', border: `1px solid ${hasKey ? 'var(--green)' : 'var(--red)'}`, color: hasKey ? 'var(--green)' : 'var(--red)', borderRadius: 2, marginLeft: 10 }}>● {hasKey ? 'ONLINE' : 'OFFLINE'}</span>
+          <div style={{ color: 'var(--td)', fontSize: 10, marginTop: 4 }}>REAL COMMANDS // {provider === 'venice' ? 'Venice.ai' : 'Grok'}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => { send('task_list'); setShowTasks(true); }} style={{ background: 0, border: 0, color: 'var(--cyan)', fontSize: 16, cursor: 'pointer' }}>⊞</button>
+          <button onClick={() => setShowSettings(true)} style={{ background: 0, border: 0, color: 'var(--td)', fontSize: 16, cursor: 'pointer' }}>⚙</button>
+        </div>
+      </div>
+      {!hasKey && <div onClick={() => setShowSettings(true)} style={{ background: '#f5a62311', border: '1px solid #f5a62333', borderRadius: 2, padding: '8px 12px', marginBottom: 6, cursor: 'pointer', flexShrink: 0 }}><span style={{ color: 'var(--gold)', fontSize: 10 }}>⚠ API key required — tap to configure</span></div>}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
+        <button className={`btn s ${autoRun ? '' : 'mg'}`} onClick={autoRun ? stopAuto : startAuto}>{autoRun ? 'ABORT' : 'START AGENT'}</button>
+        {!autoRun && <>
+          <select value={autoMax} onChange={e => setAutoMax(Number(e.target.value))} style={{ background: 'var(--void)', border: '1px solid var(--border)', borderRadius: 2, padding: '6px', color: 'var(--text)', fontSize: 10 }}>
+            <option value={0}>∞</option>
+            {[3, 5, 7, 10, 15, 25, 50].map(n => <option key={n} value={n}>{n}R</option>)}
+          </select>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 10, color: autoMode ? 'var(--green)' : 'var(--td)' }}>
+            <input type="checkbox" checked={autoMode} onChange={e => setAutoMode(e.target.checked)} style={{ accentColor: 'var(--green)' }} />
+            {autoMode ? 'AUTONOMOUS' : 'APPROVAL'}
+          </label>
+        </>}
+        {autoRun && <span style={{ color: 'var(--mag)', fontSize: 10 }} className="pulse">R{autoRound} {autoMode ? '[AUTO]' : '[APPROVAL]'}</span>}
+      </div>
+      {pendingCmd && !autoMode && <div style={{ background: '#ff003c11', border: '1px solid #ff003c44', borderRadius: 4, padding: '8px 12px', marginBottom: 6, flexShrink: 0 }}>
+        <div style={{ color: 'var(--gold)', fontSize: 10, marginBottom: 4 }}>APPROVE REAL COMMAND?</div>
+        <div style={{ color: 'var(--tb)', fontSize: 11, marginBottom: 6, wordBreak: 'break-all' }}>{pendingCmd.cmd}</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn s gn" onClick={() => approve(true)}>EXECUTE</button>
+          <button className="btn s" onClick={() => approve(false)}>REJECT</button>
+        </div>
+      </div>}
+      {autoOut.length > 0 && <div style={{ flexShrink: 0 }}><Term lines={autoOut} mh={180} /></div>}
+      {chat.length === 0 && <div style={{ flexShrink: 0, marginBottom: 6 }}>
+        <div style={{ textAlign: 'center', margin: '10px 0', padding: 10, border: '1px dashed #ff2d9544', borderRadius: 2 }}>
+          <div style={{ color: 'var(--mag)', fontSize: 12 }}>N E T G H O S T  A I</div>
+          <div style={{ color: 'var(--mag)', fontSize: 10, opacity: .7 }}>v4.2 // Real Commands // {provider === 'venice' ? 'Venice' : 'Grok'}</div>
+        </div>
+        <div style={{ color: 'var(--tm)', fontSize: 9, letterSpacing: 2, marginBottom: 4 }}>QUICK INTEL</div>
+        {['Analyze Attack Chain', 'CVE Deep Dive', 'Rootkit Detection', 'PrivEsc Vectors', 'Lateral Movement'].map(q => (
+          <button key={q} onClick={() => doChat(q)} style={{ display: 'block', width: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 2, padding: '7px 12px', textAlign: 'left', color: 'var(--td)', fontSize: 11, cursor: 'pointer', marginBottom: 3 }}>{q}</button>
+        ))}
+      </div>}
+      <div ref={cr} style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 6, minHeight: 0 }}>
+        {chat.map((m, i) => (
+          <div key={i} className={`cb ${m.role}`}>
+            <div style={{ color: m.role === 'user' ? 'var(--purple)' : 'var(--cyan)', fontSize: 8, fontFamily: 'var(--fd)', letterSpacing: 2, marginBottom: 3 }}>{m.role === 'user' ? 'NETRUNNER' : 'NETGHOST'}</div>
+            <div style={{ color: 'var(--text)', fontSize: 11, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+              {m.content}
+              {m.role === 'assistant' && m.content.includes('CMD:') && <div style={{ marginTop: 6 }}>
+                {m.content.split('\n').filter(l => l.includes('CMD:')).map((l, j) => {
+                  const cmd = l.replace(/.*CMD:\s*/, '').trim();
+                  return <button key={j} className="btn s cy" onClick={() => doExec(cmd)} style={{ marginRight: 6, marginBottom: 3 }}>EXEC: {cmd.slice(0, 35)}{cmd.length > 35 ? '...' : ''}</button>;
+                })}
+              </div>}
+            </div>
+          </div>
+        ))}
+        {chatLoad && <div style={{ color: 'var(--mag)', fontSize: 11 }} className="pulse">⬡ NetGhost processing...</div>}
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexShrink: 0, paddingTop: 6, borderTop: '1px solid var(--border)' }}>
+        <input value={chatIn} onChange={e => setChatIn(e.target.value)} placeholder="Ask NetGhost anything..." className="inp" style={{ flex: 1 }} onKeyDown={e => e.key === 'Enter' && doChat()} />
+        <button className="btn s mg" onClick={() => doChat()} disabled={!chatIn.trim() || chatLoad}>{'>'}</button>
+      </div>
+    </div>
+  );
+};
+
+// ═══ BLACK ICE — PREVIEW + CONFIRM ═══
+const RedTab = ({ send, redOut, preview }) => {
+  const [selected, setSelected] = useState(null);
+  const [checkedCmds, setCheckedCmds] = useState([]);
+  const [running, setRunning] = useState(false);
+
+  const tactics = [
+    { id: 'cred-dump', mitre: 'T1003.001', name: 'CREDENTIAL DUMPING', detect: 87 },
+    { id: 'lateral', mitre: 'T1021.002', name: 'LATERAL MOVEMENT', detect: 74 },
+    { id: 'c2-https', mitre: 'T1071.001', name: 'C2 OVER HTTPS', detect: 38 },
+    { id: 'ransomware', mitre: 'T1486', name: 'RANSOMWARE CHAIN', detect: 95 },
+    { id: 'fileless', mitre: 'T1546.015', name: 'FILELESS PERSISTENCE', detect: 29 },
+    { id: 'sched-task', mitre: 'T1053.005', name: 'SCHEDULED TASK', detect: 81 },
+    { id: 'dns-exfil', mitre: 'T1048.003', name: 'DNS EXFILTRATION', detect: 44 },
+    { id: 'persistence', mitre: 'T1053', name: 'PERSISTENCE CHECK', detect: 70 },
+    { id: 'recon', mitre: 'T1082', name: 'SYSTEM RECON', detect: 90 },
+    { id: 'discovery', mitre: 'T1046', name: 'NETWORK DISCOVERY', detect: 60 },
+    { id: 'exfiltration', mitre: 'T1048', name: 'EXFILTRATION TEST', detect: 50 },
+  ];
+
+  const selectTactic = (t) => {
+    setSelected(t.id);
+    setPreview(null);
+    setCheckedCmds([]);
+    send('red_preview', { tactic: t.id });
+  };
+
+  const toggleCmd = (idx) => {
+    setCheckedCmds(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]);
+  };
+
+  const executeSelected = () => {
+    if (!selected) return;
+    setRunning(true);
+    send('red_execute', { tactic: selected, commandIndices: checkedCmds.length > 0 ? checkedCmds : undefined });
+  };
+
+  return (
+    <div style={{ padding: '12px 16px 100px' }}>
+      <div style={{ borderLeft: '2px solid var(--red)', paddingLeft: 12, marginBottom: 10 }}>
+        <span style={{ color: 'var(--red)', fontSize: 13, fontFamily: 'var(--fd)', letterSpacing: 4 }}>BLACK ICE MODE</span>
+        <span style={{ fontSize: 9, padding: '2px 8px', border: '1px solid var(--red)', color: 'var(--red)', borderRadius: 2, marginLeft: 10 }}>● GOD MODE</span>
+        <div style={{ color: 'var(--td)', fontSize: 10, marginTop: 4 }}>MITRE ATT&CK // REAL COMMANDS</div>
+      </div>
+      <div style={{ background: '#f5a62311', border: '1px solid #f5a62333', borderRadius: 2, padding: '6px 12px', marginBottom: 10 }}>
+        <span style={{ color: 'var(--gold)', fontSize: 9 }}>⚠ Select a tactic → Preview commands → Choose which to run → Execute</span>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        {/* Tactic list */}
+        <div style={{ width: '40%', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {tactics.map(t => (
+            <button key={t.id} className={`tc ${selected === t.id ? 'a' : ''}`} onClick={() => selectTactic(t)}>
+              <div style={{ color: 'var(--td)', fontSize: 8 }}>{t.mitre}</div>
+              <div style={{ color: selected === t.id ? 'var(--red)' : 'var(--text)', fontSize: 9, fontFamily: 'var(--fd)', marginTop: 2 }}>{t.name}</div>
+              <div style={{ width: '100%', height: 3, background: 'var(--border)', marginTop: 4, borderRadius: 2 }}>
+                <div style={{ width: `${t.detect}%`, height: '100%', background: t.detect > 80 ? 'var(--green)' : t.detect > 50 ? 'var(--gold)' : 'var(--red)', borderRadius: 2 }} />
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Preview / Commands */}
+        <div style={{ flex: 1 }}>
+          {!preview && redOut.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '40px 10px', border: '1px dashed var(--border)', borderRadius: 4 }}>
+              <div style={{ color: 'var(--tm)', fontSize: 10 }}>SELECT A TACTIC<br />TO PREVIEW COMMANDS</div>
+            </div>
+          )}
+          {preview && (
+            <div>
+              <div style={{ color: 'var(--red)', fontSize: 11, fontFamily: 'var(--fd)', marginBottom: 4 }}>{preview.mitre} — {preview.name}</div>
+              <div style={{ color: 'var(--td)', fontSize: 10, marginBottom: 10 }}>{preview.description}</div>
+              <div style={{ color: 'var(--cyan)', fontSize: 9, fontFamily: 'var(--fd)', marginBottom: 6 }}>COMMANDS TO EXECUTE:</div>
+              {preview.commands.map(c => (
+                <label key={c.index} className="chk" onClick={() => toggleCmd(c.index)}>
+                  <input type="checkbox" checked={checkedCmds.includes(c.index)} onChange={() => {}} />
+                  <div>
+                    <div style={{ color: 'var(--text)', fontSize: 10 }}>{c.label}</div>
+                    <div style={{ color: 'var(--tm)', fontSize: 9, marginTop: 2, fontFamily: 'var(--f)' }}>{c.cmd.slice(0, 60)}{c.cmd.length > 60 ? '...' : ''}</div>
+                  </div>
+                </label>
+              ))}
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <button className="btn s" onClick={executeSelected} disabled={running}>
+                  {checkedCmds.length > 0 ? `EXECUTE ${checkedCmds.length} SELECTED` : 'EXECUTE ALL'}
+                </button>
+                <button className="btn s gn" onClick={() => { setCheckedCmds(preview.commands.map(c => c.index)); }}>SELECT ALL</button>
+                <button className="btn s" onClick={() => setCheckedCmds([])} style={{ borderColor: 'var(--td)', color: 'var(--td)' }}>CLEAR</button>
+              </div>
+            </div>
+          )}
+          {redOut.length > 0 && <div style={{ marginTop: 10 }}><Term lines={redOut} /></div>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ═══ APP ═══
+function App() {
+  const { send, on, conn } = useWS();
+  const [tab, setTab] = useState('home');
+  const [time, setTime] = useState(new Date());
+  const [status, setStatus] = useState({});
+  const [scanTarget, setScanTarget] = useState('');
+  const [scanMode, setScanMode] = useState('STANDARD');
+  const [scanOut, setScanOut] = useState([]);
+  const [scanning, setScanning] = useState(false);
+  const [hardenOut, setHardenOut] = useState([]);
+  const [hardening, setHardening] = useState(false);
+  const [huntOut, setHuntOut] = useState([]);
+  const [hunting, setHunting] = useState(false);
+  const [chat, setChat] = useState([]);
+  const [chatIn, setChatIn] = useState('');
+  const [chatLoad, setChatLoad] = useState(false);
+  const [autoRun, setAutoRun] = useState(false);
+  const [autoRound, setAutoRound] = useState(0);
+  const [autoMax, setAutoMax] = useState(0);
+  const [autoOut, setAutoOut] = useState([]);
+  const [pendingCmd, setPendingCmd] = useState(null);
+  const [autoMode, setAutoMode] = useState(false);
+  const [redOut, setRedOut] = useState([]);
+  const [showSettings, setShowSettings] = useState(false);
+  const [tasks, setTasks] = useState([]);
+  const [showTasks, setShowTasks] = useState(false);
+  const [providerInfo, setProviderInfo] = useState({ provider: 'grok', grokHasKey: false, veniceHasKey: false });
+  const [redPreview, setRedPreview] = useState(null);
+
+  useEffect(() => { const iv = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(iv); }, []);
+
+  useEffect(() => {
+    on('terminal', (d) => {
+      const l = { text: d.text, type: d.type };
+      if (d.channel === 'scan') setScanOut(p => [...p, l]);
+      else if (d.channel === 'harden') setHardenOut(p => [...p, l]);
+      else if (d.channel === 'hunt') setHuntOut(p => [...p, l]);
+      else if (d.channel === 'red') setRedOut(p => [...p, l]);
+    });
+    on('chat_response', d => { setChat(p => [...p, d]); setChatLoad(false); });
+    on('chat_history', d => setChat(d.map(h => ({ role: h.role, content: h.content }))));
+    on('chat_cleared', () => setChat([]));
+    on('agent_status', d => { setAutoRun(d.running); setAutoRound(d.round); if (d.maxRounds !== undefined) setAutoMax(d.maxRounds); if (d.autonomous !== undefined) setAutoMode(d.autonomous); });
+    on('agent_line', d => setAutoOut(p => [...p, d]));
+    on('agent_pending_cmd', d => setPendingCmd(d));
+    on('provider_status', d => setProviderInfo(d));
+    on('key_saved', d => { send('get_provider'); });
+    on('key_status', d => {});
+    on('status', d => setStatus(d));
+    on('task_list', d => setTasks(d));
+    on('task_registered', () => send('task_list'));
+    on('task_completed', () => send('task_list'));
+    on('task_killed', () => send('task_list'));
+    on('red_preview', d => setRedPreview(d));
+  }, [on, send]);
+
+  useEffect(() => { if (conn) { send('get_provider'); send('get_status'); send('get_chat_history'); send('task_list'); } }, [conn, send]);
+  useEffect(() => { const l = scanOut[scanOut.length - 1]; if (l?.text?.includes('complete')) setScanning(false); }, [scanOut]);
+  useEffect(() => { const l = hardenOut[hardenOut.length - 1]; if (l?.text?.includes('complete')) setHardening(false); }, [hardenOut]);
+  useEffect(() => { const l = huntOut[huntOut.length - 1]; if (l?.text?.includes('complete')) setHunting(false); }, [huntOut]);
+  useEffect(() => { const l = redOut[redOut.length - 1]; if (l?.text?.includes('complete')) { /* keep terminal open */ } }, [redOut]);
+
+  const hasKey = providerInfo.provider === 'venice' ? providerInfo.veniceHasKey : providerInfo.grokHasKey;
+  const doScan = () => { if (!scanTarget.trim()) return; setScanning(true); setScanOut([]); send('scan', { target: scanTarget.trim(), mode: scanMode }); };
+  const doHarden = () => { setHardening(true); setHardenOut([]); send('harden'); };
+  const doHunt = () => { setHunting(true); setHuntOut([]); send('hunt'); };
+  const doChat = (ov) => { const m = ov || chatIn.trim(); if (!m) return; if (!hasKey) { setShowSettings(true); return; } setChatLoad(true); setChat(p => [...p, { role: 'user', content: m }]); if (!ov) setChatIn(''); send('chat', { message: m }); };
+  const doExec = (cmd) => send('exec_cmd', { cmd, channel: 'chat' });
+  const startAuto = () => { if (!hasKey) { setShowSettings(true); return; } setAutoOut([]); send('agent_start', { rounds: autoMax, autonomous: autoMode }); };
+  const stopAuto = () => send('agent_stop');
+  const approve = (a) => { if (pendingCmd) { send('agent_approve', { round: pendingCmd.round, approve: a }); setPendingCmd(null); } };
+
+  return (
+    <div>
+      {showSettings && <SettingsModal {...providerInfo} setShowSettings={setShowSettings} send={send} />}
+      {showTasks && <TaskModal setShowTasks={setShowTasks} tasks={tasks} send={send} />}
+      <div style={{ position: 'sticky', top: 0, zIndex: 100, background: 'var(--void)', borderBottom: '1px solid #ff003c22', padding: '6px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ color: 'var(--red)', fontSize: 9, fontFamily: 'var(--fd)', letterSpacing: 3 }}>PURPLE BRUCE v4.2</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {autoRun && <span style={{ color: 'var(--mag)', fontSize: 8 }} className="pulse">⬡ R{autoRound} {autoMode ? 'AUTO' : 'APR'}</span>}
+          <span style={{ color: 'var(--mag)', fontSize: 8 }}>{providerInfo.provider === 'venice' ? 'VEN' : 'GRK'}</span>
+          <span onClick={() => { send('task_list'); setShowTasks(true); }} style={{ color: 'var(--cyan)', fontSize: 9, cursor: 'pointer' }}>⊞ {tasks.filter(t => t.status === 'running').length}</span>
+          <span style={{ color: conn ? 'var(--green)' : 'var(--red)', fontSize: 8 }}>●</span>
+          <span style={{ color: 'var(--td)', fontSize: 9 }}>{time.toLocaleTimeString()}</span>
+        </div>
+      </div>
+      {tab === 'home' && <Home status={status} autoRun={autoRun} autoRound={autoRound} autoMode={autoMode} tasks={tasks} setTab={setTab} setShowSettings={setShowSettings} setShowTasks={setShowTasks} provider={providerInfo.provider} />}
+      {tab === 'scan' && <Scan scanMode={scanMode} setScanMode={setScanMode} scanTarget={scanTarget} setScanTarget={setScanTarget} doScan={doScan} scanning={scanning} scanOut={scanOut} />}
+      {tab === 'harden' && <Harden hardenOut={hardenOut} hardening={hardening} doHarden={doHarden} />}
+      {tab === 'hunt' && <Hunt huntOut={huntOut} hunting={hunting} doHunt={doHunt} />}
+      {tab === 'agent' && <AgentTab hasKey={hasKey} setShowSettings={setShowSettings} autoRun={autoRun} stopAuto={stopAuto} startAuto={startAuto} autoMax={autoMax} setAutoMax={setAutoMax} autoMode={autoMode} setAutoMode={setAutoMode} autoRound={autoRound} pendingCmd={pendingCmd} approve={approve} autoOut={autoOut} chat={chat} chatLoad={chatLoad} doChat={doChat} chatIn={chatIn} setChatIn={setChatIn} doExec={doExec} send={send} setShowTasks={setShowTasks} provider={providerInfo.provider} />}
+      {tab === 'red' && <RedTab send={send} redOut={redOut} preview={redPreview} />}
+      <div className="tbar">
+        {[{ id: 'home', i: '>_', l: 'DECK' }, { id: 'scan', i: '((◉))', l: 'RECON' }, { id: 'harden', i: '◇', l: 'FORT' }, { id: 'hunt', i: '◎', l: 'GHOST' }, { id: 'agent', i: '⬡', l: 'AI' }, { id: 'red', i: '⚡', l: 'ICE' }].map(t => (
+          <button key={t.id} className={`tbtn ${tab === t.id ? 'a' : ''}`} onClick={() => setTab(t.id)}>
+            <span className="i">{t.i}</span><span className="l">{t.l}</span>
+            {tab === t.id && <div style={{ width: 14, height: 2, background: 'var(--red)', borderRadius: 1, marginTop: 1 }} />}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
