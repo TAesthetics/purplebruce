@@ -85,15 +85,19 @@ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 const voiceSupported=!!SR&&!!window.speechSynthesis;
 function speakableText(text){
   const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
+  /* Prefer the SAY: line — that's Lucy. Fall back to analysis/next/done. */
+  const sayLines=lines.filter(l=>/^SAY:\s*/i.test(l)).map(l=>l.replace(/^SAY:\s*/i,''));
+  if(sayLines.length){
+    return sayLines.join(' ').replace(/[🧠📋⚡📊🔄✅⬡🛡🔴🟠🟡🟢]/g,'').replace(/`[^`]*`/g,'').slice(0,400);
+  }
   const out=[];
   for(const l of lines){
     if(/^(⚡\s*)?CMD:/i.test(l))continue;
     if(/^🧠\s*THINK:|^\[THINK\]/i.test(l))continue;
     if(/^📋\s*PLAN:|^\[PLAN\]/i.test(l))continue;
     let t=l;
-    t=t.replace(/^SAY:\s*/i,'');
     t=t.replace(/^📊\s*ANALYSIS:\s*/i,'');
-    t=t.replace(/^🔄\s*NEXT:\s*/i,'Next: ');
+    t=t.replace(/^🔄\s*NEXT:\s*/i,'Next, ');
     t=t.replace(/^✅\s*DONE\s*:?\s*/i,'Done. ');
     t=t.replace(/[🧠📋⚡📊🔄✅⬡🛡🔴🟠🟡🟢]/g,'');
     t=t.replace(/`[^`]*`/g,'');
@@ -101,19 +105,32 @@ function speakableText(text){
   }
   return out.join(' ').slice(0,600);
 }
-/* Lucy voice: cool, slightly melancholic netrunner.
-   Slower rate, lower pitch, prefer a female en-US/en-GB voice. */
+/* Lucy voice: cool, quiet, a little melancholic.
+   Slow rate, lower pitch, prefer a soft female en-US/en-GB voice.
+   Neural/Online voices first — they read pauses better. */
 function pickLucyVoice(){
   try{
     const v=window.speechSynthesis.getVoices();
     if(!v||!v.length)return null;
     const prefs=[
-      /Samantha/i,/Microsoft Zira/i,/Google US English/i,/Microsoft Aria/i,
-      /Microsoft Jenny/i,/Serena/i,/Karen/i,/Fiona/i,/Moira/i,/Tessa/i
+      /Aria.*Natural/i,/Jenny.*Natural/i,/Michelle.*Natural/i,/Emma.*Natural/i,
+      /Google UK English Female/i,/Google US English/i,
+      /Samantha/i,/Serena/i,/Allison/i,/Ava/i,/Karen/i,/Fiona/i,/Moira/i,/Tessa/i,
+      /Microsoft Aria/i,/Microsoft Jenny/i,/Microsoft Zira/i,/Microsoft Hazel/i
     ];
     for(const re of prefs){const m=v.find(x=>re.test(x.name));if(m)return m}
-    return v.find(x=>/en-(US|GB)/i.test(x.lang))||v.find(x=>/^en/i.test(x.lang))||v[0];
+    return v.find(x=>/en-(US|GB)/i.test(x.lang)&&/female/i.test(x.name))
+         ||v.find(x=>/en-(US|GB)/i.test(x.lang))
+         ||v.find(x=>/^en/i.test(x.lang))||v[0];
   }catch{return null}
+}
+/* Split into sentence-ish chunks so the synth renders natural pauses
+   instead of rushing one long line. Queue them back-to-back. */
+function splitForLucy(text){
+  const raw=text.replace(/\s+/g,' ').trim();
+  if(!raw)return [];
+  const parts=raw.split(/(?<=[.!?…])\s+|\s*—\s+/).map(s=>s.trim()).filter(Boolean);
+  return parts.length?parts:[raw];
 }
 function speak(text){
   try{
@@ -121,11 +138,16 @@ function speak(text){
     const clean=speakableText(text);
     if(!clean)return;
     window.speechSynthesis.cancel();
-    const u=new SpeechSynthesisUtterance(clean);
-    u.rate=0.95;u.pitch=0.82;u.volume=1.0;
-    const v=pickLucyVoice();
-    if(v)u.voice=v;
-    window.speechSynthesis.speak(u);
+    const voice=pickLucyVoice();
+    const chunks=splitForLucy(clean);
+    chunks.forEach((chunk,i)=>{
+      const u=new SpeechSynthesisUtterance(chunk);
+      /* slow, low, quiet — Lucy on the wire */
+      u.rate=0.88;u.pitch=0.78;u.volume=0.95;
+      if(voice)u.voice=voice;
+      /* tiny stagger so sentences don't blur together */
+      setTimeout(()=>{try{window.speechSynthesis.speak(u)}catch{}},i*40);
+    });
   }catch(e){}
 }
 function stopSpeaking(){try{window.speechSynthesis?.cancel()}catch{}}
