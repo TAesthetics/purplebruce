@@ -101,6 +101,20 @@ function speakableText(text){
   }
   return out.join(' ').slice(0,600);
 }
+/* Lucy voice: cool, slightly melancholic netrunner.
+   Slower rate, lower pitch, prefer a female en-US/en-GB voice. */
+function pickLucyVoice(){
+  try{
+    const v=window.speechSynthesis.getVoices();
+    if(!v||!v.length)return null;
+    const prefs=[
+      /Samantha/i,/Microsoft Zira/i,/Google US English/i,/Microsoft Aria/i,
+      /Microsoft Jenny/i,/Serena/i,/Karen/i,/Fiona/i,/Moira/i,/Tessa/i
+    ];
+    for(const re of prefs){const m=v.find(x=>re.test(x.name));if(m)return m}
+    return v.find(x=>/en-(US|GB)/i.test(x.lang))||v.find(x=>/^en/i.test(x.lang))||v[0];
+  }catch{return null}
+}
 function speak(text){
   try{
     if(!window.speechSynthesis)return;
@@ -108,14 +122,15 @@ function speak(text){
     if(!clean)return;
     window.speechSynthesis.cancel();
     const u=new SpeechSynthesisUtterance(clean);
-    u.rate=1.05;u.pitch=1.0;u.volume=1.0;
-    const voices=window.speechSynthesis.getVoices();
-    const pref=voices.find(v=>/en-(US|GB)/i.test(v.lang)&&/(Google|Samantha|Daniel|Alex)/i.test(v.name))||voices.find(v=>/^en/i.test(v.lang))||voices[0];
-    if(pref)u.voice=pref;
+    u.rate=0.95;u.pitch=0.82;u.volume=1.0;
+    const v=pickLucyVoice();
+    if(v)u.voice=v;
     window.speechSynthesis.speak(u);
   }catch(e){}
 }
 function stopSpeaking(){try{window.speechSynthesis?.cancel()}catch{}}
+/* Some browsers populate voices async — warm them up. */
+try{if(window.speechSynthesis){window.speechSynthesis.getVoices();window.speechSynthesis.onvoiceschanged=()=>window.speechSynthesis.getVoices()}}catch{}
 function useMic({onFinal,onInterim}){
   const[listening,setListening]=useState(false);
   const rec=useRef(null);
@@ -212,9 +227,9 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
     <div style={{padding:'10px 16px 6px',flexShrink:0}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
         <div style={{borderLeft:'2px solid var(--mag)',paddingLeft:10}}>
-          <span style={{color:'var(--mag)',fontSize:12,fontFamily:'var(--fd)',letterSpacing:3}}>NETGHOST</span>
+          <span style={{color:voiceMode?'var(--cyan)':'var(--mag)',fontSize:12,fontFamily:'var(--fd)',letterSpacing:3,transition:'color .3s'}}>{voiceMode?'LUCY · NETGHOST':'NETGHOST'}</span>
           {agentStatus.running&&<span style={{fontSize:8,padding:'2px 6px',border:'1px solid var(--green)',color:'var(--green)',borderRadius:'var(--rad-md)',marginLeft:8}} className="pulse">R{agentStatus.round}</span>}
-          <div style={{color:'var(--td)',fontSize:9,marginTop:3}}>Chat = Agent · {providerInfo.provider==='venice'?'Venice':'Grok'} · UNRESTRICTED ACCESS</div>
+          <div style={{color:'var(--td)',fontSize:9,marginTop:3}}>{voiceMode?'Voice Persona: Lucy · Night City uplink':`Chat = Agent · ${providerInfo.provider==='venice'?'Venice':'Grok'}`}</div>
         </div>
         <div style={{display:'flex',gap:5}}><button onClick={()=>{send('task_list');setShowTasks(true)}} style={{background:0,border:0,color:'var(--cyan)',fontSize:14,cursor:'pointer'}}>⊞</button><button onClick={()=>setShowSettings(true)} style={{background:0,border:0,color:'var(--td)',fontSize:14,cursor:'pointer'}}>⚙</button></div>
       </div>
@@ -223,8 +238,8 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
         <label style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:9,color:autonomous?'var(--green)':'var(--td)',padding:'3px 8px',border:`1px solid ${autonomous?'var(--green)':'var(--border)'}`,borderRadius:'var(--rad-pill)'}} onClick={toggleAuto}>
           <span style={{width:6,height:6,borderRadius:'50%',background:autonomous?'var(--green)':'var(--tm)'}}></span>{autonomous?'AUTONOMOUS':'APPROVAL'}
         </label>
-        {voiceSupported&&<label style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:9,color:voiceMode?'var(--cyan)':'var(--td)',padding:'3px 8px',border:`1px solid ${voiceMode?'var(--cyan)':'var(--border)'}`,borderRadius:'var(--rad-pill)'}} onClick={toggleVoice}>
-          <span style={{width:6,height:6,borderRadius:'50%',background:voiceMode?'var(--cyan)':'var(--tm)'}}></span>{voiceMode?'VOICE ON':'VOICE OFF'}
+        {voiceSupported&&<label style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:9,color:voiceMode?'var(--cyan)':'var(--td)',padding:'3px 8px',border:`1px solid ${voiceMode?'var(--cyan)':'var(--border)'}`,borderRadius:'var(--rad-pill)',boxShadow:voiceMode?'0 0 10px var(--cg)':'none'}} onClick={toggleVoice}>
+          <span style={{width:6,height:6,borderRadius:'50%',background:voiceMode?'var(--cyan)':'var(--tm)'}}></span>{voiceMode?'LUCY · VOICE ON':'VOICE OFF'}
         </label>}
         {agentStatus.running&&<button className="btn s rd" onClick={()=>send('agent_abort')} style={{padding:'4px 10px'}}>ABORT</button>}
         <button className="btn s" onClick={()=>{stopSpeaking();send('clear_chat')}} style={{borderColor:'var(--tm)',color:'var(--tm)',marginLeft:'auto',padding:'4px 10px'}}>CLEAR</button>
@@ -341,7 +356,7 @@ function App(){
       <span className="logo">pb<span className="at">@</span>v5</span>
       <div className="pill-row">
         {agentStatus.running&&<span className="pill mg pulse"><span className="dot" style={{background:'var(--mag)'}}></span>R{agentStatus.round}</span>}
-        {voiceSupported&&<span className={`pill ${voiceMode?'cy':''} click`} onClick={()=>{const n=!voiceMode;setVoiceMode(n);send('voice_mode_toggle',{enabled:n});if(!n)stopSpeaking()}} title="Voice mode (STT + TTS)"><span className="dot" style={{background:voiceMode?'var(--cyan)':'var(--tm)'}}></span>🎙 {voiceMode?'ON':'OFF'}</span>}
+        {voiceSupported&&<span className={`pill ${voiceMode?'cy':''} click`} onClick={()=>{const n=!voiceMode;setVoiceMode(n);send('voice_mode_toggle',{enabled:n});if(!n)stopSpeaking()}} title={voiceMode?'Lucy voice on — tap to mute':'Tap for Lucy voice mode'}><span className="dot" style={{background:voiceMode?'var(--cyan)':'var(--tm)'}}></span>🎙 {voiceMode?'LUCY':'OFF'}</span>}
         <span className={`pill ${socStatus.running?'soc-on':'soc-off'}`}>🛡 {socStatus.running?`SOC·${socStatus.alertCount}`:'SOC OFF'}</span>
         <span className="pill vio">{providerInfo.provider==='venice'?'VEN':'GROK'}</span>
         <span className="pill cy click" onClick={()=>{send('task_list');setShowTasks(true)}}>⊞{tasks.filter(t=>t.status==='running').length}</span>
