@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Purple Bruce v5.0 — JARVIS</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--void:#050312;--bg:#0a0618;--surface:rgba(18,11,32,.72);--card:rgba(24,16,42,.65);--border:rgba(127,0,255,.22);--violet:#7F00FF;--violet-deep:#6B00B0;--violet-soft:#9a4dff;--vg:#7f00ff66;--vg-strong:#7f00ffcc;--red:#ff2d55;--rg:#ff2d5588;--cyan:#00f0ff;--cg:#00f0ff55;--mag:#ff2d95;--gold:#ffb347;--green:#39ff14;--purple:#a78bfa;--text:#e4dff5;--tb:#f6f1ff;--td:#8a82a8;--tm:#46405f;--f:'Share Tech Mono','Courier New',monospace;--fd:'Orbitron','Share Tech Mono',monospace;--rad-pill:999px;--rad-lg:18px;--rad-md:14px;--rad-sm:10px}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{min-height:100%}
+body{background:radial-gradient(1200px 600px at 80% -10%,rgba(127,0,255,.18),transparent 60%),radial-gradient(900px 500px at -10% 110%,rgba(0,240,255,.10),transparent 60%),radial-gradient(700px 400px at 50% 120%,rgba(255,45,149,.08),transparent 65%),var(--bg);color:var(--text);font-family:var(--f);overflow-x:hidden;min-height:100vh}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:linear-gradient(180deg,var(--violet),var(--violet-deep));border-radius:var(--rad-pill)}
+input,textarea,select{font-family:var(--f)}input::placeholder{color:var(--tm)}
+.crt{position:fixed;inset:0;pointer-events:none;z-index:9999;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.025) 2px,rgba(0,0,0,.025) 4px)}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}@keyframes pulse{0%,100%{opacity:.6}50%{opacity:1}}@keyframes glow{0%,100%{box-shadow:0 0 20px var(--vg),inset 0 0 20px rgba(127,0,255,.12)}50%{box-shadow:0 0 34px var(--vg-strong),inset 0 0 28px rgba(127,0,255,.22)}}
+@keyframes cmdPulse{0%,100%{border-color:var(--gold);box-shadow:0 0 12px rgba(255,179,71,.2)}50%{border-color:var(--violet);box-shadow:0 0 20px var(--vg)}}
+@keyframes socBlink{0%,100%{opacity:1}50%{opacity:.4}}
+.pulse{animation:pulse 2s infinite}.glow{animation:glow 3s ease-in-out infinite}
+.topbar{position:sticky;top:0;z-index:100;backdrop-filter:blur(18px) saturate(1.2);background:linear-gradient(180deg,rgba(10,6,24,.85),rgba(10,6,24,.55));border-bottom:1px solid var(--border);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.logo{font-family:var(--fd);font-weight:900;letter-spacing:2px;font-size:18px;background:linear-gradient(90deg,var(--violet-soft),var(--violet),var(--mag));-webkit-background-clip:text;background-clip:text;color:transparent}
+.logo .at{color:var(--cyan);-webkit-text-fill-color:var(--cyan);font-weight:700}
+.pill-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:var(--rad-pill);border:1px solid var(--border);background:rgba(20,14,34,.55);font-size:10px;font-family:var(--fd);letter-spacing:1.5px;color:var(--text);font-weight:700;cursor:default;white-space:nowrap}
+.pill.click{cursor:pointer;transition:.2s}.pill.click:hover{border-color:var(--violet);transform:translateY(-1px)}
+.pill .dot{width:7px;height:7px;border-radius:50%;display:inline-block;box-shadow:0 0 8px currentColor}
+.pill.on{color:var(--green);border-color:rgba(57,255,20,.35)}.pill.off{color:var(--red);border-color:rgba(255,45,85,.4)}
+.pill.vio{color:var(--violet-soft);border-color:rgba(127,0,255,.45)}.pill.cy{color:var(--cyan);border-color:rgba(0,240,255,.35)}.pill.mg{color:var(--mag);border-color:rgba(255,45,149,.35)}
+.pill.soc-on{color:var(--cyan);border-color:rgba(0,240,255,.4);animation:socBlink 3s infinite}.pill.soc-off{color:var(--tm);border-color:var(--border)}
+.pill.clock{color:var(--tb);font-variant-numeric:tabular-nums;font-size:11px;letter-spacing:2px}
+.tbar{position:fixed;bottom:12px;left:12px;right:12px;z-index:100;background:rgba(10,6,24,.75);backdrop-filter:blur(22px) saturate(1.3);border:1px solid var(--border);border-radius:var(--rad-pill);display:flex;padding:8px;gap:4px;box-shadow:0 8px 40px rgba(127,0,255,.18)}
+.tbtn{flex:1;background:0;border:0;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:8px 2px;border-radius:var(--rad-pill);transition:.2s}
+.tbtn .i{font-size:15px;transition:.2s}.tbtn .l{font-size:7.5px;font-family:var(--fd);letter-spacing:1.5px;font-weight:700}
+.tbtn.a{background:linear-gradient(180deg,rgba(127,0,255,.25),rgba(107,0,176,.12));box-shadow:0 0 18px var(--vg)}.tbtn.a .i{color:var(--violet-soft)}.tbtn.a .l{color:var(--violet-soft)}
+.tbtn:not(.a) .i,.tbtn:not(.a) .l{color:var(--tm)}.tbtn:not(.a):hover{background:rgba(127,0,255,.08)}
+.btn{background:linear-gradient(180deg,rgba(127,0,255,.18),rgba(107,0,176,.08));border:1px solid var(--violet);border-radius:var(--rad-pill);padding:10px 18px;color:var(--violet-soft);font-size:10px;font-weight:700;font-family:var(--fd);letter-spacing:2px;text-transform:uppercase;cursor:pointer;box-shadow:0 0 16px var(--vg);transition:transform .15s,box-shadow .2s}
+.btn:hover{transform:translateY(-1px);box-shadow:0 0 26px var(--vg-strong)}.btn:active{transform:translateY(0)}.btn:disabled{border-color:var(--tm);color:var(--tm);box-shadow:none;cursor:default;transform:none}
+.btn.s{padding:7px 12px;font-size:8.5px;letter-spacing:1.5px}
+.btn.cy{border-color:var(--cyan);color:var(--cyan);background:linear-gradient(180deg,rgba(0,240,255,.15),rgba(0,240,255,.04))}.btn.mg{border-color:var(--mag);color:var(--mag);background:linear-gradient(180deg,rgba(255,45,149,.16),rgba(255,45,149,.04))}.btn.gn{border-color:var(--green);color:var(--green);background:linear-gradient(180deg,rgba(57,255,20,.14),rgba(57,255,20,.04))}.btn.rd{border-color:var(--red);color:var(--red);background:linear-gradient(180deg,rgba(255,45,85,.16),rgba(255,45,85,.04))}
+.inp{width:100%;background:rgba(5,3,18,.7);border:1px solid var(--border);border-radius:var(--rad-md);padding:11px 14px;color:var(--text);font-size:12px;outline:0;transition:border-color .2s,box-shadow .2s}.inp:focus{border-color:var(--violet);box-shadow:0 0 0 3px rgba(127,0,255,.18)}
+.tout{background:rgba(5,3,18,.75);border:1px solid var(--border);border-radius:var(--rad-lg);padding:12px 14px;max-height:500px;overflow-y:auto;font-size:11px;line-height:1.7;box-shadow:inset 0 0 24px rgba(127,0,255,.06)}
+.tl{white-space:pre-wrap;word-break:break-word}.tl.stdout{color:var(--td)}.tl.stderr,.tl.warn{color:var(--gold)}.tl.error{color:var(--red)}.tl.info{color:var(--cyan)}.tl.cmd{color:var(--tb);font-weight:700}.tl.next{color:var(--mag)}
+.cb{max-width:90%;border-radius:var(--rad-lg);padding:10px 14px;backdrop-filter:blur(6px);margin-bottom:4px}
+.cb.user{align-self:flex-end;background:linear-gradient(135deg,rgba(127,0,255,.22),rgba(107,0,176,.12));border:1px solid rgba(127,0,255,.45)}
+.cb.assistant{align-self:flex-start;background:var(--card);border:1px solid var(--border)}
+.cb.tool{align-self:flex-start;background:rgba(0,240,255,.03);border:1px solid rgba(0,240,255,.18);max-width:95%;font-size:10px}
+.cb.soc{align-self:flex-start;background:rgba(255,45,85,.04);border:1px solid rgba(255,45,85,.2);max-width:95%}
+.cb.exec{align-self:flex-start;background:rgba(57,255,20,.03);border:1px solid rgba(57,255,20,.12);max-width:95%;font-size:10px}
+.approval{animation:cmdPulse 2s infinite;border-radius:var(--rad-md);padding:14px;margin:8px 0;background:linear-gradient(135deg,rgba(255,179,71,.06),rgba(127,0,255,.04))}
+.md{flex:1;background:rgba(20,14,34,.5);border:1px solid var(--border);border-radius:var(--rad-pill);padding:8px;color:var(--td);font-size:9px;font-family:var(--fd);letter-spacing:1.5px;cursor:pointer;font-weight:700;transition:.2s}.md.a{background:linear-gradient(180deg,rgba(127,0,255,.28),rgba(107,0,176,.12));border-color:var(--violet);color:var(--violet-soft)}
+.tc{background:var(--card);border:1px solid var(--border);border-radius:var(--rad-md);padding:10px 12px;cursor:pointer;text-align:left;width:100%;transition:.2s;backdrop-filter:blur(6px)}.tc:hover{border-color:rgba(127,0,255,.5)}.tc.a{background:linear-gradient(135deg,rgba(127,0,255,.22),rgba(255,45,149,.08));border-color:var(--violet)}
+.modal-overlay{position:fixed;inset:0;background:rgba(2,1,8,.72);backdrop-filter:blur(10px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:var(--surface);backdrop-filter:blur(24px) saturate(1.3);border:1px solid var(--border);border-radius:var(--rad-lg);padding:24px;width:100%;max-width:520px;max-height:82vh;overflow-y:auto;box-shadow:0 20px 80px rgba(127,0,255,.22)}
+.chk{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--card);border:1px solid var(--border);border-radius:var(--rad-md);margin-bottom:5px;cursor:pointer;font-size:11px;transition:.2s}.chk:hover{border-color:var(--violet)}.chk input{accent-color:var(--violet);width:15px;height:15px}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:var(--rad-lg);padding:14px 16px;backdrop-filter:blur(8px)}
+/* CoT styling */
+.cot-think{color:var(--gold);border-left:2px solid var(--gold);padding-left:8px;margin:3px 0}.cot-plan{color:var(--cyan);border-left:2px solid var(--cyan);padding-left:8px;margin:3px 0}.cot-cmd{color:var(--tb);background:rgba(127,0,255,.08);border:1px solid rgba(127,0,255,.2);border-radius:var(--rad-sm);padding:4px 8px;margin:3px 0;font-weight:700;display:inline-block}.cot-analysis{color:var(--green);border-left:2px solid var(--green);padding-left:8px;margin:3px 0}.cot-done{color:var(--green);font-weight:700}
+@media(max-width:420px){.logo{font-size:16px}.pill{font-size:9px;padding:4px 8px}}
+</style>
+</head>
+<body>
+<div class="crt"></div>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/babel">
+const{useState,useEffect,useRef,useCallback}=React;
+
+function useWS(){
+  const ws=useRef(null),handlers=useRef({}),[conn,setConn]=useState(false);
+  const connect=useCallback(()=>{
+    const w=new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}`);
+    w.onopen=()=>{setConn(true);ws.current=w};w.onclose=()=>{setConn(false);ws.current=null;setTimeout(connect,2000)};
+    w.onmessage=e=>{try{const m=JSON.parse(e.data);handlers.current[m.type]?.(m.data,m.channel)}catch{}};
+  },[]);
+  useEffect(()=>{connect();return()=>ws.current?.close()},[connect]);
+  const send=useCallback((a,d={})=>{if(ws.current?.readyState===1)ws.current.send(JSON.stringify({action:a,...d}))},[]);
+  const on=useCallback((t,h)=>{handlers.current[t]=h},[]);
+  return{send,on,conn};
+}
+function Term({lines,mh=500}){const r=useRef();useEffect(()=>{if(r.current)r.current.scrollTop=r.current.scrollHeight},[lines]);return(<div ref={r} className="tout" style={{maxHeight:mh,marginTop:8}}>{lines.map((l,i)=><div key={i} className={`tl ${l.type||'stdout'}`}>{l.text}</div>)}<span style={{color:'var(--cyan)',opacity:.6,animation:'blink 1s infinite'}}>█</span></div>);}
+
+/* ═══ Render AI response with CoT styling ═══ */
+function RenderCoT({text}){
+  const lines=text.split('\n');
+  return lines.map((l,i)=>{
+    const t=l.trim();
+    if(/^🧠\s*THINK:|^\[THINK\]/i.test(t))return<div key={i} className="cot-think">{t}</div>;
+    if(/^📋\s*PLAN:|^\[PLAN\]/i.test(t))return<div key={i} className="cot-plan">{t}</div>;
+    if(/^(⚡\s*)?CMD:/i.test(t))return<div key={i} className="cot-cmd">{t}</div>;
+    if(/^📊\s*ANALYSIS:|^\[ANALYSIS\]/i.test(t))return<div key={i} className="cot-analysis">{t}</div>;
+    if(/^🔄\s*NEXT:|^\[NEXT\]/i.test(t))return<div key={i} style={{color:'var(--mag)'}}>{t}</div>;
+    if(/^✅\s*DONE|^\[DONE\]/i.test(t))return<div key={i} className="cot-done">{t}</div>;
+    if(/🔴|CRITICAL/i.test(t))return<div key={i} style={{color:'var(--red)'}}>{t}</div>;
+    if(/🟠|HIGH/i.test(t))return<div key={i} style={{color:'var(--gold)'}}>{t}</div>;
+    return<div key={i}>{t}</div>;
+  });
+}
+
+const SettingsModal=({provider,grokHasKey,grokMask,veniceHasKey,veniceMask,setShowSettings,send,socRunning,socAutoRespond})=>{
+  const[gk,setGk]=useState('');const[vk,setVk]=useState('');
+  return(<div className="modal-overlay"><div className="modal" style={{border:'1px solid var(--cyan)'}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}><span style={{color:'var(--cyan)',fontSize:13,fontFamily:'var(--fd)',letterSpacing:3}}>SETTINGS</span><button className="btn s" onClick={()=>setShowSettings(false)} style={{borderColor:'var(--td)',color:'var(--td)'}}>CLOSE</button></div>
+    <div style={{color:'var(--td)',fontSize:10,marginBottom:8}}>AI PROVIDER</div>
+    <div style={{display:'flex',gap:8,marginBottom:14}}><button className={`btn s ${provider==='grok'?'gn':''}`} onClick={()=>send('set_provider',{provider:'grok'})} style={provider!=='grok'?{borderColor:'var(--td)',color:'var(--td)'}:{}}>GROK 3</button><button className={`btn s ${provider==='venice'?'mg':''}`} onClick={()=>send('set_provider',{provider:'venice'})} style={provider!=='venice'?{borderColor:'var(--td)',color:'var(--td)'}:{}}>VENICE</button></div>
+    <div style={{color:'var(--td)',fontSize:10,marginBottom:4}}>GROK KEY</div>
+    {grokHasKey&&<div style={{color:'var(--green)',fontSize:10,marginBottom:4}}>✓ {grokMask}</div>}
+    <div style={{display:'flex',gap:6,marginBottom:12}}><input value={gk} onChange={e=>setGk(e.target.value)} placeholder="xai-..." type="password" className="inp" style={{flex:1}}/><button className="btn s gn" onClick={()=>{if(gk.trim()){send('set_key',{key:gk.trim(),provider:'grok'});setGk('')}}}>SAVE</button></div>
+    <div style={{color:'var(--td)',fontSize:10,marginBottom:4}}>VENICE KEY</div>
+    {veniceHasKey&&<div style={{color:'var(--green)',fontSize:10,marginBottom:4}}>✓ {veniceMask}</div>}
+    <div style={{display:'flex',gap:6,marginBottom:14}}><input value={vk} onChange={e=>setVk(e.target.value)} placeholder="venice-..." type="password" className="inp" style={{flex:1}}/><button className="btn s mg" onClick={()=>{if(vk.trim()){send('set_key',{key:vk.trim(),provider:'venice'});setVk('')}}}>SAVE</button></div>
+    <div style={{borderTop:'1px solid var(--border)',paddingTop:12,marginTop:8}}>
+      <div style={{color:'var(--td)',fontSize:10,marginBottom:8}}>SOC ANALYST</div>
+      <div style={{display:'flex',gap:8}}><button className={`btn s ${socRunning?'gn':''}`} onClick={()=>send('soc_toggle',{enabled:!socRunning})}>{socRunning?'SOC: ON':'SOC: OFF'}</button><button className={`btn s ${socAutoRespond?'cy':''}`} onClick={()=>send('soc_auto_toggle',{enabled:!socAutoRespond})}>{socAutoRespond?'AUTO-RESPOND: ON':'AUTO-RESPOND: OFF'}</button></div>
+    </div>
+    <div style={{color:'var(--tm)',fontSize:9,marginTop:10}}>Scope: UNRESTRICTED — Full System Access</div>
+  </div></div>);
+};
+const TaskModal=({setShowTasks,tasks,send})=>(<div className="modal-overlay"><div className="modal" style={{border:'1px solid var(--cyan)'}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:14}}><span style={{color:'var(--cyan)',fontSize:13,fontFamily:'var(--fd)',letterSpacing:3}}>TASKS</span><button className="btn s" onClick={()=>setShowTasks(false)} style={{borderColor:'var(--td)',color:'var(--td)'}}>CLOSE</button></div><button className="btn s cy" onClick={()=>send('task_list')} style={{marginBottom:10}}>REFRESH</button>{tasks.length===0?<div style={{color:'var(--tm)',padding:20,textAlign:'center'}}>Empty</div>:<div style={{display:'flex',flexDirection:'column',gap:5}}>{tasks.map(t=>(<div key={t.id} style={{background:'var(--card)',border:`1px solid ${t.status==='running'?'var(--green)':'var(--border)'}`,borderRadius:'var(--rad-md)',padding:'7px 10px',display:'flex',justifyContent:'space-between',alignItems:'center'}}><div><div style={{color:t.status==='running'?'var(--green)':'var(--td)',fontSize:10,fontFamily:'var(--fd)'}}>{t.type.toUpperCase()}</div><div style={{color:'var(--text)',fontSize:9}}>{t.label}</div><div style={{color:'var(--tm)',fontSize:8}}>{t.id}|{t.status}</div></div>{t.status==='running'&&t.alive&&<button className="btn s" onClick={()=>send('task_kill',{id:t.id})}>KILL</button>}</div>))}</div>}</div></div>);
+
+const Home=({status,agentStatus,socStatus,tasks,setTab,setShowSettings,setShowTasks,provider})=>(<div style={{padding:'12px 16px 100px'}}>
+  <div style={{textAlign:'center',marginBottom:14}}><pre style={{color:'var(--violet-soft)',fontSize:6,lineHeight:1.05,textShadow:'0 0 12px var(--vg-strong)',whiteSpace:'pre',margin:0}}>{`██████╗ ██╗   ██╗██████╗ ██████╗ ██╗     ███████╗
+██╔══██╗██║   ██║██╔══██╗██╔══██╗██║     ██╔════╝
+██████╔╝██║   ██║██████╔╝██████╔╝██║     █████╗
+██╔═══╝ ██║   ██║██╔══██╗██╔═══╝ ██║     ██╔══╝
+██║     ╚██████╔╝██║  ██║██║     ███████╗███████╗
+╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚══════╝╚══════╝`}</pre>
+    <div style={{color:'var(--violet-soft)',fontSize:10,fontFamily:'var(--fd)',letterSpacing:4,marginTop:8}} className="pulse">J A R V I S · E D I T I O N</div>
+    <div style={{color:'var(--td)',fontSize:9,marginTop:4}}>v5.0 · {provider==='venice'?'Venice.ai':'Grok'} · Chat = Agent · SOC Active</div>
+  </div>
+  <div className="panel" style={{marginBottom:12}}>
+    <div style={{color:'var(--violet-soft)',fontSize:10,fontFamily:'var(--fd)',letterSpacing:3,marginBottom:8}}>STATUS</div>
+    {[['USER',status.user],['IP',status.ip],['AI',provider==='venice'?'Venice.ai':'Grok-3-mini','var(--mag)'],['AGENT',agentStatus.running?`ACTIVE R${agentStatus.round} ${agentStatus.autonomous?'[AUTO]':'[APR]'}`:'STANDBY — type to engage',agentStatus.running?'var(--green)':'var(--td)'],['SOC',socStatus.running?`ACTIVE · ${socStatus.alertCount} alerts · cycle ${socStatus.cycle}`:'OFFLINE',socStatus.running?'var(--cyan)':'var(--td)'],['SCOPE','localhost · LAN · own IP','var(--gold)']].map(([k,v,c])=>(<div key={k} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',borderBottom:'1px solid #1e163511'}}><span style={{color:'var(--td)',fontSize:10}}>{k}</span><span style={{color:c||'var(--text)',fontSize:10,maxWidth:'65%',textAlign:'right',overflow:'hidden',textOverflow:'ellipsis'}}>{v||'...'}</span></div>))}
+  </div>
+  <div onClick={()=>setTab('agent')} className="glow" style={{border:'1px solid var(--violet)',borderRadius:'var(--rad-lg)',padding:'16px 0',textAlign:'center',marginBottom:14,cursor:'pointer',background:'linear-gradient(135deg,rgba(127,0,255,.18),rgba(255,45,149,.08))'}}><span style={{color:'var(--violet-soft)',fontSize:12,fontFamily:'var(--fd)',letterSpacing:4}}>⬡ NETGHOST — TYPE TO ENGAGE ⬡</span></div>
+  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+    {[{i:'((◉))',l:'RECON',t:'scan',c:'var(--cyan)'},{i:'◇',l:'FORTRESS',t:'harden',c:'var(--green)'},{i:'◎',l:'GHOST',t:'hunt',c:'var(--gold)'},{i:'⬡',l:'NETGHOST',t:'agent',c:'var(--mag)'},{i:'⚡',l:'BLACK ICE',t:'red',c:'var(--violet-soft)'},{i:'⊞',l:'TASKS',t:'_t',c:'var(--cyan)'},{i:'⚙',l:'SETTINGS',t:'_s',c:'var(--td)'}].map(m=>(<button key={m.t} onClick={()=>m.t==='_s'?setShowSettings(true):m.t==='_t'?setShowTasks(true):setTab(m.t)} style={{background:'var(--card)',border:`1px solid ${m.c}44`,borderRadius:'var(--rad-md)',padding:'12px 4px',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:4}}><span style={{fontSize:18,color:m.c}}>{m.i}</span><span style={{color:m.c,fontSize:7.5,fontFamily:'var(--fd)',letterSpacing:1.5,fontWeight:700}}>{m.l}</span></button>))}
+  </div>
+</div>);
+
+const Scan=({scanMode,setScanMode,scanTarget,setScanTarget,doScan,scanning,scanOut})=>(<div style={{padding:'12px 16px 100px'}}><div style={{borderLeft:'2px solid var(--cyan)',paddingLeft:12,marginBottom:12}}><span style={{color:'var(--cyan)',fontSize:12,fontFamily:'var(--fd)',letterSpacing:4}}>RECON</span><div style={{color:'var(--td)',fontSize:10,marginTop:3}}>Target any IP / Domain</div></div><div style={{display:'flex',gap:6,marginBottom:8}}>{['QUICK','STANDARD','FULL','STEALTH'].map(m=><button key={m} className={`md ${scanMode===m?'a':''}`} onClick={()=>setScanMode(m)}>{m}</button>)}</div><div style={{display:'flex',gap:8,marginBottom:8}}><input value={scanTarget} onChange={e=>setScanTarget(e.target.value)} placeholder="target IP / domain" className="inp" style={{flex:1}} onKeyDown={e=>e.key==='Enter'&&doScan()}/><button className="btn s" onClick={doScan} disabled={scanning||!scanTarget.trim()}>{scanning?'◇':'SCAN'}</button></div>{scanOut.length>0&&<Term lines={scanOut}/>}</div>);
+const Harden=({hardenOut,hardening,doHarden})=>(<div style={{padding:'12px 16px 100px'}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:12}}><div style={{borderLeft:'2px solid var(--green)',paddingLeft:12}}><span style={{color:'var(--green)',fontSize:12,fontFamily:'var(--fd)',letterSpacing:4}}>FORTRESS</span></div><button className="btn s" onClick={doHarden} disabled={hardening}>{hardening?'◇':'AUDIT'}</button></div>{hardenOut.length===0?<div style={{textAlign:'center',padding:50,color:'var(--tm)'}}>Run AUDIT</div>:null}{hardenOut.length>0&&<Term lines={hardenOut}/>}</div>);
+const Hunt=({huntOut,hunting,doHunt})=>(<div style={{padding:'12px 16px 100px'}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:12}}><div style={{borderLeft:'2px solid var(--gold)',paddingLeft:12}}><span style={{color:'var(--gold)',fontSize:12,fontFamily:'var(--fd)',letterSpacing:4}}>GHOST PROTOCOL</span></div><button className="btn s" onClick={doHunt} disabled={hunting}>{hunting?'◇':'HUNT'}</button></div>{huntOut.length===0?<div style={{textAlign:'center',padding:50,color:'var(--tm)'}}>Start hunt</div>:null}{huntOut.length>0&&<Term lines={huntOut}/>}</div>);
+
+/* ═══ NETGHOST — CHAT IS THE AGENT ═══ */
+const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTasks,chat,thinking,pending,socAlerts,autonomous,setAutonomous})=>{
+  const[chatIn,setChatIn]=useState('');
+  const cr=useRef(),inputRef=useRef();
+  useEffect(()=>{if(cr.current)cr.current.scrollTop=cr.current.scrollHeight},[chat,thinking,pending,socAlerts]);
+  const doSend=(ov)=>{const m=ov||chatIn.trim();if(!m)return;if(!hasKey){setShowSettings(true);return}setChatIn('');send('chat',{message:m})};
+  const approve=(a)=>{if(pending)send('cmd_approve',{approve:a})};
+  const toggleAuto=()=>{const n=!autonomous;setAutonomous(n);send('autonomous_toggle',{enabled:n})};
+  const doExec=(cmd)=>send('exec_cmd',{cmd});
+  return(<div style={{display:'flex',flexDirection:'column',height:'calc(100vh - 56px)'}}>
+    <div style={{padding:'10px 16px 6px',flexShrink:0}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
+        <div style={{borderLeft:'2px solid var(--mag)',paddingLeft:10}}>
+          <span style={{color:'var(--mag)',fontSize:12,fontFamily:'var(--fd)',letterSpacing:3}}>NETGHOST</span>
+          {agentStatus.running&&<span style={{fontSize:8,padding:'2px 6px',border:'1px solid var(--green)',color:'var(--green)',borderRadius:'var(--rad-md)',marginLeft:8}} className="pulse">R{agentStatus.round}</span>}
+          <div style={{color:'var(--td)',fontSize:9,marginTop:3}}>Chat = Agent · {providerInfo.provider==='venice'?'Venice':'Grok'} · UNRESTRICTED ACCESS</div>
+        </div>
+        <div style={{display:'flex',gap:5}}><button onClick={()=>{send('task_list');setShowTasks(true)}} style={{background:0,border:0,color:'var(--cyan)',fontSize:14,cursor:'pointer'}}>⊞</button><button onClick={()=>setShowSettings(true)} style={{background:0,border:0,color:'var(--td)',fontSize:14,cursor:'pointer'}}>⚙</button></div>
+      </div>
+      {!hasKey&&<div onClick={()=>setShowSettings(true)} style={{background:'#f5a62311',border:'1px solid #f5a62333',borderRadius:'var(--rad-md)',padding:'6px 10px',marginBottom:4,cursor:'pointer'}}><span style={{color:'var(--gold)',fontSize:9}}>⚠ API key needed</span></div>}
+      <div style={{display:'flex',gap:6,alignItems:'center'}}>
+        <label style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:9,color:autonomous?'var(--green)':'var(--td)',padding:'3px 8px',border:`1px solid ${autonomous?'var(--green)':'var(--border)'}`,borderRadius:'var(--rad-pill)'}} onClick={toggleAuto}>
+          <span style={{width:6,height:6,borderRadius:'50%',background:autonomous?'var(--green)':'var(--tm)'}}></span>{autonomous?'AUTONOMOUS':'APPROVAL'}
+        </label>
+        {agentStatus.running&&<button className="btn s rd" onClick={()=>send('agent_abort')} style={{padding:'4px 10px'}}>ABORT</button>}
+        <button className="btn s" onClick={()=>{send('clear_chat')}} style={{borderColor:'var(--tm)',color:'var(--tm)',marginLeft:'auto',padding:'4px 10px'}}>CLEAR</button>
+      </div>
+    </div>
+    <div ref={cr} style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column',gap:4,padding:'4px 16px',minHeight:0}}>
+      {chat.length===0&&<div style={{textAlign:'center',margin:'30px 0',padding:16,border:'1px dashed #ff2d9544',borderRadius:'var(--rad-md)'}}>
+        <div style={{color:'var(--mag)',fontSize:13,fontFamily:'var(--fd)',letterSpacing:4}}>N E T G H O S T</div>
+        <div style={{color:'var(--mag)',fontSize:10,opacity:.7,marginTop:5}}>Type anything · I think · plan · execute · iterate</div>
+        <div style={{color:'var(--td)',fontSize:8,marginTop:8}}>Commands are REAL · Unrestricted Target Scope · All actions logged</div>
+        <div style={{display:'flex',flexWrap:'wrap',gap:5,justifyContent:'center',marginTop:12}}>
+          {['Full recon on my system','Find all security holes','Check for rootkits','PrivEsc vectors','Analyze my network','Credential audit'].map(q=>(<button key={q} onClick={()=>doSend(q)} style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'var(--rad-pill)',padding:'5px 10px',color:'var(--td)',fontSize:9,cursor:'pointer'}}>{q}</button>))}
+        </div>
+      </div>}
+      {chat.map((m,i)=>{
+        const isTool=m.meta==='tool';const isSoc=m.meta==='soc';const isExec=m.meta==='exec'||m.meta==='result';
+        const cls=isSoc?'soc':isTool?'tool':isExec?'exec':m.role==='user'?'user':'assistant';
+        const label=isSoc?'🛡 SOC ANALYST':isTool?'⚡ EXECUTION':isExec?'⚙ SYSTEM':m.role==='user'?'NETRUNNER':'🧠 NETGHOST';
+        const lc=isSoc?'var(--red)':isTool?'var(--cyan)':isExec?'var(--green)':m.role==='user'?'var(--purple)':'var(--mag)';
+        return(<div key={i} className={`cb ${cls}`}>
+          <div style={{color:lc,fontSize:7.5,fontFamily:'var(--fd)',letterSpacing:2,marginBottom:3}}>{label}</div>
+          <div style={{color:'var(--text)',fontSize:11,whiteSpace:'pre-wrap',lineHeight:1.6}}>
+            {m.role==='assistant'?<RenderCoT text={m.content}/>:m.content}
+          </div>
+          {m.role==='assistant'&&m.content.includes('CMD:')&&!agentStatus.running&&<div style={{marginTop:6,display:'flex',flexWrap:'wrap',gap:4}}>
+            {m.content.split('\n').filter(l=>/CMD:/.test(l)).map((l,j)=>{const c=l.replace(/^(⚡\s*)?CMD:\s*/,'').trim();return<button key={j} className="btn s cy" onClick={()=>doExec(c)} style={{fontSize:8}}>▶ {c.slice(0,30)}{c.length>30?'...':''}</button>})}
+          </div>}
+        </div>);
+      })}
+      {thinking&&<div style={{color:'var(--mag)',fontSize:11,padding:'8px 0'}} className="pulse">🧠 NetGhost thinking... {agentStatus.round>0?`(round ${agentStatus.round})`:''}</div>}
+      {pending&&!autonomous&&<div className="approval">
+        <div style={{color:'var(--gold)',fontSize:9,fontFamily:'var(--fd)',letterSpacing:2,marginBottom:5}}>⚠ APPROVE REAL COMMAND?</div>
+        <div style={{background:'rgba(5,3,18,.6)',border:'1px solid var(--border)',borderRadius:'var(--rad-sm)',padding:'6px 8px',marginBottom:6,fontSize:11,color:'var(--tb)',wordBreak:'break-all',fontFamily:'var(--f)'}}>{pending.cmd}</div>
+        <div style={{display:'flex',gap:8}}><button className="btn s gn" onClick={()=>approve(true)}>EXECUTE</button><button className="btn s rd" onClick={()=>approve(false)}>REJECT</button></div>
+      </div>}
+    </div>
+    <div style={{padding:'6px 16px 70px',flexShrink:0,borderTop:'1px solid var(--border)',background:'rgba(10,6,24,.6)',backdropFilter:'blur(12px)'}}>
+      <div style={{display:'flex',gap:6}}><input ref={inputRef} value={chatIn} onChange={e=>setChatIn(e.target.value)} placeholder={agentStatus.running?'Agent active — type to queue...':'Talk to NetGhost...'} className="inp" style={{flex:1}} onKeyDown={e=>{if(e.key==='Enter')doSend()}}/><button className="btn s mg" onClick={()=>doSend()} disabled={!chatIn.trim()}>⬡</button></div>
+    </div>
+  </div>);
+};
+
+const RedTab=({send,redOut,preview,setPreview,clearRedOut,running,setRunning})=>{
+  const[sel,setSel]=useState(null);const[chk,setChk]=useState([]);
+  const tactics=[{id:'cred-dump',mitre:'T1003',name:'CRED DUMP',d:87},{id:'lateral',mitre:'T1021',name:'LATERAL',d:74},{id:'c2-https',mitre:'T1071',name:'C2 HTTPS',d:38},{id:'ransomware',mitre:'T1486',name:'RANSOM',d:95},{id:'fileless',mitre:'T1546',name:'FILELESS',d:29},{id:'sched-task',mitre:'T1053',name:'SCHED',d:81},{id:'dns-exfil',mitre:'T1048',name:'DNS EXFIL',d:44},{id:'persistence',mitre:'T1053',name:'PERSIST',d:70},{id:'recon',mitre:'T1082',name:'RECON',d:90},{id:'discovery',mitre:'T1046',name:'DISCOVER',d:60},{id:'exfiltration',mitre:'T1048',name:'EXFIL',d:50}];
+  const pick=(t)=>{setSel(t.id);setPreview(null);setChk([]);clearRedOut();setRunning(false);send('red_preview',{tactic:t.id})};
+  const exec=()=>{if(!sel)return;clearRedOut();setRunning(true);send('red_execute',{tactic:sel,commandIndices:chk.length>0?chk:undefined})};
+  return(<div style={{padding:'12px 16px 100px'}}><div style={{borderLeft:'2px solid var(--violet)',paddingLeft:12,marginBottom:10}}><span style={{color:'var(--violet-soft)',fontSize:13,fontFamily:'var(--fd)',letterSpacing:4}}>BLACK ICE</span><div style={{color:'var(--td)',fontSize:9,marginTop:4}}>MITRE ATT&CK · Real commands · Unrestricted Scope</div></div>
+    <div style={{display:'flex',gap:8}}><div style={{width:'38%',display:'flex',flexDirection:'column',gap:3}}>{tactics.map(t=>(<button key={t.id} className={`tc ${sel===t.id?'a':''}`} onClick={()=>pick(t)} style={{padding:'7px 10px'}}><div style={{color:'var(--td)',fontSize:7}}>{t.mitre}</div><div style={{color:sel===t.id?'var(--violet-soft)':'var(--text)',fontSize:8,fontFamily:'var(--fd)',fontWeight:700}}>{t.name}</div><div style={{width:'100%',height:2,background:'var(--border)',marginTop:4,borderRadius:'var(--rad-pill)'}}><div style={{width:`${t.d}%`,height:'100%',background:t.d>80?'var(--green)':t.d>50?'var(--gold)':'var(--violet-soft)',borderRadius:'var(--rad-pill)'}}/></div></button>))}</div>
+      <div style={{flex:1}}>{!preview&&redOut.length===0&&<div style={{textAlign:'center',padding:30,border:'1px dashed var(--border)',borderRadius:'var(--rad-md)',color:'var(--tm)',fontSize:10}}>SELECT TACTIC</div>}
+        {preview&&<div><div style={{color:'var(--violet-soft)',fontSize:11,fontFamily:'var(--fd)',marginBottom:4}}>{preview.mitre} — {preview.name}</div><div style={{color:'var(--td)',fontSize:9,marginBottom:8}}>{preview.description}</div>{preview.commands.map(c=>(<label key={c.index} className="chk" onClick={()=>setChk(p=>p.includes(c.index)?p.filter(i=>i!==c.index):[...p,c.index])}><input type="checkbox" checked={chk.includes(c.index)} onChange={()=>{}}/><div><div style={{color:'var(--text)',fontSize:10}}>{c.label}</div><div style={{color:'var(--tm)',fontSize:8}}>{c.cmd.slice(0,55)}{c.cmd.length>55?'...':''}</div></div></label>))}<div style={{display:'flex',gap:6,marginTop:8}}><button className="btn s" onClick={exec} disabled={running}>{chk.length>0?`EXEC ${chk.length}`:'EXEC ALL'}</button><button className="btn s gn" onClick={()=>setChk(preview.commands.map(c=>c.index))}>ALL</button><button className="btn s" onClick={()=>setChk([])} style={{borderColor:'var(--td)',color:'var(--td)'}}>CLR</button></div></div>}
+        {redOut.length>0&&<div style={{marginTop:8}}><Term lines={redOut}/></div>}
+      </div>
+    </div>
+  </div>);
+};
+
+function App(){
+  const{send,on,conn}=useWS();
+  const[tab,setTab]=useState('home');const[time,setTime]=useState(new Date());const[status,setStatus]=useState({});
+  const[scanTarget,setScanTarget]=useState('');const[scanMode,setScanMode]=useState('STANDARD');
+  const[scanOut,setScanOut]=useState([]);const[scanning,setScanning]=useState(false);
+  const[hardenOut,setHardenOut]=useState([]);const[hardening,setHardening]=useState(false);
+  const[huntOut,setHuntOut]=useState([]);const[hunting,setHunting]=useState(false);
+  const[redOut,setRedOut]=useState([]);const[redRunning,setRedRunning]=useState(false);const[redPreview,setRedPreview]=useState(null);
+  const[showSettings,setShowSettings]=useState(false);const[showTasks,setShowTasks]=useState(false);const[tasks,setTasks]=useState([]);
+  const[providerInfo,setProviderInfo]=useState({provider:'grok',grokHasKey:false,veniceHasKey:false});
+  const[agentStatus,setAgentStatus]=useState({running:false,autonomous:false,round:0,pendingCmd:null});
+  const[socStatus,setSocStatus]=useState({running:false,autoRespond:true,alertCount:0,cycle:0});
+  const[chat,setChat]=useState([]);const[thinking,setThinking]=useState(false);const[pending,setPending]=useState(null);
+  const[autonomous,setAutonomous]=useState(false);
+
+  useEffect(()=>{const iv=setInterval(()=>setTime(new Date()),1000);return()=>clearInterval(iv)},[]);
+  useEffect(()=>{
+    on('terminal',d=>{const l={text:d.text,type:d.type};if(d.channel==='scan')setScanOut(p=>[...p,l]);else if(d.channel==='harden')setHardenOut(p=>[...p,l]);else if(d.channel==='hunt')setHuntOut(p=>[...p,l]);else if(d.channel==='red')setRedOut(p=>[...p,l])});
+    on('red_done',()=>setRedRunning(false));
+    on('provider_status',d=>setProviderInfo(d));on('key_saved',()=>send('get_provider'));
+    on('status',d=>setStatus(d));on('task_list',d=>setTasks(d));
+    on('task_registered',()=>send('task_list'));on('task_completed',()=>send('task_list'));on('task_killed',()=>send('task_list'));
+    on('agent_status',d=>{setAgentStatus(d);if(d.autonomous!==undefined)setAutonomous(d.autonomous);if(!d.running){setThinking(false);setPending(null)}});
+    on('soc_status',d=>setSocStatus(d));
+    on('chat_message',d=>{setChat(p=>[...p,d]);setThinking(false)});
+    on('chat_history',d=>setChat(d.map(h=>({role:h.role,content:h.content,meta:h.meta}))));
+    on('chat_cleared',()=>setChat([]));
+    on('chat_thinking',()=>setThinking(true));
+    on('cmd_pending',d=>{setPending(d);setThinking(false)});
+    on('cmd_executing',()=>setPending(null));
+    on('cmd_result',d=>{setChat(p=>[...p,{role:'system',content:`${d.ok?'✓':'✗'} ${d.cmd}\n${d.output}`,meta:d.ok?'result':'error'}])});
+    on('soc_alert',d=>{setChat(p=>[...p,{role:'system',content:`🛡 SOC [${d.severity}] ${d.type}\n${d.detail}`,meta:'soc'}]);setSocStatus(s=>({...s,alertCount:s.alertCount+1}))});
+    on('soc_response',d=>{setChat(p=>[...p,{role:'system',content:`🛡 SOC AUTO-RESPONSE: ${d.actions.join(' | ')}`,meta:'soc'}])});
+    on('red_preview',d=>setRedPreview(d));
+  },[on,send]);
+  useEffect(()=>{if(conn){send('get_provider');send('get_status');send('task_list');send('get_chat_history')}},[conn,send]);
+  useEffect(()=>{const l=scanOut[scanOut.length-1];if(l?.text?.includes('complete'))setScanning(false)},[scanOut]);
+  useEffect(()=>{const l=hardenOut[hardenOut.length-1];if(l?.text?.includes('complete'))setHardening(false)},[hardenOut]);
+  useEffect(()=>{const l=huntOut[huntOut.length-1];if(l?.text?.includes('complete'))setHunting(false)},[huntOut]);
+
+  const hasKey=providerInfo.provider==='venice'?providerInfo.veniceHasKey:providerInfo.grokHasKey;
+  const doScan=()=>{if(!scanTarget.trim())return;setScanning(true);setScanOut([]);send('scan',{target:scanTarget.trim(),mode:scanMode})};
+  const doHarden=()=>{setHardening(true);setHardenOut([]);send('harden')};
+  const doHunt=()=>{setHunting(true);setHuntOut([]);send('hunt')};
+
+  return(<div>
+    {showSettings&&<SettingsModal {...providerInfo} setShowSettings={setShowSettings} send={send} socRunning={socStatus.running} socAutoRespond={socStatus.autoRespond}/>}
+    {showTasks&&<TaskModal setShowTasks={setShowTasks} tasks={tasks} send={send}/>}
+    <div className="topbar">
+      <span className="logo">pb<span className="at">@</span>v5</span>
+      <div className="pill-row">
+        {agentStatus.running&&<span className="pill mg pulse"><span className="dot" style={{background:'var(--mag)'}}></span>R{agentStatus.round}</span>}
+        <span className={`pill ${socStatus.running?'soc-on':'soc-off'}`}>🛡 {socStatus.running?`SOC·${socStatus.alertCount}`:'SOC OFF'}</span>
+        <span className="pill vio">{providerInfo.provider==='venice'?'VEN':'GROK'}</span>
+        <span className="pill cy click" onClick={()=>{send('task_list');setShowTasks(true)}}>⊞{tasks.filter(t=>t.status==='running').length}</span>
+        <span className={`pill ${conn?'on':'off'}`}><span className="dot" style={{background:conn?'var(--green)':'var(--red)'}}></span>{conn?'UP':'DOWN'}</span>
+        <span className="pill clock">{time.toLocaleTimeString()}</span>
+      </div>
+    </div>
+    {tab==='home'&&<Home status={status} agentStatus={agentStatus} socStatus={socStatus} tasks={tasks} setTab={setTab} setShowSettings={setShowSettings} setShowTasks={setShowTasks} provider={providerInfo.provider}/>}
+    {tab==='scan'&&<Scan scanMode={scanMode} setScanMode={setScanMode} scanTarget={scanTarget} setScanTarget={setScanTarget} doScan={doScan} scanning={scanning} scanOut={scanOut}/>}
+    {tab==='harden'&&<Harden hardenOut={hardenOut} hardening={hardening} doHarden={doHarden}/>}
+    {tab==='hunt'&&<Hunt huntOut={huntOut} hunting={hunting} doHunt={doHunt}/>}
+    {tab==='agent'&&<AgentTab send={send} hasKey={hasKey} setShowSettings={setShowSettings} agentStatus={agentStatus} providerInfo={providerInfo} setShowTasks={setShowTasks} chat={chat} thinking={thinking} pending={pending} socAlerts={[]} autonomous={autonomous} setAutonomous={setAutonomous}/>}
+    {tab==='red'&&<RedTab send={send} redOut={redOut} preview={redPreview} setPreview={setRedPreview} clearRedOut={()=>setRedOut([])} running={redRunning} setRunning={setRedRunning}/>}
+    <div className="tbar">
+      {[{id:'home',i:'>_',l:'DECK'},{id:'scan',i:'((◉))',l:'RECON'},{id:'harden',i:'◇',l:'FORT'},{id:'hunt',i:'◎',l:'GHOST'},{id:'agent',i:'⬡',l:'AI'},{id:'red',i:'⚡',l:'ICE'}].map(t=>(<button key={t.id} className={`tbtn ${tab===t.id?'a':''}`} onClick={()=>setTab(t.id)}><span className="i">{t.i}</span><span className="l">{t.l}</span>{tab===t.id&&<div style={{width:16,height:2,background:'var(--violet-soft)',borderRadius:'var(--rad-pill)',marginTop:2}}/>}</button>))}
+    </div>
+  </div>);
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
