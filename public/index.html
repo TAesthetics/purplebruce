@@ -80,6 +80,58 @@ function useWS(){
 }
 function Term({lines,mh=500}){const r=useRef();useEffect(()=>{if(r.current)r.current.scrollTop=r.current.scrollHeight},[lines]);return(<div ref={r} className="tout" style={{maxHeight:mh,marginTop:8}}>{lines.map((l,i)=><div key={i} className={`tl ${l.type||'stdout'}`}>{l.text}</div>)}<span style={{color:'var(--cyan)',opacity:.6,animation:'blink 1s infinite'}}>█</span></div>);}
 
+/* ═══ VOICE — Web Speech API (STT + TTS) ═══ */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+const voiceSupported=!!SR&&!!window.speechSynthesis;
+function speakableText(text){
+  const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
+  const out=[];
+  for(const l of lines){
+    if(/^(⚡\s*)?CMD:/i.test(l))continue;
+    if(/^🧠\s*THINK:|^\[THINK\]/i.test(l))continue;
+    if(/^📋\s*PLAN:|^\[PLAN\]/i.test(l))continue;
+    let t=l;
+    t=t.replace(/^SAY:\s*/i,'');
+    t=t.replace(/^📊\s*ANALYSIS:\s*/i,'');
+    t=t.replace(/^🔄\s*NEXT:\s*/i,'Next: ');
+    t=t.replace(/^✅\s*DONE\s*:?\s*/i,'Done. ');
+    t=t.replace(/[🧠📋⚡📊🔄✅⬡🛡🔴🟠🟡🟢]/g,'');
+    t=t.replace(/`[^`]*`/g,'');
+    if(t)out.push(t);
+  }
+  return out.join(' ').slice(0,600);
+}
+function speak(text){
+  try{
+    if(!window.speechSynthesis)return;
+    const clean=speakableText(text);
+    if(!clean)return;
+    window.speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(clean);
+    u.rate=1.05;u.pitch=1.0;u.volume=1.0;
+    const voices=window.speechSynthesis.getVoices();
+    const pref=voices.find(v=>/en-(US|GB)/i.test(v.lang)&&/(Google|Samantha|Daniel|Alex)/i.test(v.name))||voices.find(v=>/^en/i.test(v.lang))||voices[0];
+    if(pref)u.voice=pref;
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+function stopSpeaking(){try{window.speechSynthesis?.cancel()}catch{}}
+function useMic({onFinal,onInterim}){
+  const[listening,setListening]=useState(false);
+  const rec=useRef(null);
+  const start=useCallback(()=>{
+    if(!SR){alert('Voice not supported in this browser. Try Chrome/Edge on HTTPS or localhost.');return}
+    try{
+      const r=new SR();r.lang='en-US';r.interimResults=true;r.continuous=false;
+      r.onresult=e=>{let interim='',final='';for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0].transcript;if(e.results[i].isFinal)final+=t;else interim+=t}if(interim)onInterim?.(interim);if(final)onFinal?.(final.trim())};
+      r.onend=()=>setListening(false);r.onerror=()=>setListening(false);
+      r.start();rec.current=r;setListening(true);
+    }catch(e){setListening(false)}
+  },[onFinal,onInterim]);
+  const stop=useCallback(()=>{try{rec.current?.stop()}catch{}setListening(false)},[]);
+  return{listening,start,stop,supported:!!SR};
+}
+
 /* ═══ Render AI response with CoT styling ═══ */
 function RenderCoT({text}){
   const lines=text.split('\n');
@@ -143,14 +195,19 @@ const Harden=({hardenOut,hardening,doHarden})=>(<div style={{padding:'12px 16px 
 const Hunt=({huntOut,hunting,doHunt})=>(<div style={{padding:'12px 16px 100px'}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:12}}><div style={{borderLeft:'2px solid var(--gold)',paddingLeft:12}}><span style={{color:'var(--gold)',fontSize:12,fontFamily:'var(--fd)',letterSpacing:4}}>GHOST PROTOCOL</span></div><button className="btn s" onClick={doHunt} disabled={hunting}>{hunting?'◇':'HUNT'}</button></div>{huntOut.length===0?<div style={{textAlign:'center',padding:50,color:'var(--tm)'}}>Start hunt</div>:null}{huntOut.length>0&&<Term lines={huntOut}/>}</div>);
 
 /* ═══ NETGHOST — CHAT IS THE AGENT ═══ */
-const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTasks,chat,thinking,pending,socAlerts,autonomous,setAutonomous})=>{
+const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTasks,chat,thinking,pending,socAlerts,autonomous,setAutonomous,voiceMode,setVoiceMode})=>{
   const[chatIn,setChatIn]=useState('');
   const cr=useRef(),inputRef=useRef();
   useEffect(()=>{if(cr.current)cr.current.scrollTop=cr.current.scrollHeight},[chat,thinking,pending,socAlerts]);
   const doSend=(ov)=>{const m=ov||chatIn.trim();if(!m)return;if(!hasKey){setShowSettings(true);return}setChatIn('');send('chat',{message:m})};
   const approve=(a)=>{if(pending)send('cmd_approve',{approve:a})};
   const toggleAuto=()=>{const n=!autonomous;setAutonomous(n);send('autonomous_toggle',{enabled:n})};
+  const toggleVoice=()=>{const n=!voiceMode;setVoiceMode(n);send('voice_mode_toggle',{enabled:n});if(!n)stopSpeaking()};
   const doExec=(cmd)=>send('exec_cmd',{cmd});
+  const mic=useMic({
+    onInterim:t=>setChatIn(t),
+    onFinal:t=>{setChatIn('');if(t)doSend(t)},
+  });
   return(<div style={{display:'flex',flexDirection:'column',height:'calc(100vh - 56px)'}}>
     <div style={{padding:'10px 16px 6px',flexShrink:0}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
@@ -162,12 +219,15 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
         <div style={{display:'flex',gap:5}}><button onClick={()=>{send('task_list');setShowTasks(true)}} style={{background:0,border:0,color:'var(--cyan)',fontSize:14,cursor:'pointer'}}>⊞</button><button onClick={()=>setShowSettings(true)} style={{background:0,border:0,color:'var(--td)',fontSize:14,cursor:'pointer'}}>⚙</button></div>
       </div>
       {!hasKey&&<div onClick={()=>setShowSettings(true)} style={{background:'#f5a62311',border:'1px solid #f5a62333',borderRadius:'var(--rad-md)',padding:'6px 10px',marginBottom:4,cursor:'pointer'}}><span style={{color:'var(--gold)',fontSize:9}}>⚠ API key needed</span></div>}
-      <div style={{display:'flex',gap:6,alignItems:'center'}}>
+      <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
         <label style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:9,color:autonomous?'var(--green)':'var(--td)',padding:'3px 8px',border:`1px solid ${autonomous?'var(--green)':'var(--border)'}`,borderRadius:'var(--rad-pill)'}} onClick={toggleAuto}>
           <span style={{width:6,height:6,borderRadius:'50%',background:autonomous?'var(--green)':'var(--tm)'}}></span>{autonomous?'AUTONOMOUS':'APPROVAL'}
         </label>
+        {voiceSupported&&<label style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:9,color:voiceMode?'var(--cyan)':'var(--td)',padding:'3px 8px',border:`1px solid ${voiceMode?'var(--cyan)':'var(--border)'}`,borderRadius:'var(--rad-pill)'}} onClick={toggleVoice}>
+          <span style={{width:6,height:6,borderRadius:'50%',background:voiceMode?'var(--cyan)':'var(--tm)'}}></span>{voiceMode?'VOICE ON':'VOICE OFF'}
+        </label>}
         {agentStatus.running&&<button className="btn s rd" onClick={()=>send('agent_abort')} style={{padding:'4px 10px'}}>ABORT</button>}
-        <button className="btn s" onClick={()=>{send('clear_chat')}} style={{borderColor:'var(--tm)',color:'var(--tm)',marginLeft:'auto',padding:'4px 10px'}}>CLEAR</button>
+        <button className="btn s" onClick={()=>{stopSpeaking();send('clear_chat')}} style={{borderColor:'var(--tm)',color:'var(--tm)',marginLeft:'auto',padding:'4px 10px'}}>CLEAR</button>
       </div>
     </div>
     <div ref={cr} style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column',gap:4,padding:'4px 16px',minHeight:0}}>
@@ -202,7 +262,11 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
       </div>}
     </div>
     <div style={{padding:'6px 16px 70px',flexShrink:0,borderTop:'1px solid var(--border)',background:'rgba(10,6,24,.6)',backdropFilter:'blur(12px)'}}>
-      <div style={{display:'flex',gap:6}}><input ref={inputRef} value={chatIn} onChange={e=>setChatIn(e.target.value)} placeholder={agentStatus.running?'Agent active — type to queue...':'Talk to NetGhost...'} className="inp" style={{flex:1}} onKeyDown={e=>{if(e.key==='Enter')doSend()}}/><button className="btn s mg" onClick={()=>doSend()} disabled={!chatIn.trim()}>⬡</button></div>
+      <div style={{display:'flex',gap:6,alignItems:'center'}}>
+        <input ref={inputRef} value={chatIn} onChange={e=>setChatIn(e.target.value)} placeholder={mic.listening?'🎙 listening...':agentStatus.running?'Agent active — type to queue...':'Talk to NetGhost...'} className="inp" style={{flex:1}} onKeyDown={e=>{if(e.key==='Enter')doSend()}}/>
+        {mic.supported&&<button onClick={()=>mic.listening?mic.stop():mic.start()} title={mic.listening?'Stop listening':'Voice input'} style={{background:mic.listening?'linear-gradient(180deg,rgba(255,45,85,.35),rgba(255,45,85,.15))':'linear-gradient(180deg,rgba(0,240,255,.18),rgba(0,240,255,.05))',border:`1px solid ${mic.listening?'var(--red)':'var(--cyan)'}`,borderRadius:'50%',width:38,height:38,cursor:'pointer',color:mic.listening?'var(--red)':'var(--cyan)',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:mic.listening?'0 0 18px rgba(255,45,85,.5)':'0 0 12px rgba(0,240,255,.25)',flexShrink:0}} className={mic.listening?'pulse':''}>{mic.listening?'◉':'🎙'}</button>}
+        <button className="btn s mg" onClick={()=>doSend()} disabled={!chatIn.trim()}>⬡</button>
+      </div>
     </div>
   </div>);
 };
@@ -236,6 +300,9 @@ function App(){
   const[socStatus,setSocStatus]=useState({running:false,autoRespond:true,alertCount:0,cycle:0});
   const[chat,setChat]=useState([]);const[thinking,setThinking]=useState(false);const[pending,setPending]=useState(null);
   const[autonomous,setAutonomous]=useState(false);
+  const[voiceMode,setVoiceMode]=useState(false);
+  const voiceModeRef=useRef(false);
+  useEffect(()=>{voiceModeRef.current=voiceMode},[voiceMode]);
 
   useEffect(()=>{const iv=setInterval(()=>setTime(new Date()),1000);return()=>clearInterval(iv)},[]);
   useEffect(()=>{
@@ -244,9 +311,9 @@ function App(){
     on('provider_status',d=>setProviderInfo(d));on('key_saved',()=>send('get_provider'));
     on('status',d=>setStatus(d));on('task_list',d=>setTasks(d));
     on('task_registered',()=>send('task_list'));on('task_completed',()=>send('task_list'));on('task_killed',()=>send('task_list'));
-    on('agent_status',d=>{setAgentStatus(d);if(d.autonomous!==undefined)setAutonomous(d.autonomous);if(!d.running){setThinking(false);setPending(null)}});
+    on('agent_status',d=>{setAgentStatus(d);if(d.autonomous!==undefined)setAutonomous(d.autonomous);if(d.voiceMode!==undefined)setVoiceMode(d.voiceMode);if(!d.running){setThinking(false);setPending(null)}});
     on('soc_status',d=>setSocStatus(d));
-    on('chat_message',d=>{setChat(p=>[...p,d]);setThinking(false)});
+    on('chat_message',d=>{setChat(p=>[...p,d]);setThinking(false);if(voiceModeRef.current&&d.role==='assistant'&&d.meta!=='tool')speak(d.content)});
     on('chat_history',d=>setChat(d.map(h=>({role:h.role,content:h.content,meta:h.meta}))));
     on('chat_cleared',()=>setChat([]));
     on('chat_thinking',()=>setThinking(true));
@@ -274,6 +341,7 @@ function App(){
       <span className="logo">pb<span className="at">@</span>v5</span>
       <div className="pill-row">
         {agentStatus.running&&<span className="pill mg pulse"><span className="dot" style={{background:'var(--mag)'}}></span>R{agentStatus.round}</span>}
+        {voiceSupported&&<span className={`pill ${voiceMode?'cy':''} click`} onClick={()=>{const n=!voiceMode;setVoiceMode(n);send('voice_mode_toggle',{enabled:n});if(!n)stopSpeaking()}} title="Voice mode (STT + TTS)"><span className="dot" style={{background:voiceMode?'var(--cyan)':'var(--tm)'}}></span>🎙 {voiceMode?'ON':'OFF'}</span>}
         <span className={`pill ${socStatus.running?'soc-on':'soc-off'}`}>🛡 {socStatus.running?`SOC·${socStatus.alertCount}`:'SOC OFF'}</span>
         <span className="pill vio">{providerInfo.provider==='venice'?'VEN':'GROK'}</span>
         <span className="pill cy click" onClick={()=>{send('task_list');setShowTasks(true)}}>⊞{tasks.filter(t=>t.status==='running').length}</span>
@@ -285,7 +353,7 @@ function App(){
     {tab==='scan'&&<Scan scanMode={scanMode} setScanMode={setScanMode} scanTarget={scanTarget} setScanTarget={setScanTarget} doScan={doScan} scanning={scanning} scanOut={scanOut}/>}
     {tab==='harden'&&<Harden hardenOut={hardenOut} hardening={hardening} doHarden={doHarden}/>}
     {tab==='hunt'&&<Hunt huntOut={huntOut} hunting={hunting} doHunt={doHunt}/>}
-    {tab==='agent'&&<AgentTab send={send} hasKey={hasKey} setShowSettings={setShowSettings} agentStatus={agentStatus} providerInfo={providerInfo} setShowTasks={setShowTasks} chat={chat} thinking={thinking} pending={pending} socAlerts={[]} autonomous={autonomous} setAutonomous={setAutonomous}/>}
+    {tab==='agent'&&<AgentTab send={send} hasKey={hasKey} setShowSettings={setShowSettings} agentStatus={agentStatus} providerInfo={providerInfo} setShowTasks={setShowTasks} chat={chat} thinking={thinking} pending={pending} socAlerts={[]} autonomous={autonomous} setAutonomous={setAutonomous} voiceMode={voiceMode} setVoiceMode={setVoiceMode}/>}
     {tab==='red'&&<RedTab send={send} redOut={redOut} preview={redPreview} setPreview={setRedPreview} clearRedOut={()=>setRedOut([])} running={redRunning} setRunning={setRedRunning}/>}
     <div className="tbar">
       {[{id:'home',i:'>_',l:'DECK'},{id:'scan',i:'((◉))',l:'RECON'},{id:'harden',i:'◇',l:'FORT'},{id:'hunt',i:'◎',l:'GHOST'},{id:'agent',i:'⬡',l:'AI'},{id:'red',i:'⚡',l:'ICE'}].map(t=>(<button key={t.id} className={`tbtn ${tab===t.id?'a':''}`} onClick={()=>setTab(t.id)}><span className="i">{t.i}</span><span className="l">{t.l}</span>{tab===t.id&&<div style={{width:16,height:2,background:'var(--violet-soft)',borderRadius:'var(--rad-pill)',marginTop:2}}/>}</button>))}

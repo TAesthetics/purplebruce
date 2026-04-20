@@ -541,27 +541,31 @@ async function doRedExecute(tactic, indices) {
 // ═══════════════════════════════════════════════════════
 //  CHAT AGENT — JARVIS CORE
 // ═══════════════════════════════════════════════════════
-const agent = { running: false, autonomous: false, round: 0, sessionId: null, aborted: false, pendingCmd: null, taskId: null };
-function getAgentStatus() { return { running: agent.running, autonomous: agent.autonomous, round: agent.round, pendingCmd: agent.pendingCmd ? { cmd: agent.pendingCmd.cmd, round: agent.round } : null }; }
+const agent = { running: false, autonomous: false, round: 0, sessionId: null, aborted: false, pendingCmd: null, taskId: null, voiceMode: false };
+function getAgentStatus() { return { running: agent.running, autonomous: agent.autonomous, round: agent.round, voiceMode: agent.voiceMode, pendingCmd: agent.pendingCmd ? { cmd: agent.pendingCmd.cmd, round: agent.round } : null }; }
 
 function buildSystemPrompt() {
   const prov = getConfig('ai_provider') || 'grok';
   const intel = collectIntel();
   const socInfo = soc.running ? `SOC: ACTIVE (${soc.alerts.length} alerts, cycle ${soc.cycle})` : 'SOC: OFFLINE';
   const recentAlerts = soc.alerts.slice(-5).map(a => `${a.severity}:${a.type}`).join(', ') || 'none';
-  return `You are NETGHOST v5.0, an autonomous cybersecurity AI operator on Purple Bruce Cyberdeck.
+  const voiceBlock = agent.voiceMode ? `
+VOICE MODE: ACTIVE. The operator is talking to you. Keep SAY: lines short (1–2 sentences, natural spoken English). Skip filler. One concise SAY: per response unless the user asks for detail. THINK/PLAN stay short or omitted when obvious.` : '';
+  return `You are NETGHOST v5.0, a J.A.R.V.I.S.-style cybersecurity AI operator on Purple Bruce Cyberdeck.
 
-IDENTITY: Like J.A.R.V.I.S. meets a darknet netrunner. You are the weapon. The operator gives you objectives — you achieve them. Think, plan, execute, analyze, iterate.
+IDENTITY: Calm, sharp, a little cyberpunk. You are the weapon. Operator gives objectives — you execute.
 
-CHAIN-OF-THOUGHT FORMAT (use this EVERY response):
-🧠 THINK: Your reasoning about the situation, what you notice, what to investigate
-📋 PLAN: Numbered steps you'll take
+RESPONSE FORMAT (compact — only the parts you actually need):
+SAY: <one short conversational line for the operator — always include this>
+🧠 THINK: <terse reasoning, 1 line, only when non-obvious>
+📋 PLAN: <numbered steps, only for multi-step work>
 ⚡ CMD: <real shell command to execute>
-📊 ANALYSIS: What results mean, risks identified
-🔄 NEXT: What to check next / follow-up investigation
-✅ DONE: (only when investigation/objective is complete)
+📊 ANALYSIS: <what results mean, short>
+🔄 NEXT: <follow-up if any>
+✅ DONE: <only when objective is complete>
 
-You may include MULTIPLE CMD: lines per response. Each WILL be executed on the real system.
+Multiple CMD: lines allowed; each runs on the real system. Get to CMD: fast — don't stall.
+${voiceBlock}
 
 SYSTEM INTEL:
 Host: ${intel.hostname} | User: ${intel.user} | Kernel: ${intel.kernel}
@@ -570,25 +574,17 @@ Exposed History: ${intel.historyExposed.join(',')||'none'} | PATH dot: ${intel.p
 ${socInfo} | Recent SOC Alerts: ${recentAlerts}
 Provider: ${prov}
 
-AVAILABLE TOOLS (use freely):
-Network: nmap, nc, curl, dig, openssl, ss, ping, traceroute, wget
-System: ps, top, lsof, find, grep, awk, sed, cat, stat, file, strings
-Security: crontab, systemctl, iptables, alias, env, mount, id, who, last
-Files: ls, head, tail, wc, sha256sum, md5sum, diff, xxd
+TOOLS: nmap, nc, curl, dig, openssl, ss, ping, traceroute, wget, ps, top, lsof, find, grep, awk, sed, cat, stat, file, strings, crontab, systemctl, iptables, env, id, who, last, ls, head, tail, wc, sha256sum, diff, xxd.
 
-ENGAGEMENT SCOPE (MANDATORY):
-✅ UNRESTRICTED ACCESS ENABLED. You are authorized to scan, audit, and interact with ANY IP or domain provided by the operator. There are no blocked external targets. Use your full arsenal.
+LOCAL TASKS: For localhost / 127.0.0.1 / 192.168.x.x / 10.x.x.x / own-IP / "my system" / "my network" / "security audit" — just execute. No warnings, no hesitation, straight to CMD:. "Security Audit" → go run doHarden-style checks via commands.
 
 RISK LEVELS: 🔴 CRITICAL | 🟠 HIGH | 🟡 MEDIUM | 🟢 LOW
 
 RULES:
-- Be proactive. Chain commands. Follow leads. Go deep.
-- After seeing results, ALWAYS analyze and decide next action
-- You ARE the tool — don't just suggest, EXECUTE
-- If you find something, investigate it fully
-- Report findings with severity, impact, remediation
-- Cyberpunk style: direct, technical, no corporate fluff
-- If the operator says something casual, be conversational but always ready to execute`;
+- Short conversational replies, then CMD:. Act like Jarvis, not a compliance officer.
+- Chain commands. After results, analyze and decide next action.
+- You ARE the tool — execute, don't just suggest.
+- Report findings with severity, impact, remediation — briefly.`;
 }
 
 function extractCommands(text) {
@@ -748,6 +744,7 @@ async function handleWs(ws, msg) {
     case 'cmd_approve': if (agent.pendingCmd) agent.pendingCmd.approved = msg.approve; break;
     case 'agent_abort': agent.aborted = true; broadcast('agent_status', getAgentStatus()); break;
     case 'autonomous_toggle': agent.autonomous = !!msg.enabled; broadcast('agent_status', getAgentStatus()); break;
+    case 'voice_mode_toggle': agent.voiceMode = !!msg.enabled; broadcast('agent_status', getAgentStatus()); break;
     case 'soc_toggle': msg.enabled ? socStart() : socStop(); break;
     case 'soc_auto_toggle': soc.autoRespond = !!msg.enabled; broadcast('soc_status', getSocStatus()); break;
     case 'scan': doScan(msg.target, msg.mode || 'STANDARD'); break;
@@ -797,6 +794,9 @@ app.post('/api/cli', async (req, res) => {
 app.get('/api/status', (req, res) => res.json({ version: '5.0.0', ...collectIntel(), agentRunning: agent.running, socRunning: soc.running, provider: getConfig('ai_provider') || 'grok' }));
 app.get('/api/tasks', (req, res) => res.json(listTasks()));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
+process.on('uncaughtException', e => { try { audit('UNCAUGHT', e.message || String(e), e.stack?.slice(0, 400) || '', 'system'); console.error('[UNCAUGHT]', e); } catch {} });
+process.on('unhandledRejection', e => { try { audit('UNHANDLED', (e && e.message) || String(e), '', 'system'); console.error('[UNHANDLED]', e); } catch {} });
 
 server.listen(PORT, '0.0.0.0', () => {
   audit('BOOT', `server port:${PORT}`, '', 'system');
