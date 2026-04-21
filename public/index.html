@@ -156,16 +156,60 @@ try{if(window.speechSynthesis){window.speechSynthesis.getVoices();window.speechS
 function useMic({onFinal,onInterim}){
   const[listening,setListening]=useState(false);
   const rec=useRef(null);
+  const userStopped=useRef(false);
+  const accumulated=useRef('');
   const start=useCallback(()=>{
     if(!SR){alert('Voice not supported in this browser. Try Chrome/Edge on HTTPS or localhost.');return}
-    try{
-      const r=new SR();r.lang='en-US';r.interimResults=true;r.continuous=false;
-      r.onresult=e=>{let interim='',final='';for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0].transcript;if(e.results[i].isFinal)final+=t;else interim+=t}if(interim)onInterim?.(interim);if(final)onFinal?.(final.trim())};
-      r.onend=()=>setListening(false);r.onerror=()=>setListening(false);
-      r.start();rec.current=r;setListening(true);
-    }catch(e){setListening(false)}
+    userStopped.current=false;
+    accumulated.current='';
+    const boot=()=>{
+      try{
+        const r=new SR();
+        r.lang='en-US';
+        r.interimResults=true;
+        r.continuous=true;
+        r.onresult=e=>{
+          let interim='';
+          for(let i=e.resultIndex;i<e.results.length;i++){
+            const t=e.results[i][0].transcript;
+            if(e.results[i].isFinal)accumulated.current=(accumulated.current+' '+t).trim();
+            else interim+=t;
+          }
+          const combined=(accumulated.current+' '+interim).trim();
+          if(combined)onInterim?.(combined);
+        };
+        r.onend=()=>{
+          /* If the user didn't hit stop, the browser ended on silence
+             (Chrome ~60s). Re-arm quietly so the session keeps going. */
+          if(!userStopped.current){
+            setTimeout(()=>{if(!userStopped.current)boot()},150);
+          }else{
+            setListening(false);
+            const final=accumulated.current.trim();
+            accumulated.current='';
+            if(final)onFinal?.(final);
+          }
+        };
+        r.onerror=e=>{
+          /* no-speech / aborted: onend will fire and we'll auto-restart.
+             Anything else: give up gracefully. */
+          if(e&&e.error&&e.error!=='no-speech'&&e.error!=='aborted'){
+            userStopped.current=true;
+            setListening(false);
+          }
+        };
+        r.start();
+        rec.current=r;
+        setListening(true);
+      }catch(e){setListening(false)}
+    };
+    boot();
   },[onFinal,onInterim]);
-  const stop=useCallback(()=>{try{rec.current?.stop()}catch{}setListening(false)},[]);
+  const stop=useCallback(()=>{
+    userStopped.current=true;
+    try{rec.current?.stop()}catch{}
+    /* setListening(false) + onFinal fire from onend */
+  },[]);
   return{listening,start,stop,supported:!!SR};
 }
 
