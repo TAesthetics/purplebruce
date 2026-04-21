@@ -156,60 +156,97 @@ try{if(window.speechSynthesis){window.speechSynthesis.getVoices();window.speechS
 function useMic({onFinal,onInterim}){
   const[listening,setListening]=useState(false);
   const rec=useRef(null);
-  const userStopped=useRef(false);
+  const shouldListen=useRef(false);
   const accumulated=useRef('');
+  const backoff=useRef(0);
+
+  const safeStart=useCallback(r=>{
+    try{r.start()}
+    catch(e){
+      /* InvalidStateError when already started — ignore.
+         Anything else: schedule a retry via onend. */
+      if(!/already|invalid/i.test(String(e?.message||e)))console.warn('SR start error',e);
+    }
+  },[]);
+
   const start=useCallback(()=>{
     if(!SR){alert('Voice not supported in this browser. Try Chrome/Edge on HTTPS or localhost.');return}
-    userStopped.current=false;
+    if(shouldListen.current)return;
+    shouldListen.current=true;
     accumulated.current='';
-    const boot=()=>{
-      try{
-        const r=new SR();
-        r.lang='en-US';
-        r.interimResults=true;
-        r.continuous=true;
-        r.onresult=e=>{
-          let interim='';
-          for(let i=e.resultIndex;i<e.results.length;i++){
-            const t=e.results[i][0].transcript;
-            if(e.results[i].isFinal)accumulated.current=(accumulated.current+' '+t).trim();
-            else interim+=t;
-          }
-          const combined=(accumulated.current+' '+interim).trim();
-          if(combined)onInterim?.(combined);
-        };
-        r.onend=()=>{
-          /* If the user didn't hit stop, the browser ended on silence
-             (Chrome ~60s). Re-arm quietly so the session keeps going. */
-          if(!userStopped.current){
-            setTimeout(()=>{if(!userStopped.current)boot()},150);
-          }else{
-            setListening(false);
-            const final=accumulated.current.trim();
-            accumulated.current='';
-            if(final)onFinal?.(final);
-          }
-        };
-        r.onerror=e=>{
-          /* no-speech / aborted: onend will fire and we'll auto-restart.
-             Anything else: give up gracefully. */
-          if(e&&e.error&&e.error!=='no-speech'&&e.error!=='aborted'){
-            userStopped.current=true;
-            setListening(false);
-          }
-        };
-        r.start();
-        rec.current=r;
-        setListening(true);
-      }catch(e){setListening(false)}
+    backoff.current=0;
+
+    /* One recognizer, reused across restarts. Creating a new instance
+       every cycle is what makes Chrome drop the session. */
+    const r=new SR();
+    r.lang='en-US';
+    r.interimResults=true;
+    r.continuous=true;
+
+    r.onstart=()=>{
+      /* Only turn the UI on once the engine is actually listening,
+         so we don't flash "on" and immediately back "off". */
+      backoff.current=0;
+      setListening(true);
     };
-    boot();
-  },[onFinal,onInterim]);
+
+    r.onresult=e=>{
+      let interim='';
+      for(let i=e.resultIndex;i<e.results.length;i++){
+        const t=e.results[i][0].transcript;
+        if(e.results[i].isFinal)accumulated.current=(accumulated.current+' '+t).trim();
+        else interim+=t;
+      }
+      const combined=(accumulated.current+' '+interim).trim();
+      if(combined)onInterim?.(combined);
+    };
+
+    r.onend=()=>{
+      if(shouldListen.current){
+        /* Chrome ends the session on silence / every ~60s / sometimes
+           seemingly at random. Restart the SAME recognizer with a tiny
+           backoff; don't flip the UI off in between. */
+        const delay=Math.min(Math.max(backoff.current,120)*1.4,1500);
+        backoff.current=delay;
+        setTimeout(()=>{if(shouldListen.current)safeStart(r)},delay);
+      }else{
+        setListening(false);
+        const final=accumulated.current.trim();
+        accumulated.current='';
+        if(final)onFinal?.(final);
+      }
+    };
+
+    r.onerror=e=>{
+      const err=e&&e.error;
+      /* Truly fatal — no point retrying. */
+      if(err==='not-allowed'||err==='service-not-allowed'){
+        shouldListen.current=false;
+        setListening(false);
+        alert('Microphone blocked. Allow mic access in the browser and reload.');
+        return;
+      }
+      if(err==='audio-capture'){
+        shouldListen.current=false;
+        setListening(false);
+        alert('No microphone detected.');
+        return;
+      }
+      /* Transient (no-speech, aborted, network, language-not-supported,
+         bad-grammar): onend will fire and we'll restart automatically. */
+    };
+
+    rec.current=r;
+    safeStart(r);
+  },[onFinal,onInterim,safeStart]);
+
   const stop=useCallback(()=>{
-    userStopped.current=true;
+    shouldListen.current=false;
     try{rec.current?.stop()}catch{}
-    /* setListening(false) + onFinal fire from onend */
+    /* onend finalises: flips listening off and fires onFinal with the
+       accumulated transcript. */
   },[]);
+
   return{listening,start,stop,supported:!!SR};
 }
 
