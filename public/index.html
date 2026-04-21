@@ -85,15 +85,19 @@ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 const voiceSupported=!!SR&&!!window.speechSynthesis;
 function speakableText(text){
   const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
+  /* Prefer the SAY: line — that's Lucy. Fall back to analysis/next/done. */
+  const sayLines=lines.filter(l=>/^SAY:\s*/i.test(l)).map(l=>l.replace(/^SAY:\s*/i,''));
+  if(sayLines.length){
+    return sayLines.join(' ').replace(/[🧠📋⚡📊🔄✅⬡🛡🔴🟠🟡🟢]/g,'').replace(/`[^`]*`/g,'').slice(0,400);
+  }
   const out=[];
   for(const l of lines){
     if(/^(⚡\s*)?CMD:/i.test(l))continue;
     if(/^🧠\s*THINK:|^\[THINK\]/i.test(l))continue;
     if(/^📋\s*PLAN:|^\[PLAN\]/i.test(l))continue;
     let t=l;
-    t=t.replace(/^SAY:\s*/i,'');
     t=t.replace(/^📊\s*ANALYSIS:\s*/i,'');
-    t=t.replace(/^🔄\s*NEXT:\s*/i,'Next: ');
+    t=t.replace(/^🔄\s*NEXT:\s*/i,'Next, ');
     t=t.replace(/^✅\s*DONE\s*:?\s*/i,'Done. ');
     t=t.replace(/[🧠📋⚡📊🔄✅⬡🛡🔴🟠🟡🟢]/g,'');
     t=t.replace(/`[^`]*`/g,'');
@@ -101,34 +105,148 @@ function speakableText(text){
   }
   return out.join(' ').slice(0,600);
 }
+/* Lucy voice: cool, quiet, a little melancholic.
+   Slow rate, lower pitch, prefer a soft female en-US/en-GB voice.
+   Neural/Online voices first — they read pauses better. */
+function pickLucyVoice(){
+  try{
+    const v=window.speechSynthesis.getVoices();
+    if(!v||!v.length)return null;
+    const prefs=[
+      /Aria.*Natural/i,/Jenny.*Natural/i,/Michelle.*Natural/i,/Emma.*Natural/i,
+      /Google UK English Female/i,/Google US English/i,
+      /Samantha/i,/Serena/i,/Allison/i,/Ava/i,/Karen/i,/Fiona/i,/Moira/i,/Tessa/i,
+      /Microsoft Aria/i,/Microsoft Jenny/i,/Microsoft Zira/i,/Microsoft Hazel/i
+    ];
+    for(const re of prefs){const m=v.find(x=>re.test(x.name));if(m)return m}
+    return v.find(x=>/en-(US|GB)/i.test(x.lang)&&/female/i.test(x.name))
+         ||v.find(x=>/en-(US|GB)/i.test(x.lang))
+         ||v.find(x=>/^en/i.test(x.lang))||v[0];
+  }catch{return null}
+}
+/* Split into sentence-ish chunks so the synth renders natural pauses
+   instead of rushing one long line. Queue them back-to-back. */
+function splitForLucy(text){
+  const raw=text.replace(/\s+/g,' ').trim();
+  if(!raw)return [];
+  const parts=raw.split(/(?<=[.!?…])\s+|\s*—\s+/).map(s=>s.trim()).filter(Boolean);
+  return parts.length?parts:[raw];
+}
 function speak(text){
   try{
     if(!window.speechSynthesis)return;
     const clean=speakableText(text);
     if(!clean)return;
     window.speechSynthesis.cancel();
-    const u=new SpeechSynthesisUtterance(clean);
-    u.rate=1.05;u.pitch=1.0;u.volume=1.0;
-    const voices=window.speechSynthesis.getVoices();
-    const pref=voices.find(v=>/en-(US|GB)/i.test(v.lang)&&/(Google|Samantha|Daniel|Alex)/i.test(v.name))||voices.find(v=>/^en/i.test(v.lang))||voices[0];
-    if(pref)u.voice=pref;
-    window.speechSynthesis.speak(u);
+    const voice=pickLucyVoice();
+    const chunks=splitForLucy(clean);
+    chunks.forEach((chunk,i)=>{
+      const u=new SpeechSynthesisUtterance(chunk);
+      /* slow, low, quiet — Lucy on the wire */
+      u.rate=0.88;u.pitch=0.78;u.volume=0.95;
+      if(voice)u.voice=voice;
+      /* tiny stagger so sentences don't blur together */
+      setTimeout(()=>{try{window.speechSynthesis.speak(u)}catch{}},i*40);
+    });
   }catch(e){}
 }
 function stopSpeaking(){try{window.speechSynthesis?.cancel()}catch{}}
+/* Some browsers populate voices async — warm them up. */
+try{if(window.speechSynthesis){window.speechSynthesis.getVoices();window.speechSynthesis.onvoiceschanged=()=>window.speechSynthesis.getVoices()}}catch{}
 function useMic({onFinal,onInterim}){
   const[listening,setListening]=useState(false);
   const rec=useRef(null);
+  const shouldListen=useRef(false);
+  const accumulated=useRef('');
+  const backoff=useRef(0);
+
+  const safeStart=useCallback(r=>{
+    try{r.start()}
+    catch(e){
+      /* InvalidStateError when already started — ignore.
+         Anything else: schedule a retry via onend. */
+      if(!/already|invalid/i.test(String(e?.message||e)))console.warn('SR start error',e);
+    }
+  },[]);
+
   const start=useCallback(()=>{
     if(!SR){alert('Voice not supported in this browser. Try Chrome/Edge on HTTPS or localhost.');return}
-    try{
-      const r=new SR();r.lang='en-US';r.interimResults=true;r.continuous=false;
-      r.onresult=e=>{let interim='',final='';for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0].transcript;if(e.results[i].isFinal)final+=t;else interim+=t}if(interim)onInterim?.(interim);if(final)onFinal?.(final.trim())};
-      r.onend=()=>setListening(false);r.onerror=()=>setListening(false);
-      r.start();rec.current=r;setListening(true);
-    }catch(e){setListening(false)}
-  },[onFinal,onInterim]);
-  const stop=useCallback(()=>{try{rec.current?.stop()}catch{}setListening(false)},[]);
+    if(shouldListen.current)return;
+    shouldListen.current=true;
+    accumulated.current='';
+    backoff.current=0;
+
+    /* One recognizer, reused across restarts. Creating a new instance
+       every cycle is what makes Chrome drop the session. */
+    const r=new SR();
+    r.lang='en-US';
+    r.interimResults=true;
+    r.continuous=true;
+
+    r.onstart=()=>{
+      /* Only turn the UI on once the engine is actually listening,
+         so we don't flash "on" and immediately back "off". */
+      backoff.current=0;
+      setListening(true);
+    };
+
+    r.onresult=e=>{
+      let interim='';
+      for(let i=e.resultIndex;i<e.results.length;i++){
+        const t=e.results[i][0].transcript;
+        if(e.results[i].isFinal)accumulated.current=(accumulated.current+' '+t).trim();
+        else interim+=t;
+      }
+      const combined=(accumulated.current+' '+interim).trim();
+      if(combined)onInterim?.(combined);
+    };
+
+    r.onend=()=>{
+      if(shouldListen.current){
+        /* Chrome ends the session on silence / every ~60s / sometimes
+           seemingly at random. Restart the SAME recognizer with a tiny
+           backoff; don't flip the UI off in between. */
+        const delay=Math.min(Math.max(backoff.current,120)*1.4,1500);
+        backoff.current=delay;
+        setTimeout(()=>{if(shouldListen.current)safeStart(r)},delay);
+      }else{
+        setListening(false);
+        const final=accumulated.current.trim();
+        accumulated.current='';
+        if(final)onFinal?.(final);
+      }
+    };
+
+    r.onerror=e=>{
+      const err=e&&e.error;
+      /* Truly fatal — no point retrying. */
+      if(err==='not-allowed'||err==='service-not-allowed'){
+        shouldListen.current=false;
+        setListening(false);
+        alert('Microphone blocked. Allow mic access in the browser and reload.');
+        return;
+      }
+      if(err==='audio-capture'){
+        shouldListen.current=false;
+        setListening(false);
+        alert('No microphone detected.');
+        return;
+      }
+      /* Transient (no-speech, aborted, network, language-not-supported,
+         bad-grammar): onend will fire and we'll restart automatically. */
+    };
+
+    rec.current=r;
+    safeStart(r);
+  },[onFinal,onInterim,safeStart]);
+
+  const stop=useCallback(()=>{
+    shouldListen.current=false;
+    try{rec.current?.stop()}catch{}
+    /* onend finalises: flips listening off and fires onFinal with the
+       accumulated transcript. */
+  },[]);
+
   return{listening,start,stop,supported:!!SR};
 }
 
@@ -212,9 +330,9 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
     <div style={{padding:'10px 16px 6px',flexShrink:0}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
         <div style={{borderLeft:'2px solid var(--mag)',paddingLeft:10}}>
-          <span style={{color:'var(--mag)',fontSize:12,fontFamily:'var(--fd)',letterSpacing:3}}>NETGHOST</span>
+          <span style={{color:voiceMode?'var(--cyan)':'var(--mag)',fontSize:12,fontFamily:'var(--fd)',letterSpacing:3,transition:'color .3s'}}>{voiceMode?'LUCY · NETGHOST':'NETGHOST'}</span>
           {agentStatus.running&&<span style={{fontSize:8,padding:'2px 6px',border:'1px solid var(--green)',color:'var(--green)',borderRadius:'var(--rad-md)',marginLeft:8}} className="pulse">R{agentStatus.round}</span>}
-          <div style={{color:'var(--td)',fontSize:9,marginTop:3}}>Chat = Agent · {providerInfo.provider==='venice'?'Venice':'Grok'} · UNRESTRICTED ACCESS</div>
+          <div style={{color:'var(--td)',fontSize:9,marginTop:3}}>{voiceMode?'Voice Persona: Lucy · Night City uplink':`Chat = Agent · ${providerInfo.provider==='venice'?'Venice':'Grok'}`}</div>
         </div>
         <div style={{display:'flex',gap:5}}><button onClick={()=>{send('task_list');setShowTasks(true)}} style={{background:0,border:0,color:'var(--cyan)',fontSize:14,cursor:'pointer'}}>⊞</button><button onClick={()=>setShowSettings(true)} style={{background:0,border:0,color:'var(--td)',fontSize:14,cursor:'pointer'}}>⚙</button></div>
       </div>
@@ -223,8 +341,8 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
         <label style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:9,color:autonomous?'var(--green)':'var(--td)',padding:'3px 8px',border:`1px solid ${autonomous?'var(--green)':'var(--border)'}`,borderRadius:'var(--rad-pill)'}} onClick={toggleAuto}>
           <span style={{width:6,height:6,borderRadius:'50%',background:autonomous?'var(--green)':'var(--tm)'}}></span>{autonomous?'AUTONOMOUS':'APPROVAL'}
         </label>
-        {voiceSupported&&<label style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:9,color:voiceMode?'var(--cyan)':'var(--td)',padding:'3px 8px',border:`1px solid ${voiceMode?'var(--cyan)':'var(--border)'}`,borderRadius:'var(--rad-pill)'}} onClick={toggleVoice}>
-          <span style={{width:6,height:6,borderRadius:'50%',background:voiceMode?'var(--cyan)':'var(--tm)'}}></span>{voiceMode?'VOICE ON':'VOICE OFF'}
+        {voiceSupported&&<label style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:9,color:voiceMode?'var(--cyan)':'var(--td)',padding:'3px 8px',border:`1px solid ${voiceMode?'var(--cyan)':'var(--border)'}`,borderRadius:'var(--rad-pill)',boxShadow:voiceMode?'0 0 10px var(--cg)':'none'}} onClick={toggleVoice}>
+          <span style={{width:6,height:6,borderRadius:'50%',background:voiceMode?'var(--cyan)':'var(--tm)'}}></span>{voiceMode?'LUCY · VOICE ON':'VOICE OFF'}
         </label>}
         {agentStatus.running&&<button className="btn s rd" onClick={()=>send('agent_abort')} style={{padding:'4px 10px'}}>ABORT</button>}
         <button className="btn s" onClick={()=>{stopSpeaking();send('clear_chat')}} style={{borderColor:'var(--tm)',color:'var(--tm)',marginLeft:'auto',padding:'4px 10px'}}>CLEAR</button>
@@ -264,7 +382,7 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
     <div style={{padding:'6px 16px 70px',flexShrink:0,borderTop:'1px solid var(--border)',background:'rgba(10,6,24,.6)',backdropFilter:'blur(12px)'}}>
       <div style={{display:'flex',gap:6,alignItems:'center'}}>
         <input ref={inputRef} value={chatIn} onChange={e=>setChatIn(e.target.value)} placeholder={mic.listening?'🎙 listening...':agentStatus.running?'Agent active — type to queue...':'Talk to NetGhost...'} className="inp" style={{flex:1}} onKeyDown={e=>{if(e.key==='Enter')doSend()}}/>
-        {mic.supported&&<button onClick={()=>mic.listening?mic.stop():mic.start()} title={mic.listening?'Stop listening':'Voice input'} style={{background:mic.listening?'linear-gradient(180deg,rgba(255,45,85,.35),rgba(255,45,85,.15))':'linear-gradient(180deg,rgba(0,240,255,.18),rgba(0,240,255,.05))',border:`1px solid ${mic.listening?'var(--red)':'var(--cyan)'}`,borderRadius:'50%',width:38,height:38,cursor:'pointer',color:mic.listening?'var(--red)':'var(--cyan)',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:mic.listening?'0 0 18px rgba(255,45,85,.5)':'0 0 12px rgba(0,240,255,.25)',flexShrink:0}} className={mic.listening?'pulse':''}>{mic.listening?'◉':'🎙'}</button>}
+        {mic.supported&&<button onClick={()=>mic.listening?mic.stop():mic.start()} title={mic.listening?'Stop listening':voiceMode?'Talk to Lucy':'Voice input'} style={{background:mic.listening?'linear-gradient(180deg,rgba(255,45,85,.4),rgba(255,45,85,.18))':voiceMode?'linear-gradient(180deg,rgba(0,240,255,.32),rgba(127,0,255,.18))':'linear-gradient(180deg,rgba(0,240,255,.2),rgba(0,240,255,.06))',border:`2px solid ${mic.listening?'var(--red)':voiceMode?'var(--cyan)':'var(--cyan)'}`,borderRadius:'50%',width:48,height:48,cursor:'pointer',color:mic.listening?'var(--red)':'var(--cyan)',fontSize:20,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:mic.listening?'0 0 26px rgba(255,45,85,.7)':voiceMode?'0 0 22px var(--cg),0 0 40px rgba(127,0,255,.25)':'0 0 14px rgba(0,240,255,.3)',flexShrink:0,transition:'transform .15s,box-shadow .2s'}} className={mic.listening?'pulse':''}>{mic.listening?'◉':'🎙'}</button>}
         <button className="btn s mg" onClick={()=>doSend()} disabled={!chatIn.trim()}>⬡</button>
       </div>
     </div>
@@ -341,7 +459,7 @@ function App(){
       <span className="logo">pb<span className="at">@</span>v5</span>
       <div className="pill-row">
         {agentStatus.running&&<span className="pill mg pulse"><span className="dot" style={{background:'var(--mag)'}}></span>R{agentStatus.round}</span>}
-        {voiceSupported&&<span className={`pill ${voiceMode?'cy':''} click`} onClick={()=>{const n=!voiceMode;setVoiceMode(n);send('voice_mode_toggle',{enabled:n});if(!n)stopSpeaking()}} title="Voice mode (STT + TTS)"><span className="dot" style={{background:voiceMode?'var(--cyan)':'var(--tm)'}}></span>🎙 {voiceMode?'ON':'OFF'}</span>}
+        {voiceSupported&&<span className={`pill ${voiceMode?'cy':''} click ${voiceMode?'pulse':''}`} onClick={()=>{const n=!voiceMode;setVoiceMode(n);send('voice_mode_toggle',{enabled:n});if(!n)stopSpeaking()}} title={voiceMode?'Lucy voice on — tap to mute':'Tap for Lucy voice mode'} style={voiceMode?{boxShadow:'0 0 14px var(--cg),inset 0 0 10px rgba(0,240,255,.15)',borderColor:'var(--cyan)'}:{}}><span className="dot" style={{background:voiceMode?'var(--cyan)':'var(--tm)'}}></span>🎙 {voiceMode?'LUCY · LIVE':'VOICE'}</span>}
         <span className={`pill ${socStatus.running?'soc-on':'soc-off'}`}>🛡 {socStatus.running?`SOC·${socStatus.alertCount}`:'SOC OFF'}</span>
         <span className="pill vio">{providerInfo.provider==='venice'?'VEN':'GROK'}</span>
         <span className="pill cy click" onClick={()=>{send('task_list');setShowTasks(true)}}>⊞{tasks.filter(t=>t.status==='running').length}</span>
