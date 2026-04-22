@@ -132,122 +132,155 @@ function splitForLucy(text){
   const parts=raw.split(/(?<=[.!?…])\s+|\s*—\s+/).map(s=>s.trim()).filter(Boolean);
   return parts.length?parts:[raw];
 }
-function speak(text){
+function speak(text,{onStart,onEnd}={}){
   try{
     if(!window.speechSynthesis)return;
     const clean=speakableText(text);
-    if(!clean)return;
+    if(!clean){onEnd?.();return}
     window.speechSynthesis.cancel();
     const voice=pickLucyVoice();
     const chunks=splitForLucy(clean);
+    if(!chunks.length){onEnd?.();return}
+    let started=false;
     chunks.forEach((chunk,i)=>{
       const u=new SpeechSynthesisUtterance(chunk);
-      /* slow, low, quiet — Lucy on the wire */
       u.rate=0.88;u.pitch=0.78;u.volume=0.95;
       if(voice)u.voice=voice;
-      /* tiny stagger so sentences don't blur together */
+      if(i===0)u.onstart=()=>{if(!started){started=true;onStart?.()}};
+      if(i===chunks.length-1)u.onend=()=>onEnd?.();
       setTimeout(()=>{try{window.speechSynthesis.speak(u)}catch{}},i*40);
     });
-  }catch(e){}
+  }catch(e){onEnd?.()}
 }
 function stopSpeaking(){try{window.speechSynthesis?.cancel()}catch{}}
 /* Some browsers populate voices async — warm them up. */
 try{if(window.speechSynthesis){window.speechSynthesis.getVoices();window.speechSynthesis.onvoiceschanged=()=>window.speechSynthesis.getVoices()}}catch{}
-function useMic({onFinal,onInterim}){
+/* useMic — stable continuous recognizer.
+   Manual mode: start() → user speaks → stop() → onFinal fires.
+   Call mode:   start({silenceMs:1800}) → recognizer stays on,
+                onFinal fires automatically after N ms of silence
+                whenever there's accumulated text. Mic is NEVER
+                stopped between turns — so no freeze, no re-prompt. */
+function useMic({onFinal,onInterim,onError}){
   const[listening,setListening]=useState(false);
   const rec=useRef(null);
   const shouldListen=useRef(false);
   const accumulated=useRef('');
+  const lastActivity=useRef(0);
   const backoff=useRef(0);
+  const silenceTimer=useRef(null);
+  const silenceMs=useRef(0);
+  const paused=useRef(false);
+  const callbacks=useRef({onFinal,onInterim,onError});
+  useEffect(()=>{callbacks.current={onFinal,onInterim,onError}},[onFinal,onInterim,onError]);
+
+  const clearSilenceTimer=()=>{if(silenceTimer.current){clearInterval(silenceTimer.current);silenceTimer.current=null}};
 
   const safeStart=useCallback(r=>{
     try{r.start()}
-    catch(e){
-      /* InvalidStateError when already started — ignore.
-         Anything else: schedule a retry via onend. */
-      if(!/already|invalid/i.test(String(e?.message||e)))console.warn('SR start error',e);
+    catch(e){if(!/already|invalid/i.test(String(e?.message||e)))console.warn('SR start error',e)}
+  },[]);
+
+  const flushIfIdle=useCallback(()=>{
+    if(paused.current)return;
+    const idle=Date.now()-lastActivity.current;
+    const text=accumulated.current.trim();
+    if(text&&idle>=silenceMs.current){
+      accumulated.current='';
+      lastActivity.current=Date.now();
+      callbacks.current.onFinal?.(text);
     }
   },[]);
 
-  const start=useCallback(()=>{
-    if(!SR){alert('Voice not supported in this browser. Try Chrome/Edge on HTTPS or localhost.');return}
-    if(shouldListen.current)return;
+  const start=useCallback((opts={})=>{
+    if(!SR){alert('Voice not supported. Try Chrome/Edge on HTTPS or localhost.');return}
+    const nextSilence=opts.silenceMs||0;
+    silenceMs.current=nextSilence;
+    /* Already running? Just (re)sync the silence timer and keep going. */
+    if(shouldListen.current){
+      clearSilenceTimer();
+      if(nextSilence>0)silenceTimer.current=setInterval(flushIfIdle,200);
+      lastActivity.current=Date.now();
+      return;
+    }
     shouldListen.current=true;
     accumulated.current='';
+    lastActivity.current=Date.now();
     backoff.current=0;
+    paused.current=false;
 
-    /* One recognizer, reused across restarts. Creating a new instance
-       every cycle is what makes Chrome drop the session. */
     const r=new SR();
-    r.lang='en-US';
+    r.lang=opts.lang||'en-US';
     r.interimResults=true;
     r.continuous=true;
 
-    r.onstart=()=>{
-      /* Only turn the UI on once the engine is actually listening,
-         so we don't flash "on" and immediately back "off". */
-      backoff.current=0;
-      setListening(true);
-    };
+    r.onstart=()=>{backoff.current=0;setListening(true)};
 
     r.onresult=e=>{
-      let interim='';
+      if(paused.current)return;
+      let interim='',heard=false;
       for(let i=e.resultIndex;i<e.results.length;i++){
         const t=e.results[i][0].transcript;
-        if(e.results[i].isFinal)accumulated.current=(accumulated.current+' '+t).trim();
-        else interim+=t;
+        if(e.results[i].isFinal){accumulated.current=(accumulated.current+' '+t).trim();heard=true}
+        else{interim+=t;if(t.trim())heard=true}
       }
+      if(heard)lastActivity.current=Date.now();
       const combined=(accumulated.current+' '+interim).trim();
-      if(combined)onInterim?.(combined);
+      if(combined)callbacks.current.onInterim?.(combined);
     };
 
     r.onend=()=>{
       if(shouldListen.current){
-        /* Chrome ends the session on silence / every ~60s / sometimes
-           seemingly at random. Restart the SAME recognizer with a tiny
-           backoff; don't flip the UI off in between. */
         const delay=Math.min(Math.max(backoff.current,120)*1.4,1500);
         backoff.current=delay;
         setTimeout(()=>{if(shouldListen.current)safeStart(r)},delay);
       }else{
         setListening(false);
+        clearSilenceTimer();
         const final=accumulated.current.trim();
         accumulated.current='';
-        if(final)onFinal?.(final);
+        if(final)callbacks.current.onFinal?.(final);
       }
     };
 
     r.onerror=e=>{
       const err=e&&e.error;
-      /* Truly fatal — no point retrying. */
       if(err==='not-allowed'||err==='service-not-allowed'){
-        shouldListen.current=false;
+        shouldListen.current=false;clearSilenceTimer();
         setListening(false);
         alert('Microphone blocked. Allow mic access in the browser and reload.');
         return;
       }
       if(err==='audio-capture'){
-        shouldListen.current=false;
+        shouldListen.current=false;clearSilenceTimer();
         setListening(false);
         alert('No microphone detected.');
         return;
       }
-      /* Transient (no-speech, aborted, network, language-not-supported,
-         bad-grammar): onend will fire and we'll restart automatically. */
+      /* transient: onend will restart */
     };
 
     rec.current=r;
     safeStart(r);
-  },[onFinal,onInterim,safeStart]);
+
+    clearSilenceTimer();
+    if(silenceMs.current>0){
+      silenceTimer.current=setInterval(flushIfIdle,200);
+    }
+  },[safeStart,flushIfIdle]);
 
   const stop=useCallback(()=>{
     shouldListen.current=false;
+    clearSilenceTimer();
     try{rec.current?.stop()}catch{}
-    /* onend finalises: flips listening off and fires onFinal with the
-       accumulated transcript. */
   },[]);
 
-  return{listening,start,stop,supported:!!SR};
+  /* Pause = ignore audio input (used while TTS plays so Lucy
+     doesn't hear herself). Recognizer stays alive. */
+  const pause=useCallback(()=>{paused.current=true},[]);
+  const resume=useCallback(()=>{paused.current=false;accumulated.current='';lastActivity.current=Date.now()},[]);
+
+  return{listening,start,stop,pause,resume,supported:!!SR};
 }
 
 /* ═══ Render AI response with CoT styling ═══ */
@@ -313,38 +346,95 @@ const Harden=({hardenOut,hardening,doHarden})=>(<div style={{padding:'12px 16px 
 const Hunt=({huntOut,hunting,doHunt})=>(<div style={{padding:'12px 16px 100px'}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:12}}><div style={{borderLeft:'2px solid var(--gold)',paddingLeft:12}}><span style={{color:'var(--gold)',fontSize:12,fontFamily:'var(--fd)',letterSpacing:4}}>GHOST PROTOCOL</span></div><button className="btn s" onClick={doHunt} disabled={hunting}>{hunting?'◇':'HUNT'}</button></div>{huntOut.length===0?<div style={{textAlign:'center',padding:50,color:'var(--tm)'}}>Start hunt</div>:null}{huntOut.length>0&&<Term lines={huntOut}/>}</div>);
 
 /* ═══ NETGHOST — CHAT IS THE AGENT ═══ */
-const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTasks,chat,thinking,pending,socAlerts,autonomous,setAutonomous,voiceMode,setVoiceMode})=>{
+const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTasks,chat,thinking,pending,socAlerts,autonomous,setAutonomous,voiceMode,setVoiceMode,callMode,setCallMode,tasks})=>{
   const[chatIn,setChatIn]=useState('');
   const cr=useRef(),inputRef=useRef();
+  const callModeRef=useRef(callMode);useEffect(()=>{callModeRef.current=callMode},[callMode]);
   useEffect(()=>{if(cr.current)cr.current.scrollTop=cr.current.scrollHeight},[chat,thinking,pending,socAlerts]);
   const doSend=(ov)=>{const m=ov||chatIn.trim();if(!m)return;if(!hasKey){setShowSettings(true);return}setChatIn('');send('chat',{message:m})};
   const approve=(a)=>{if(pending)send('cmd_approve',{approve:a})};
   const toggleAuto=()=>{const n=!autonomous;setAutonomous(n);send('autonomous_toggle',{enabled:n})};
   const toggleVoice=()=>{const n=!voiceMode;setVoiceMode(n);send('voice_mode_toggle',{enabled:n});if(!n)stopSpeaking()};
   const doExec=(cmd)=>send('exec_cmd',{cmd});
+
+  /* Central mic. In call mode we pass silenceMs so onFinal fires
+     automatically ~1.8s after the user stops speaking — mic keeps
+     running, no re-click needed. */
   const mic=useMic({
     onInterim:t=>setChatIn(t),
     onFinal:t=>{setChatIn('');if(t)doSend(t)},
   });
+  const micRef=useRef(mic);useEffect(()=>{micRef.current=mic});
+
+  /* Start / stop mic when Call Mode toggles. */
+  useEffect(()=>{
+    if(callMode){
+      stopSpeaking();
+      mic.start({silenceMs:1800});
+      if(!voiceMode){setVoiceMode(true);send('voice_mode_toggle',{enabled:true})}
+    }else{
+      mic.stop();
+    }
+    return()=>{};
+
+  },[callMode]);
+
+  /* When an assistant message arrives AND call mode is on, speak it,
+     and pause the mic during playback so Lucy doesn't hear herself. */
+  const lastSpokenId=useRef(-1);
+  useEffect(()=>{
+    if(!callMode)return;
+    const last=chat[chat.length-1];
+    if(!last||last.role!=='assistant'||last.meta==='tool')return;
+    if(lastSpokenId.current===chat.length-1)return;
+    lastSpokenId.current=chat.length-1;
+    micRef.current.pause();
+    speak(last.content,{
+      onStart:()=>micRef.current.pause(),
+      onEnd:()=>{if(callModeRef.current)micRef.current.resume()},
+    });
+  },[chat,callMode]);
+
+  const toggleCall=()=>{
+    const n=!callMode;
+    setCallMode(n);
+    if(!n)stopSpeaking();
+  };
+
+  /* Big Autonomous button with confirmation — it enables auto-exec
+     for every CMD: the agent produces. Sticky until toggled off. */
+  const toggleBigAuto=()=>{
+    if(!autonomous){
+      if(!confirm('Enable AUTONOMOUS mode?\n\nThe agent will execute shell commands automatically without asking for approval. You can turn it off any time.'))return;
+    }
+    toggleAuto();
+  };
+
+  const runningTasks=tasks.filter(t=>t.status==='running');
   return(<div style={{display:'flex',flexDirection:'column',height:'calc(100vh - 56px)'}}>
     <div style={{padding:'10px 16px 6px',flexShrink:0}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
         <div style={{borderLeft:'2px solid var(--mag)',paddingLeft:10}}>
-          <span style={{color:voiceMode?'var(--cyan)':'var(--mag)',fontSize:12,fontFamily:'var(--fd)',letterSpacing:3,transition:'color .3s'}}>{voiceMode?'LUCY · NETGHOST':'NETGHOST'}</span>
+          <span style={{color:callMode?'var(--cyan)':voiceMode?'var(--cyan)':'var(--mag)',fontSize:12,fontFamily:'var(--fd)',letterSpacing:3,transition:'color .3s'}}>{callMode?'LUCY · CALL LIVE':voiceMode?'LUCY · NETGHOST':'NETGHOST'}</span>
           {agentStatus.running&&<span style={{fontSize:8,padding:'2px 6px',border:'1px solid var(--green)',color:'var(--green)',borderRadius:'var(--rad-md)',marginLeft:8}} className="pulse">R{agentStatus.round}</span>}
-          <div style={{color:'var(--td)',fontSize:9,marginTop:3}}>{voiceMode?'Voice Persona: Lucy · Night City uplink':`Chat = Agent · ${providerInfo.provider==='venice'?'Venice':'Grok'}`}</div>
+          <div style={{color:'var(--td)',fontSize:9,marginTop:3}}>{callMode?'Hands-free · 1.8s silence auto-sends':voiceMode?'Voice Persona: Lucy · Night City uplink':`Chat = Agent · ${providerInfo.provider==='venice'?'Venice':'Grok'}`}</div>
         </div>
-        <div style={{display:'flex',gap:5}}><button onClick={()=>{send('task_list');setShowTasks(true)}} style={{background:0,border:0,color:'var(--cyan)',fontSize:14,cursor:'pointer'}}>⊞</button><button onClick={()=>setShowSettings(true)} style={{background:0,border:0,color:'var(--td)',fontSize:14,cursor:'pointer'}}>⚙</button></div>
+        <div style={{display:'flex',gap:5}}><button onClick={()=>{send('task_list');setShowTasks(true)}} style={{background:0,border:0,color:'var(--cyan)',fontSize:14,cursor:'pointer'}} title="Tasks">⊞{runningTasks.length>0?runningTasks.length:''}</button><button onClick={()=>setShowSettings(true)} style={{background:0,border:0,color:'var(--td)',fontSize:14,cursor:'pointer'}} title="Settings">⚙</button></div>
       </div>
-      {!hasKey&&<div onClick={()=>setShowSettings(true)} style={{background:'#f5a62311',border:'1px solid #f5a62333',borderRadius:'var(--rad-md)',padding:'6px 10px',marginBottom:4,cursor:'pointer'}}><span style={{color:'var(--gold)',fontSize:9}}>⚠ API key needed</span></div>}
+      {!hasKey&&<div onClick={()=>setShowSettings(true)} style={{background:'#f5a62311',border:'1px solid #f5a62333',borderRadius:'var(--rad-md)',padding:'6px 10px',marginBottom:8,cursor:'pointer'}}><span style={{color:'var(--gold)',fontSize:9}}>⚠ API key needed — tap to configure</span></div>}
+
+      {/* BIG ACTION BUTTONS — Call Mode + Autonomous */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+        {voiceSupported&&<button onClick={toggleCall} className={callMode?'glow':''} style={{background:callMode?'linear-gradient(135deg,rgba(0,240,255,.28),rgba(127,0,255,.18))':'linear-gradient(135deg,rgba(0,240,255,.10),rgba(127,0,255,.04))',border:`2px solid ${callMode?'var(--cyan)':'rgba(0,240,255,.35)'}`,borderRadius:'var(--rad-lg)',padding:'14px 10px',cursor:'pointer',color:callMode?'var(--cyan)':'var(--td)',display:'flex',flexDirection:'column',alignItems:'center',gap:4,boxShadow:callMode?'0 0 22px var(--cg),inset 0 0 18px rgba(0,240,255,.12)':'none',transition:'.2s'}}><span style={{fontSize:24,lineHeight:1}}>{callMode?'◉':'📞'}</span><span style={{fontSize:10,fontFamily:'var(--fd)',letterSpacing:2,fontWeight:700}}>{callMode?'CALL · LIVE':'CALL MODE'}</span><span style={{fontSize:8,opacity:.7}}>{callMode?'talk freely':'hands-free'}</span></button>}
+        <button onClick={toggleBigAuto} className={autonomous?'glow':''} style={{background:autonomous?'linear-gradient(135deg,rgba(255,45,85,.30),rgba(255,45,149,.20))':'linear-gradient(135deg,rgba(255,45,85,.10),rgba(255,45,149,.04))',border:`2px solid ${autonomous?'var(--red)':'rgba(255,45,85,.35)'}`,borderRadius:'var(--rad-lg)',padding:'14px 10px',cursor:'pointer',color:autonomous?'var(--red)':'var(--td)',display:'flex',flexDirection:'column',alignItems:'center',gap:4,boxShadow:autonomous?'0 0 22px var(--rg),inset 0 0 18px rgba(255,45,85,.12)':'none',transition:'.2s',gridColumn:voiceSupported?'auto':'1 / -1'}}><span style={{fontSize:24,lineHeight:1}}>{autonomous?'⚡':'▶'}</span><span style={{fontSize:10,fontFamily:'var(--fd)',letterSpacing:2,fontWeight:700}}>{autonomous?'AUTONOMOUS · ON':'AUTONOMOUS'}</span><span style={{fontSize:8,opacity:.7}}>{autonomous?'auto-exec live':'tap to enable'}</span></button>
+      </div>
+
       <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
-        <label style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:9,color:autonomous?'var(--green)':'var(--td)',padding:'3px 8px',border:`1px solid ${autonomous?'var(--green)':'var(--border)'}`,borderRadius:'var(--rad-pill)'}} onClick={toggleAuto}>
-          <span style={{width:6,height:6,borderRadius:'50%',background:autonomous?'var(--green)':'var(--tm)'}}></span>{autonomous?'AUTONOMOUS':'APPROVAL'}
-        </label>
-        {voiceSupported&&<label style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:9,color:voiceMode?'var(--cyan)':'var(--td)',padding:'3px 8px',border:`1px solid ${voiceMode?'var(--cyan)':'var(--border)'}`,borderRadius:'var(--rad-pill)',boxShadow:voiceMode?'0 0 10px var(--cg)':'none'}} onClick={toggleVoice}>
-          <span style={{width:6,height:6,borderRadius:'50%',background:voiceMode?'var(--cyan)':'var(--tm)'}}></span>{voiceMode?'LUCY · VOICE ON':'VOICE OFF'}
+        {voiceSupported&&!callMode&&<label style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:9,color:voiceMode?'var(--cyan)':'var(--td)',padding:'3px 8px',border:`1px solid ${voiceMode?'var(--cyan)':'var(--border)'}`,borderRadius:'var(--rad-pill)',boxShadow:voiceMode?'0 0 10px var(--cg)':'none'}} onClick={toggleVoice}>
+          <span style={{width:6,height:6,borderRadius:'50%',background:voiceMode?'var(--cyan)':'var(--tm)'}}></span>{voiceMode?'TTS ON':'TTS OFF'}
         </label>}
         {agentStatus.running&&<button className="btn s rd" onClick={()=>send('agent_abort')} style={{padding:'4px 10px'}}>ABORT</button>}
+        {runningTasks.length>0&&<span style={{fontSize:9,color:'var(--green)',padding:'3px 8px',border:'1px solid var(--green)',borderRadius:'var(--rad-pill)',cursor:'pointer'}} onClick={()=>{send('task_list');setShowTasks(true)}}>⚙ {runningTasks.length} running</span>}
         <button className="btn s" onClick={()=>{stopSpeaking();send('clear_chat')}} style={{borderColor:'var(--tm)',color:'var(--tm)',marginLeft:'auto',padding:'4px 10px'}}>CLEAR</button>
       </div>
     </div>
@@ -381,8 +471,11 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
     </div>
     <div style={{padding:'6px 16px 70px',flexShrink:0,borderTop:'1px solid var(--border)',background:'rgba(10,6,24,.6)',backdropFilter:'blur(12px)'}}>
       <div style={{display:'flex',gap:6,alignItems:'center'}}>
-        <input ref={inputRef} value={chatIn} onChange={e=>setChatIn(e.target.value)} placeholder={mic.listening?'🎙 listening...':agentStatus.running?'Agent active — type to queue...':'Talk to NetGhost...'} className="inp" style={{flex:1}} onKeyDown={e=>{if(e.key==='Enter')doSend()}}/>
-        {mic.supported&&<button onClick={()=>mic.listening?mic.stop():mic.start()} title={mic.listening?'Stop listening':voiceMode?'Talk to Lucy':'Voice input'} style={{background:mic.listening?'linear-gradient(180deg,rgba(255,45,85,.4),rgba(255,45,85,.18))':voiceMode?'linear-gradient(180deg,rgba(0,240,255,.32),rgba(127,0,255,.18))':'linear-gradient(180deg,rgba(0,240,255,.2),rgba(0,240,255,.06))',border:`2px solid ${mic.listening?'var(--red)':voiceMode?'var(--cyan)':'var(--cyan)'}`,borderRadius:'50%',width:48,height:48,cursor:'pointer',color:mic.listening?'var(--red)':'var(--cyan)',fontSize:20,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:mic.listening?'0 0 26px rgba(255,45,85,.7)':voiceMode?'0 0 22px var(--cg),0 0 40px rgba(127,0,255,.25)':'0 0 14px rgba(0,240,255,.3)',flexShrink:0,transition:'transform .15s,box-shadow .2s'}} className={mic.listening?'pulse':''}>{mic.listening?'◉':'🎙'}</button>}
+        <input ref={inputRef} value={chatIn} onChange={e=>setChatIn(e.target.value)} placeholder={callMode?(mic.listening?'🎙 call mode — just talk':'starting call...'):mic.listening?'🎙 listening — tap mic to send':agentStatus.running?'Agent active — type to queue...':'Talk to NetGhost or type a command...'} className="inp" style={{flex:1}} onKeyDown={e=>{if(e.key==='Enter')doSend()}}/>
+        {mic.supported&&<button onClick={()=>{
+          if(callMode){setCallMode(false);return}
+          if(mic.listening)mic.stop();else mic.start();
+        }} title={callMode?'End call':mic.listening?'Stop listening':'Push to talk'} style={{background:mic.listening?'linear-gradient(180deg,rgba(255,45,85,.4),rgba(255,45,85,.18))':callMode?'linear-gradient(180deg,rgba(0,240,255,.32),rgba(127,0,255,.18))':voiceMode?'linear-gradient(180deg,rgba(0,240,255,.32),rgba(127,0,255,.18))':'linear-gradient(180deg,rgba(0,240,255,.2),rgba(0,240,255,.06))',border:`2px solid ${mic.listening?'var(--red)':'var(--cyan)'}`,borderRadius:'50%',width:48,height:48,cursor:'pointer',color:mic.listening?'var(--red)':'var(--cyan)',fontSize:20,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:mic.listening?'0 0 26px rgba(255,45,85,.7)':callMode?'0 0 22px var(--cg),0 0 40px rgba(127,0,255,.25)':'0 0 14px rgba(0,240,255,.3)',flexShrink:0,transition:'transform .15s,box-shadow .2s'}} className={mic.listening?'pulse':''}>{mic.listening?'◉':'🎙'}</button>}
         <button className="btn s mg" onClick={()=>doSend()} disabled={!chatIn.trim()}>⬡</button>
       </div>
     </div>
@@ -419,8 +512,12 @@ function App(){
   const[chat,setChat]=useState([]);const[thinking,setThinking]=useState(false);const[pending,setPending]=useState(null);
   const[autonomous,setAutonomous]=useState(false);
   const[voiceMode,setVoiceMode]=useState(false);
-  const voiceModeRef=useRef(false);
+  const[callMode,setCallMode]=useState(false);
+  const voiceModeRef=useRef(false);const callModeRef=useRef(false);
   useEffect(()=>{voiceModeRef.current=voiceMode},[voiceMode]);
+  useEffect(()=>{callModeRef.current=callMode},[callMode]);
+  /* Keep task list fresh so the running-counter badges stay honest. */
+  useEffect(()=>{const iv=setInterval(()=>{if(conn)send('task_list')},4000);return()=>clearInterval(iv)},[conn,send]);
 
   useEffect(()=>{const iv=setInterval(()=>setTime(new Date()),1000);return()=>clearInterval(iv)},[]);
   useEffect(()=>{
@@ -431,7 +528,7 @@ function App(){
     on('task_registered',()=>send('task_list'));on('task_completed',()=>send('task_list'));on('task_killed',()=>send('task_list'));
     on('agent_status',d=>{setAgentStatus(d);if(d.autonomous!==undefined)setAutonomous(d.autonomous);if(d.voiceMode!==undefined)setVoiceMode(d.voiceMode);if(!d.running){setThinking(false);setPending(null)}});
     on('soc_status',d=>setSocStatus(d));
-    on('chat_message',d=>{setChat(p=>[...p,d]);setThinking(false);if(voiceModeRef.current&&d.role==='assistant'&&d.meta!=='tool')speak(d.content)});
+    on('chat_message',d=>{setChat(p=>[...p,d]);setThinking(false);/* In call mode the AgentTab speaks with mic pause/resume callbacks — skip the global path to avoid double playback. */ if(voiceModeRef.current&&!callModeRef.current&&d.role==='assistant'&&d.meta!=='tool')speak(d.content)});
     on('chat_history',d=>setChat(d.map(h=>({role:h.role,content:h.content,meta:h.meta}))));
     on('chat_cleared',()=>setChat([]));
     on('chat_thinking',()=>setThinking(true));
@@ -471,7 +568,7 @@ function App(){
     {tab==='scan'&&<Scan scanMode={scanMode} setScanMode={setScanMode} scanTarget={scanTarget} setScanTarget={setScanTarget} doScan={doScan} scanning={scanning} scanOut={scanOut}/>}
     {tab==='harden'&&<Harden hardenOut={hardenOut} hardening={hardening} doHarden={doHarden}/>}
     {tab==='hunt'&&<Hunt huntOut={huntOut} hunting={hunting} doHunt={doHunt}/>}
-    {tab==='agent'&&<AgentTab send={send} hasKey={hasKey} setShowSettings={setShowSettings} agentStatus={agentStatus} providerInfo={providerInfo} setShowTasks={setShowTasks} chat={chat} thinking={thinking} pending={pending} socAlerts={[]} autonomous={autonomous} setAutonomous={setAutonomous} voiceMode={voiceMode} setVoiceMode={setVoiceMode}/>}
+    {tab==='agent'&&<AgentTab send={send} hasKey={hasKey} setShowSettings={setShowSettings} agentStatus={agentStatus} providerInfo={providerInfo} setShowTasks={setShowTasks} chat={chat} thinking={thinking} pending={pending} socAlerts={[]} autonomous={autonomous} setAutonomous={setAutonomous} voiceMode={voiceMode} setVoiceMode={setVoiceMode} callMode={callMode} setCallMode={setCallMode} tasks={tasks}/>}
     {tab==='red'&&<RedTab send={send} redOut={redOut} preview={redPreview} setPreview={setRedPreview} clearRedOut={()=>setRedOut([])} running={redRunning} setRunning={setRedRunning}/>}
     <div className="tbar">
       {[{id:'home',i:'>_',l:'DECK'},{id:'scan',i:'((◉))',l:'RECON'},{id:'harden',i:'◇',l:'FORT'},{id:'hunt',i:'◎',l:'GHOST'},{id:'agent',i:'⬡',l:'AI'},{id:'red',i:'⚡',l:'ICE'}].map(t=>(<button key={t.id} className={`tbtn ${tab===t.id?'a':''}`} onClick={()=>setTab(t.id)}><span className="i">{t.i}</span><span className="l">{t.l}</span>{tab===t.id&&<div style={{width:16,height:2,background:'var(--violet-soft)',borderRadius:'var(--rad-pill)',marginTop:2}}/>}</button>))}

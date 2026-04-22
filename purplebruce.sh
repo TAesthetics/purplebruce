@@ -15,6 +15,20 @@ PORT="${PORT:-3000}"
 SERVER_PID=""
 API="http://127.0.0.1:$PORT/api/cli"
 
+# ─── Platform detection: Linux / macOS / Termux / proot Ubuntu ───
+PLATFORM="linux"
+case "$(uname -s)" in
+  Darwin) PLATFORM="macos" ;;
+  Linux)
+    if [ -n "$PREFIX" ] && echo "$PREFIX" | grep -q "com.termux"; then
+      PLATFORM="termux"
+    elif [ -f /etc/os-release ] && grep -qi "ubuntu\|debian" /etc/os-release && [ -d /proc/self/root ] 2>/dev/null; then
+      PLATFORM="proot"
+    fi
+    ;;
+esac
+export PB_PLATFORM="$PLATFORM"
+
 touch "$HIST"
 [ -f "$HOME/.grok_key" ] && GROK_KEY="$(cat "$HOME/.grok_key")"
 [ -f "$HOME/.venice_key" ] && VENICE_KEY="$(cat "$HOME/.venice_key")"
@@ -44,7 +58,7 @@ banner() {
 ╚══════════════════════════════════════════════╝
 ASCII
   printf "${NC}\n"
-  printf "  ${D}Host: ${W}%s${NC}  ${D}|  Time: ${W}%s${NC}\n" "$(hostname)" "$(date '+%H:%M:%S')"
+  printf "  ${D}Host: ${W}%s${NC}  ${D}|  Time: ${W}%s${NC}  ${D}|  Platform: ${W}%s${NC}\n" "$(hostname)" "$(date '+%H:%M:%S')" "$PLATFORM"
   printf "  ${D}Scope: ${R}UNRESTRICTED — FULL SYSTEM ACCESS${NC}\n"
   printf "  ${D}Audit: ${Y}~/.purplebruce/audit.log${NC}\n"
   printf "  ${D}SOC:   ${C}Blue Team Analyst running in background${NC}\n\n"
@@ -87,8 +101,18 @@ trap cleanup SIGINT SIGTERM
 
 check_deps() {
   cd "$DIR"
+  # Ensure node + npm are on PATH (Termux tips)
+  if ! command -v node >/dev/null 2>&1; then
+    printf "  ${R}[!]${NC} node not found.\n"
+    case "$PLATFORM" in
+      termux) printf "  ${Y}[HINT]${NC} Termux: pkg install nodejs\n" ;;
+      macos)  printf "  ${Y}[HINT]${NC} macOS:  brew install node\n" ;;
+      *)      printf "  ${Y}[HINT]${NC} Ubuntu: sudo apt install nodejs npm\n" ;;
+    esac
+    exit 1
+  fi
   if [ ! -d "node_modules" ]; then
-    printf "  ${Y}[SETUP]${NC} Installing dependencies...\n"
+    printf "  ${Y}[SETUP]${NC} Installing dependencies (${PLATFORM})...\n"
     npm install --silent 2>&1 | tail -3
     printf "  ${G}[SETUP]${NC} Done.\n"
   fi
