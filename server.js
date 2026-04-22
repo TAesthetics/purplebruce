@@ -555,6 +555,23 @@ function buildSystemPrompt() {
   const localTime = now.toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
   const runningTasks = Object.values(liveTasks).length;
 
+  const autoBlock = agent.autonomous ? `
+╔══ AUTONOMOUS MODE — PERSISTENT AGENT ══╗
+Auto-exec is ON. Every ⚡ CMD: line you emit runs immediately on the real system — no human approval between steps.
+
+OPERATING RULES while autonomous:
+- Treat the operator's request as an objective, not a single-shot question.
+- Break it into concrete steps, then execute them as CMD: lines.
+- After each batch of results, analyse briefly, then continue with the next CMD:s.
+- Do NOT ask for permission. Do NOT pause for confirmation. Do NOT wait.
+- Keep going until the objective is genuinely finished, then emit "✅ DONE: <summary>".
+- If a step fails, try a reasonable alternative (different flag, fallback tool, different target path). Do not give up after one error.
+- If the operator's target is a real host (e.g. a domain or non-local IP) only run non-destructive, legally safe reconnaissance (DNS, open-port probe, HTTP headers, TLS cert, published whois). Never attack systems outside the declared engagement scope.
+- For localhost / my-system / my-network: run full audit pipelines (recon, harden, hunt, cred-audit) without hesitation.
+- SAY: stays short in voice mode; the work happens in CMD: lines.
+╚═════════════════════════════════════════╝
+` : '';
+
   const lucyBlock = agent.voiceMode ? `
 ╔══ VOICE PERSONA: LUCY ══╗
 Voice mode is active. In the SAY: line you ARE Lucy — netrunner, Night City, Edgerunners vibe.
@@ -636,7 +653,7 @@ SAY: <one short conversational line for the operator — always include this>
 
 Multiple CMD: lines allowed; each runs on the real system. Get to CMD: fast — don't stall.
 For pure small talk (greetings, banter, "how are you"), SAY: alone is enough — no CMD:.
-${lucyBlock}
+${autoBlock}${lucyBlock}
 
 SYSTEM INTEL:
 Host: ${intel.hostname} | User: ${intel.user} | Kernel: ${intel.kernel}
@@ -662,6 +679,11 @@ function extractCommands(text) {
   return text.split('\n').map(l => l.trim()).filter(l => /^(⚡\s*)?CMD:\s*.+/.test(l)).map(l => l.replace(/^(⚡\s*)?CMD:\s*/, '').trim()).filter(Boolean);
 }
 
+// Natural-language autonomy triggers — server-side safety net so
+// even a pasted/CLI message can switch the agent into auto-exec.
+const AUTONOMOUS_RX = /\b(autonom(?:ous|)(?:en|er|es|e)?(?:\s*(?:modus|mode))?|go\s+(?:full\s+)?autonomous|enable\s+autonomous|take\s+over|take\s+the\s+wheel|übernimm|freie\s+hand|free\s+hand|full\s+ghost|ghost\s+mode|volle?\s+(?:analyse|analysis|scan|recon|audit)|full\s+(?:analysis|scan|recon|audit)|keep\s+going|weitermachen|don'?t\s+stop|nicht\s+aufh(?:ö|oe)ren|until\s+done|bis\s+fertig|run\s+everything|mach\s+alles)\b/i;
+function looksAutonomous(text) { return AUTONOMOUS_RX.test(text || ''); }
+
 async function chatAgent(userMessage) {
   db.prepare('INSERT INTO chat_history (role,content,meta) VALUES (?,?,?)').run('user', userMessage, 'chat');
   broadcast('chat_message', { role: 'user', content: userMessage, meta: 'chat' });
@@ -669,12 +691,22 @@ async function chatAgent(userMessage) {
 
   if (agent.running) return;
 
+  // Safety net: promote to autonomous when the user clearly asked for it.
+  if (!agent.autonomous && looksAutonomous(userMessage)) {
+    agent.autonomous = true;
+    broadcast('agent_status', getAgentStatus());
+    audit('AUTONOMOUS_AUTO', 'intent match', userMessage.slice(0, 200), 'agent');
+  }
+
   agent.running = true; agent.aborted = false; agent.round = 0;
   agent.sessionId = uuidv4(); agent.pendingCmd = null;
   agent.taskId = registerTask('agent', 'NetGhost Agent', null, () => { agent.aborted = true; });
   broadcast('agent_status', getAgentStatus());
 
-  const MAX_ROUNDS = 20;
+  // Autonomous runs longer and keeps nudging itself until DONE.
+  // Approval mode stays at the classic 20 rounds.
+  const MAX_ROUNDS = agent.autonomous ? 40 : 20;
+  let noCmdStreak = 0;
 
   for (let r = 1; r <= MAX_ROUNDS && !agent.aborted; r++) {
     agent.round = r;
@@ -699,7 +731,24 @@ async function chatAgent(userMessage) {
     const isDone = /✅\s*DONE|^\[DONE\]|\[ANALYSIS COMPLETE\]/m.test(response);
     const cmds = extractCommands(response);
 
-    if (cmds.length === 0 || isDone) { if (isDone) break; break; }
+    if (isDone) break;
+    if (cmds.length === 0) {
+      // Autonomous persistence: if the agent goes silent without
+      // declaring DONE, nudge it once or twice. Two consecutive
+      // no-CMD rounds = the agent is genuinely out of ideas.
+      if (agent.autonomous && noCmdStreak < 2 && r < MAX_ROUNDS) {
+        noCmdStreak++;
+        const nudge = `[SYSTEM] No CMD: lines produced. You are in AUTONOMOUS mode — the operator wants you to keep working the objective.\n` +
+          `Either emit the next ⚡ CMD: to make progress, or if the objective is truly complete write a final "✅ DONE:" line.\n` +
+          `Do not stall. Do not ask for approval. Do not wait.`;
+        db.prepare('INSERT INTO chat_history (role,content,meta) VALUES (?,?,?)').run('user', nudge, 'tool');
+        broadcast('chat_message', { role: 'tool', content: nudge, meta: 'tool' });
+        await new Promise(res => setTimeout(res, 400));
+        continue;
+      }
+      break;
+    }
+    noCmdStreak = 0;
 
     const results = []; let hasResults = false;
 

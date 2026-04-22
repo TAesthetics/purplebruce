@@ -345,13 +345,41 @@ const Scan=({scanMode,setScanMode,scanTarget,setScanTarget,doScan,scanning,scanO
 const Harden=({hardenOut,hardening,doHarden})=>(<div style={{padding:'12px 16px 100px'}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:12}}><div style={{borderLeft:'2px solid var(--green)',paddingLeft:12}}><span style={{color:'var(--green)',fontSize:12,fontFamily:'var(--fd)',letterSpacing:4}}>FORTRESS</span></div><button className="btn s" onClick={doHarden} disabled={hardening}>{hardening?'◇':'AUDIT'}</button></div>{hardenOut.length===0?<div style={{textAlign:'center',padding:50,color:'var(--tm)'}}>Run AUDIT</div>:null}{hardenOut.length>0&&<Term lines={hardenOut}/>}</div>);
 const Hunt=({huntOut,hunting,doHunt})=>(<div style={{padding:'12px 16px 100px'}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:12}}><div style={{borderLeft:'2px solid var(--gold)',paddingLeft:12}}><span style={{color:'var(--gold)',fontSize:12,fontFamily:'var(--fd)',letterSpacing:4}}>GHOST PROTOCOL</span></div><button className="btn s" onClick={doHunt} disabled={hunting}>{hunting?'◇':'HUNT'}</button></div>{huntOut.length===0?<div style={{textAlign:'center',padding:50,color:'var(--tm)'}}>Start hunt</div>:null}{huntOut.length>0&&<Term lines={huntOut}/>}</div>);
 
+/* ═══ Voice intent detection ═══
+   Matches natural phrases that should enable autonomous mode
+   before the message gets dispatched to the agent. Intentionally
+   broad — false positives here are fine, the worst case is the
+   user gets a more persistent agent than they expected. */
+const AUTONOMOUS_RX=/\b(autonom(?:ous|)(?:en|er|es|e)?(?:\s*(?:modus|mode))?|go\s+(?:full\s+)?autonomous|enable\s+autonomous|take\s+over|take\s+the\s+wheel|übernimm|freie\s+hand|free\s+hand|full\s+ghost|ghost\s+mode|volle?\s+(?:analyse|analysis|scan|recon|audit)|full\s+(?:analysis|scan|recon|audit)|keep\s+going|weitermachen|don[' ]?t\s+stop|nicht\s+aufh(?:ö|oe)ren|until\s+done|bis\s+fertig|run\s+everything|mach\s+alles)\b/i;
+function looksAutonomous(text){return AUTONOMOUS_RX.test(text||'')}
+
 /* ═══ NETGHOST — CHAT IS THE AGENT ═══ */
 const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTasks,chat,thinking,pending,socAlerts,autonomous,setAutonomous,voiceMode,setVoiceMode,callMode,setCallMode,tasks})=>{
   const[chatIn,setChatIn]=useState('');
+  const[autoHint,setAutoHint]=useState(null);
   const cr=useRef(),inputRef=useRef();
   const callModeRef=useRef(callMode);useEffect(()=>{callModeRef.current=callMode},[callMode]);
+  const autonomousRef=useRef(autonomous);useEffect(()=>{autonomousRef.current=autonomous},[autonomous]);
   useEffect(()=>{if(cr.current)cr.current.scrollTop=cr.current.scrollHeight},[chat,thinking,pending,socAlerts]);
-  const doSend=(ov)=>{const m=ov||chatIn.trim();if(!m)return;if(!hasKey){setShowSettings(true);return}setChatIn('');send('chat',{message:m})};
+
+  const enableAutonomous=useCallback((reason)=>{
+    if(autonomousRef.current)return;
+    autonomousRef.current=true;
+    setAutonomous(true);
+    send('autonomous_toggle',{enabled:true});
+    setAutoHint(reason||'Autonomous mode engaged');
+    setTimeout(()=>setAutoHint(null),3500);
+  },[send,setAutonomous]);
+
+  const doSend=(ov)=>{
+    const m=(ov||chatIn.trim());if(!m)return;if(!hasKey){setShowSettings(true);return}
+    /* Natural intent: flip autonomous on BEFORE dispatching so the
+       first round of CMD:s already runs without approval prompts. */
+    if(!autonomousRef.current&&looksAutonomous(m)){
+      enableAutonomous(`Heard "${m.slice(0,50)}..." — going autonomous`);
+    }
+    setChatIn('');send('chat',{message:m});
+  };
   const approve=(a)=>{if(pending)send('cmd_approve',{approve:a})};
   const toggleAuto=()=>{const n=!autonomous;setAutonomous(n);send('autonomous_toggle',{enabled:n})};
   const toggleVoice=()=>{const n=!voiceMode;setVoiceMode(n);send('voice_mode_toggle',{enabled:n});if(!n)stopSpeaking()};
@@ -379,21 +407,36 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
 
   },[callMode]);
 
-  /* When an assistant message arrives AND call mode is on, speak it,
-     and pause the mic during playback so Lucy doesn't hear herself. */
+  /* When an assistant message arrives AND call mode is on, speak it
+     and keep the mic pause-counted so overlapping messages don't
+     accidentally unmute Lucy mid-sentence. */
+  const pauseDepth=useRef(0);
   const lastSpokenId=useRef(-1);
+  const pauseMic=()=>{pauseDepth.current++;micRef.current.pause()};
+  const resumeMic=()=>{pauseDepth.current=Math.max(0,pauseDepth.current-1);if(pauseDepth.current===0&&callModeRef.current)micRef.current.resume()};
   useEffect(()=>{
     if(!callMode)return;
     const last=chat[chat.length-1];
     if(!last||last.role!=='assistant'||last.meta==='tool')return;
     if(lastSpokenId.current===chat.length-1)return;
     lastSpokenId.current=chat.length-1;
-    micRef.current.pause();
+    /* Proactive pause the moment a reply lands — TTS may take up to
+       a second to actually start, and we don't want the mic
+       capturing the keyboard click or chat sfx in the meantime. */
+    pauseMic();
     speak(last.content,{
-      onStart:()=>micRef.current.pause(),
-      onEnd:()=>{if(callModeRef.current)micRef.current.resume()},
+      onStart:()=>{/* already paused above, nothing to do */},
+      onEnd:()=>resumeMic(),
     });
   },[chat,callMode]);
+  /* Safety net — if TTS is cancelled (e.g. call mode toggled off mid-speech)
+     make sure we don't leak a pause. */
+  useEffect(()=>{
+    if(!callMode&&pauseDepth.current>0){
+      pauseDepth.current=0;
+      micRef.current.resume();
+    }
+  },[callMode]);
 
   const toggleCall=()=>{
     const n=!callMode;
@@ -401,11 +444,15 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
     if(!n)stopSpeaking();
   };
 
-  /* Big Autonomous button with confirmation — it enables auto-exec
-     for every CMD: the agent produces. Sticky until toggled off. */
+  /* Big Autonomous button. In Call Mode we skip the confirm — the
+     user is already in a voice-driven flow, prompts would break
+     immersion. Elsewhere we still double-check since auto-exec is
+     a meaningful toggle. */
   const toggleBigAuto=()=>{
     if(!autonomous){
-      if(!confirm('Enable AUTONOMOUS mode?\n\nThe agent will execute shell commands automatically without asking for approval. You can turn it off any time.'))return;
+      if(!callMode&&!confirm('Enable AUTONOMOUS mode?\n\nThe agent will execute shell commands automatically without asking for approval. You can turn it off any time.'))return;
+      enableAutonomous('Autonomous mode engaged');
+      return;
     }
     toggleAuto();
   };
@@ -422,6 +469,7 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
         <div style={{display:'flex',gap:5}}><button onClick={()=>{send('task_list');setShowTasks(true)}} style={{background:0,border:0,color:'var(--cyan)',fontSize:14,cursor:'pointer'}} title="Tasks">⊞{runningTasks.length>0?runningTasks.length:''}</button><button onClick={()=>setShowSettings(true)} style={{background:0,border:0,color:'var(--td)',fontSize:14,cursor:'pointer'}} title="Settings">⚙</button></div>
       </div>
       {!hasKey&&<div onClick={()=>setShowSettings(true)} style={{background:'#f5a62311',border:'1px solid #f5a62333',borderRadius:'var(--rad-md)',padding:'6px 10px',marginBottom:8,cursor:'pointer'}}><span style={{color:'var(--gold)',fontSize:9}}>⚠ API key needed — tap to configure</span></div>}
+      {autoHint&&<div style={{background:'linear-gradient(90deg,rgba(255,45,85,.18),rgba(255,45,149,.08))',border:'1px solid rgba(255,45,85,.45)',borderRadius:'var(--rad-md)',padding:'6px 10px',marginBottom:8,color:'var(--red)',fontSize:9,fontFamily:'var(--fd)',letterSpacing:1.5}} className="pulse">⚡ {autoHint}</div>}
 
       {/* BIG ACTION BUTTONS — Call Mode + Autonomous */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
