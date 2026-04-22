@@ -83,6 +83,13 @@ function Term({lines,mh=500}){const r=useRef();useEffect(()=>{if(r.current)r.cur
 /* ═══ VOICE — Web Speech API (STT + TTS) ═══ */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const voiceSupported = !!SR && !!window.speechSynthesis;
+// Warm up the voice list — getVoices() is async on Chromium.
+try {
+  if (window.speechSynthesis) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => { try { window.speechSynthesis.getVoices(); } catch {} };
+  }
+} catch {}
 
 function speakableText(text) {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
@@ -144,13 +151,13 @@ function speak(text, { onStart, onEnd } = {}) {
     let started = false;
     chunks.forEach((chunk, i) => {
       const u = new SpeechSynthesisUtterance(chunk);
-      u.pitch = 1.85;  // High pitched
-      u.rate = 0.58;   // Slower, melancholic
+      u.pitch = 1.6;   // High pitched but within spec (max 2)
+      u.rate = 0.95;   // Natural speaking pace
       u.volume = 0.9;
       if (voice) u.voice = voice;
       if (i === 0) u.onstart = () => { if (!started) { started = true; onStart?.(); } };
       if (i === chunks.length - 1) u.onend = () => onEnd?.();
-      setTimeout(() => { try { window.speechSynthesis.speak(u); } catch {} }, i * 35);
+      setTimeout(() => { try { window.speechSynthesis.speak(u); } catch {} }, i * 50);
     });
   } catch (e) { onEnd?.(); }
 }

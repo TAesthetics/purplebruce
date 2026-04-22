@@ -114,6 +114,54 @@ function collectIntel() {
   };
 }
 
+// ═══ AGENT STATE ═══
+const agent = {
+  running: false,
+  autonomous: false,
+  voiceMode: false,
+  aborted: false,
+  round: 0,
+  sessionId: null,
+  pendingCmd: null,
+  taskId: null,
+  playbookPath: null,
+};
+function getAgentStatus() {
+  return {
+    running: agent.running,
+    autonomous: agent.autonomous,
+    voiceMode: agent.voiceMode,
+    round: agent.round,
+    pendingCmd: agent.pendingCmd ? { cmd: agent.pendingCmd.cmd } : null,
+  };
+}
+
+async function doReport() {
+  const intel = collectIntel();
+  const recentAlerts = db.prepare('SELECT severity, type, detail, timestamp FROM soc_alerts ORDER BY id DESC LIMIT 20').all();
+  const recentTasks = db.prepare("SELECT id, type, label, status, started FROM tasks ORDER BY started DESC LIMIT 20").all();
+  const lines = [];
+  const push = (type, text) => lines.push({ type, text });
+  push('info', '═══ PURPLE BRUCE REPORT ═══');
+  push('info', `Host: ${intel.hostname} | User: ${intel.user}`);
+  push('info', `Kernel: ${intel.kernel}`);
+  push('info', `IP: ${intel.ip} | Uptime: ${intel.uptime}`);
+  push('info', `PATH dot: ${intel.pathDot} | History: ${intel.historyExposed.join(',') || 'none'}`);
+  push('info', `SOC: ${soc.running ? 'ACTIVE' : 'offline'} | total alerts: ${soc.alerts.length}`);
+  push('info', '');
+  push('info', '--- Recent SOC Alerts ---');
+  if (recentAlerts.length === 0) push('stdout', '(none)');
+  for (const a of recentAlerts) {
+    const t = a.severity === 'CRITICAL' ? 'error' : a.severity === 'HIGH' ? 'warn' : 'stdout';
+    push(t, `[${a.timestamp}] ${a.severity} ${a.type}: ${(a.detail || '').slice(0, 200)}`);
+  }
+  push('info', '');
+  push('info', '--- Recent Tasks ---');
+  if (recentTasks.length === 0) push('stdout', '(none)');
+  for (const t of recentTasks) push('stdout', `[${t.started}] ${t.id} ${t.type} ${t.status} - ${t.label}`);
+  return lines;
+}
+
 // ═══ AI PROVIDERS ═══
 function getProviderStatus() {
   const p = getConfig('ai_provider') || 'grok', gk = getConfig('grok_api_key'), vk = getConfig('venice_api_key');
