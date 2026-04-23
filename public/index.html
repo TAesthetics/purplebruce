@@ -92,9 +92,10 @@ input,textarea,select{font-family:var(--f)}input::placeholder{color:var(--tm)}
     <div class="call-wave listening" id="callWave"></div>
     <div class="call-mic-btn" id="bigMicBtn">🎤</div>
     <div class="call-status" id="callStatus">LUCY IS LISTENING</div>
-    <div id="callLangSwitch" style="display:flex;gap:6px;margin-top:6px;font-family:var(--fd);font-size:9px;letter-spacing:2px">
+    <div id="callLangSwitch" style="display:flex;gap:6px;margin-top:6px;font-family:var(--fd);font-size:9px;letter-spacing:2px;flex-wrap:wrap;justify-content:center">
       <button data-lang="de-DE" class="call-lang-btn" style="padding:3px 10px;border-radius:999px;cursor:pointer;background:transparent;color:var(--violet-soft);border:1px solid var(--violet)">DE</button>
       <button data-lang="en-US" class="call-lang-btn" style="padding:3px 10px;border-radius:999px;cursor:pointer;background:transparent;color:var(--td);border:1px solid var(--border)">EN</button>
+      <button id="pttModeBtn" style="padding:3px 10px;border-radius:999px;cursor:pointer;background:transparent;color:var(--td);border:1px solid var(--border)">PTT OFF</button>
     </div>
   </div>
 </div>
@@ -108,13 +109,26 @@ const{useState,useEffect,useRef,useCallback}=React;
 function useWS(){
   const ws=useRef(null),handlers=useRef({}),[conn,setConn]=useState(false);
   const connect=useCallback(()=>{
-    const w=new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}`);
-    w.onopen=()=>{setConn(true);ws.current=w};w.onclose=()=>{setConn(false);ws.current=null;setTimeout(connect,2000)};
-    w.onmessage=e=>{try{const m=JSON.parse(e.data);handlers.current[m.type]?.(m.data,m.channel)}catch{}};
+    const url=`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}`;
+    console.log('[WS] connecting →',url);
+    const w=new WebSocket(url);
+    w.onopen=()=>{console.log('[WS] open');setConn(true);ws.current=w};
+    w.onclose=(e)=>{console.warn('[WS] close code=',e?.code,'reason=',e?.reason);setConn(false);ws.current=null;setTimeout(connect,2000)};
+    w.onerror=(e)=>console.error('[WS] error',e);
+    w.onmessage=e=>{try{const m=JSON.parse(e.data);handlers.current[m.type]?.(m.data,m.channel)}catch(err){console.error('[WS] parse',err)}};
   },[]);
   useEffect(()=>{connect();return()=>ws.current?.close()},[connect]);
-  const send=useCallback((a,d={})=>{if(ws.current?.readyState===1)ws.current.send(JSON.stringify({action:a,...d}))},[]);
+  const send=useCallback((a,d={})=>{
+    if(ws.current?.readyState===1){
+      console.log('[WS] send',a,d);
+      ws.current.send(JSON.stringify({action:a,...d}));
+    }else{
+      console.warn('[WS] not open, drop',a,'state=',ws.current?.readyState);
+    }
+  },[]);
   const on=useCallback((t,h)=>{handlers.current[t]=h},[]);
+  // Expose for raw-DOM handlers (push-to-talk etc.) — keeps the PTT helpers decoupled from React
+  useEffect(()=>{window.__pbSend=send;return()=>{if(window.__pbSend===send)window.__pbSend=null}},[send]);
   return{send,on,conn};
 }
 function Term({lines,mh=500}){const r=useRef();useEffect(()=>{if(r.current)r.current.scrollTop=r.current.scrollHeight},[lines]);return(<div ref={r} className="tout" style={{maxHeight:mh,marginTop:8}}>{lines.map((l,i)=><div key={i} className={`tl ${l.type||'stdout'}`}>{l.text}</div>)}<span style={{color:'var(--cyan)',opacity:.6,animation:'blink 1s infinite'}}>█</span></div>);}
@@ -186,6 +200,58 @@ function stopSpeaking(){
   try{if(currentTtsUrl){URL.revokeObjectURL(currentTtsUrl);}}catch{}
   currentTtsAudio=null;currentTtsUrl=null;
 }
+// ═══ Push-to-talk STT — MediaRecorder → /api/stt (Whisper) ═══
+// Works everywhere getUserMedia works — including Android WebView / proot-distro browsers
+// that lack Web Speech Recognition.
+let __pttRec=null,__pttStream=null,__pttChunks=[],__pttMime='audio/webm';
+function __pttPickMime(){
+  const prefs=['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/mp4','audio/wav'];
+  for(const m of prefs){try{if(window.MediaRecorder&&MediaRecorder.isTypeSupported(m))return m}catch{}}
+  return '';
+}
+async function pttStart(onStatus){
+  if(__pttRec&&__pttRec.state!=='inactive'){console.warn('[STT] already recording');return false;}
+  if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){onStatus?.('MediaRecorder unavailable');return false;}
+  try{
+    __pttStream=await navigator.mediaDevices.getUserMedia({audio:true});
+  }catch(e){console.error('[STT] permission:',e?.name,e?.message);onStatus?.('mic permission denied');return false;}
+  __pttChunks=[];
+  __pttMime=__pttPickMime();
+  console.log('[STT] recording mime=',__pttMime||'(default)');
+  __pttRec=__pttMime?new MediaRecorder(__pttStream,{mimeType:__pttMime}):new MediaRecorder(__pttStream);
+  __pttRec.ondataavailable=e=>{if(e.data&&e.data.size>0)__pttChunks.push(e.data)};
+  __pttRec.start();
+  onStatus?.('RECORDING — release to send');
+  return true;
+}
+async function pttStop(onTranscript,onStatus){
+  if(!__pttRec||__pttRec.state==='inactive'){return false;}
+  const stopP=new Promise(r=>{__pttRec.onstop=r});
+  try{__pttRec.stop();}catch{}
+  await stopP;
+  try{__pttStream?.getTracks().forEach(t=>t.stop())}catch{}
+  const blob=new Blob(__pttChunks,{type:__pttMime||'audio/webm'});
+  console.log('[STT] blob bytes=',blob.size,'type=',blob.type);
+  __pttRec=null;__pttStream=null;__pttChunks=[];
+  if(blob.size<800){onStatus?.('too short — hold and speak');return false;}
+  onStatus?.('transcribing...');
+  try{
+    const lang=((window.__micLang||navigator.language||'de-DE')+'').slice(0,2);
+    const r=await fetch(`/api/stt?lang=${encodeURIComponent(lang)}`,{method:'POST',headers:{'Content-Type':blob.type},body:blob});
+    if(!r.ok){
+      const err=await r.text();
+      console.error('[STT] server:',r.status,err.slice(0,200));
+      onStatus?.(`stt failed (${r.status}) — check groq_api_key`);
+      return false;
+    }
+    const d=await r.json();
+    console.log('[STT] provider=',d.provider,'model=',d.model,'text=',d.text);
+    if(!d.text||!d.text.trim()){onStatus?.('empty transcript');return false;}
+    onTranscript?.(d.text.trim());
+    return true;
+  }catch(e){console.error('[STT]',e);onStatus?.('stt error');return false;}
+}
+
 // Stabiler Mic — ref-based callback, never stale
 // Pulls language from (priority):  explicit call arg  →  window.__micLang  →  navigator.language  →  'de-DE'
 function pickMicLang(override){
@@ -461,6 +527,67 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
     });
     return ()=>btns.forEach(b=>b.removeEventListener('click',handler));
   },[mic]);
+  // Push-to-talk mode: when ON, use Whisper via /api/stt instead of Web Speech.
+  // Press-and-hold the big mic button to record, release to transcribe + send.
+  useEffect(()=>{
+    const pttBtn=document.getElementById('pttModeBtn');
+    const bigMic=document.getElementById('bigMicBtn');
+    if(!pttBtn||!bigMic)return;
+    let pttOn=false;
+    const setBtn=()=>{
+      pttBtn.textContent=pttOn?'PTT ON':'PTT OFF';
+      pttBtn.style.color=pttOn?'var(--cyan)':'var(--td)';
+      pttBtn.style.borderColor=pttOn?'var(--cyan)':'var(--border)';
+      bigMic.style.boxShadow=pttOn?'0 0 24px rgba(0,240,255,.5)':'';
+      bigMic.title=pttOn?'Hold to record (Whisper)':'';
+    };
+    const pttToggle=()=>{
+      pttOn=!pttOn;
+      setBtn();
+      if(pttOn){console.log('[STT] PTT mode ON — stopping Web Speech');mic.stop();setCallStatus('PTT mode — hold mic to talk');}
+      else{console.log('[STT] PTT mode OFF — resuming Web Speech');mic.start();}
+    };
+    pttBtn.addEventListener('click',pttToggle);
+    // Press-and-hold handlers on the big mic
+    const finish=async()=>{
+      await pttStop(
+        (text)=>{
+          console.log('[STT] → chat:',text);
+          addCallChatMsg('user',text);
+          send('chat',{message:text});
+          setCallStatus('PROCESSING...');
+        },
+        (msg)=>setCallStatus(msg)
+      );
+      setTimeout(()=>setCallStatus(pttOn?'PTT mode — hold mic to talk':`LUCY IS LISTENING (${mic.lang})`),1800);
+    };
+    const begin=async(e)=>{
+      if(!pttOn)return;
+      e.preventDefault();
+      await pttStart((msg)=>setCallStatus(msg));
+    };
+    const end=(e)=>{
+      if(!pttOn)return;
+      e.preventDefault();
+      finish();
+    };
+    bigMic.addEventListener('mousedown',begin);
+    bigMic.addEventListener('mouseup',end);
+    bigMic.addEventListener('mouseleave',end);
+    bigMic.addEventListener('touchstart',begin,{passive:false});
+    bigMic.addEventListener('touchend',end);
+    bigMic.addEventListener('touchcancel',end);
+    setBtn();
+    return ()=>{
+      pttBtn.removeEventListener('click',pttToggle);
+      bigMic.removeEventListener('mousedown',begin);
+      bigMic.removeEventListener('mouseup',end);
+      bigMic.removeEventListener('mouseleave',end);
+      bigMic.removeEventListener('touchstart',begin);
+      bigMic.removeEventListener('touchend',end);
+      bigMic.removeEventListener('touchcancel',end);
+    };
+  },[send,mic]);
   return(<div style={{display:'flex',flexDirection:'column',height:'calc(100vh - 56px)'}}>
     <div style={{padding:'10px 16px 6px',flexShrink:0}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
