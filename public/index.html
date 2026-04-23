@@ -92,6 +92,10 @@ input,textarea,select{font-family:var(--f)}input::placeholder{color:var(--tm)}
     <div class="call-wave listening" id="callWave"></div>
     <div class="call-mic-btn" id="bigMicBtn">🎤</div>
     <div class="call-status" id="callStatus">LUCY IS LISTENING</div>
+    <div id="callLangSwitch" style="display:flex;gap:6px;margin-top:6px;font-family:var(--fd);font-size:9px;letter-spacing:2px">
+      <button data-lang="de-DE" class="call-lang-btn" style="padding:3px 10px;border-radius:999px;cursor:pointer;background:transparent;color:var(--violet-soft);border:1px solid var(--violet)">DE</button>
+      <button data-lang="en-US" class="call-lang-btn" style="padding:3px 10px;border-radius:999px;cursor:pointer;background:transparent;color:var(--td);border:1px solid var(--border)">EN</button>
+    </div>
   </div>
 </div>
 <div id="root"></div>
@@ -183,56 +187,109 @@ function stopSpeaking(){
   currentTtsAudio=null;currentTtsUrl=null;
 }
 // Stabiler Mic — ref-based callback, never stale
+// Pulls language from (priority):  explicit call arg  →  window.__micLang  →  navigator.language  →  'de-DE'
+function pickMicLang(override){
+  if(override)return override;
+  if(typeof window!=='undefined'&&window.__micLang)return window.__micLang;
+  const nl=(typeof navigator!=='undefined'&&navigator.language)||'de-DE';
+  // Normalize to BCP-47 forms Chrome supports
+  if(/^de/i.test(nl))return 'de-DE';
+  if(/^en/i.test(nl))return 'en-US';
+  return nl;
+}
+async function ensureMicPermission(){
+  try{
+    if(!navigator.mediaDevices?.getUserMedia){console.warn('[MIC] getUserMedia unavailable');return false;}
+    const s=await navigator.mediaDevices.getUserMedia({audio:true});
+    s.getTracks().forEach(t=>t.stop()); // release — SpeechRecognition opens its own stream
+    return true;
+  }catch(e){console.error('[MIC] permission denied:',e?.name,e?.message);return false;}
+}
 function useStableMic() {
   const [listening, setListening] = useState(false);
+  const [lang, setLang] = useState(pickMicLang());
   const rec = useRef(null);
   const restartTimer = useRef(null);
   const activeRef = useRef(false);
+  const langRef = useRef(lang);
   const onFinalRef = useRef(null);
+  const onInterimRef = useRef(null);
+  const onStatusRef = useRef(null);
 
-  const start = useCallback(() => {
-    if (!SR) return;
+  useEffect(()=>{langRef.current=lang},[lang]);
+
+  const start = useCallback(async () => {
+    if (!SR) { console.warn('[MIC] SpeechRecognition not supported in this browser'); onStatusRef.current?.('SpeechRecognition not supported'); return; }
+    const granted = await ensureMicPermission();
+    if (!granted) { onStatusRef.current?.('Mic permission denied — allow microphone and retry'); return; }
     activeRef.current = true;
     try {
       const r = new SR();
-      r.lang = 'en-US';
+      r.lang = langRef.current || 'de-DE';
       r.interimResults = true;
       r.continuous = true;
+      console.log('[MIC] starting recognition — lang=', r.lang);
+      r.onstart = () => { console.log('[MIC] onstart'); onStatusRef.current?.(`LUCY IS LISTENING (${r.lang})`); };
       r.onresult = e => {
-        let final = '';
+        let finalTxt = '', interimTxt = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
-          if (e.results[i].isFinal) final += e.results[i][0].transcript;
+          const t = e.results[i][0].transcript;
+          if (e.results[i].isFinal) finalTxt += t; else interimTxt += t;
         }
-        if (final && onFinalRef.current) onFinalRef.current(final.trim());
+        if (interimTxt) { console.log('[MIC] interim:', interimTxt); onInterimRef.current?.(interimTxt.trim()); }
+        if (finalTxt) { console.log('[MIC] FINAL:', finalTxt); onFinalRef.current?.(finalTxt.trim()); }
       };
       r.onend = () => {
+        console.log('[MIC] onend — activeRef=', activeRef.current);
         setListening(false);
-        if (activeRef.current) restartTimer.current = setTimeout(start, 300);
+        if (activeRef.current) restartTimer.current = setTimeout(() => start(), 300);
       };
-      r.onerror = () => {
+      r.onerror = ev => {
+        console.error('[MIC] onerror:', ev.error, ev.message || '');
+        onStatusRef.current?.(`mic error: ${ev.error}`);
         setListening(false);
-        if (activeRef.current) restartTimer.current = setTimeout(start, 500);
+        // Don't loop forever on fatal errors
+        if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed' || ev.error === 'audio-capture') {
+          activeRef.current = false;
+          return;
+        }
+        if (activeRef.current) restartTimer.current = setTimeout(() => start(), 500);
       };
       r.start();
       rec.current = r;
       setListening(true);
-    } catch(e) { setListening(false); }
+    } catch(e) { console.error('[MIC] start() threw:', e?.message || e); setListening(false); }
   }, []);
 
   const stop = useCallback(() => {
+    console.log('[MIC] stop()');
     activeRef.current = false;
     clearTimeout(restartTimer.current);
     try { rec.current?.stop(); } catch {}
     setListening(false);
   }, []);
 
-  return { listening, start, stop, supported: !!SR, onFinalRef };
+  const setMicLang = useCallback((l)=>{
+    console.log('[MIC] setMicLang →', l);
+    window.__micLang = l;
+    setLang(l);
+    // Restart recognition with new language if currently active
+    if (activeRef.current) {
+      try { rec.current?.stop(); } catch {}
+      restartTimer.current = setTimeout(() => start(), 200);
+    }
+  }, [start]);
+
+  return { listening, lang, setMicLang, start, stop, supported: !!SR, onFinalRef, onInterimRef, onStatusRef };
 }
 
 // Helper: add message to call chat with full CoT rendering
 function addCallChatMsg(role, text) {
   const chat = document.getElementById('callChat');
   if (!chat) return;
+  // Clear any interim-transcript pill first — a completed message replaces it
+  const interim = chat.querySelector('.cm-interim');
+  if (interim) interim.remove();
   const div = document.createElement('div');
   div.className = 'cm ' + role;
   if (role === 'assistant') {
@@ -259,6 +316,26 @@ function addCallChatMsg(role, text) {
   }
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
+}
+
+// Show live interim transcript as a single replacing pill (so user sees STT is actually working)
+function setCallInterim(text){
+  const chat=document.getElementById('callChat');
+  if(!chat)return;
+  let el=chat.querySelector('.cm-interim');
+  if(!el){
+    el=document.createElement('div');
+    el.className='cm user cm-interim';
+    el.style.opacity='0.6';
+    el.style.fontStyle='italic';
+    chat.appendChild(el);
+  }
+  el.textContent='… '+text;
+  chat.scrollTop=chat.scrollHeight;
+}
+function setCallStatus(text){
+  const cs=document.getElementById('callStatus');
+  if(cs)cs.textContent=text;
 }
 
 /* ═══ Render AI response with CoT styling ═══ */
@@ -334,21 +411,25 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
   const doExec=(cmd)=>send('exec_cmd',{cmd});
 
   const mic=useStableMic();
-  // Keep onFinalRef pointing to latest send — sends voice as chat message
+  // Wire the callbacks every render so they always see the latest `send` / state
   useEffect(()=>{
     mic.onFinalRef.current=(text)=>{
-      if(!text)return;
+      if(!text){console.warn('[MIC] final fired with empty text');return;}
+      console.log('[MIC] → sending to chat:', text);
       addCallChatMsg('user', text);
       send('chat',{message:text});
-      const cs=document.getElementById('callStatus');
-      if(cs){cs.textContent='PROCESSING...';setTimeout(()=>{if(cs)cs.textContent='LUCY IS LISTENING'},2000)}
+      setCallStatus('PROCESSING...');
+      setTimeout(()=>setCallStatus(`LUCY IS LISTENING (${mic.lang})`),2000);
     };
+    mic.onInterimRef.current=(text)=>setCallInterim(text);
+    mic.onStatusRef.current=(msg)=>setCallStatus(msg);
   });
   const toggleVoice=()=>{
     const n=!voiceMode;setVoiceMode(n);send('voice_mode_toggle',{enabled:n});
     const modal=document.getElementById('voiceCallModal');
     if(n){
       const cc=document.getElementById('callChat');if(cc)cc.innerHTML='';
+      setCallStatus('requesting mic permission...');
       mic.start();if(modal)modal.classList.add('active');
     }else{
       stopSpeaking();mic.stop();if(modal)modal.classList.remove('active');
@@ -359,6 +440,27 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
     if(!btn)return;
     btn.onclick=()=>{setVoiceMode(false);send('voice_mode_toggle',{enabled:false});stopSpeaking();mic.stop();document.getElementById('voiceCallModal').classList.remove('active')};
   },[send,setVoiceMode,mic]);
+  // Language switcher in call modal
+  useEffect(()=>{
+    const btns=document.querySelectorAll('.call-lang-btn');
+    const handler=e=>{
+      const l=e.currentTarget.getAttribute('data-lang');
+      mic.setMicLang(l);
+      btns.forEach(b=>{
+        const active=b.getAttribute('data-lang')===l;
+        b.style.color=active?'var(--violet-soft)':'var(--td)';
+        b.style.borderColor=active?'var(--violet)':'var(--border)';
+      });
+    };
+    btns.forEach(b=>b.addEventListener('click',handler));
+    // Sync initial active state
+    btns.forEach(b=>{
+      const active=b.getAttribute('data-lang')===mic.lang;
+      b.style.color=active?'var(--violet-soft)':'var(--td)';
+      b.style.borderColor=active?'var(--violet)':'var(--border)';
+    });
+    return ()=>btns.forEach(b=>b.removeEventListener('click',handler));
+  },[mic]);
   return(<div style={{display:'flex',flexDirection:'column',height:'calc(100vh - 56px)'}}>
     <div style={{padding:'10px 16px 6px',flexShrink:0}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
@@ -467,7 +569,7 @@ function App(){
     on('chat_message',d=>{setChat(p=>[...p,d]);setThinking(false);if(voiceModeRef.current){if(d.role==='assistant'){addCallChatMsg('assistant',d.content);if(d.meta!=='tool')speak(d.content)}else if(d.role==='system'){addCallChatMsg('system',d.content)}}});
     on('chat_history',d=>setChat(d.map(h=>({role:h.role,content:h.content,meta:h.meta}))));
     on('chat_cleared',()=>{setChat([]);const cc=document.getElementById('callChat');if(cc)cc.innerHTML=''});
-    on('chat_thinking',()=>{setThinking(true);if(voiceModeRef.current){addCallChatMsg('system','\u{1F9E0} Lucy is thinking...')}});
+    on('chat_thinking',d=>{setThinking(true);if(voiceModeRef.current){const r=d?.round;addCallChatMsg('system',r?`\u{1F9E0} Lucy is thinking... (round ${r})`:'\u{1F9E0} Lucy is thinking...');setCallStatus(r?`LUCY IS THINKING — round ${r}`:'LUCY IS THINKING')}});
     on('cmd_pending',d=>{setPending(d);setThinking(false)});
     on('cmd_executing',()=>setPending(null));
     on('cmd_result',d=>{setChat(p=>[...p,{role:'system',content:`${d.ok?'✓':'✗'} ${d.cmd}\n${d.output}`,meta:d.ok?'result':'error'}]);if(voiceModeRef.current){addCallChatMsg('system',`${d.ok?'✓':'✗'} ${d.cmd}`)}});
