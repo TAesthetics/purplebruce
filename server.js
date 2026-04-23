@@ -114,7 +114,14 @@ function collectIntel() {
 // ═══ AI PROVIDERS ═══
 function getProviderStatus() {
   const p = getConfig('ai_provider') || 'grok', gk = getConfig('grok_api_key'), vk = getConfig('venice_api_key');
-  return { provider: p, grokHasKey: !!gk, grokMask: gk ? gk.slice(0, 8) + '...' : null, veniceHasKey: !!vk, veniceMask: vk ? vk.slice(0, 8) + '...' : null };
+  const ek = getConfig('elevenlabs_api_key'), vid = getConfig('elevenlabs_voice_id');
+  return {
+    provider: p,
+    grokHasKey: !!gk, grokMask: gk ? gk.slice(0, 8) + '...' : null,
+    veniceHasKey: !!vk, veniceMask: vk ? vk.slice(0, 8) + '...' : null,
+    elevenHasKey: !!ek, elevenMask: ek ? ek.slice(0, 8) + '...' : null,
+    elevenVoiceId: vid || null
+  };
 }
 async function callAI(messages) { return (getConfig('ai_provider') || 'grok') === 'venice' ? callVenice(messages) : callGrok(messages); }
 async function callGrok(msgs) {
@@ -124,6 +131,39 @@ async function callGrok(msgs) {
 async function callVenice(msgs) {
   const k = getConfig('venice_api_key'); if (!k) return null;
   try { const ac = new AbortController(), t = setTimeout(() => ac.abort(), 90000); const r = await fetch('https://api.venice.ai/api/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${k}` }, body: JSON.stringify({ model: 'llama-3.3-70b', messages: msgs, temperature: 0.9, max_tokens: 4000 }), signal: ac.signal }); clearTimeout(t); const d = await r.json(); return d?.choices?.[0]?.message?.content || null; } catch { return null; }
+}
+
+// ═══ ELEVENLABS TTS — cute playful anime-girl voice ═══
+// Voice design prompt (for ElevenLabs Voice Design — not a runtime param):
+//   High-pitched, soft, bubbly, energetic anime-girl voice, ~18-20 y/o.
+//   Girly, lightly teasing, sweet and breathy, emotionally expressive.
+//   Fluent natural German pronunciation (no heavy English accent).
+// NOTE: pitch is NOT a runtime ElevenLabs setting — control it by choosing
+// or designing a naturally high-pitched voice, then set its ID below.
+async function ttsElevenLabs(text) {
+  const apiKey = getConfig('elevenlabs_api_key'); if (!apiKey) return null;
+  const voiceId = getConfig('elevenlabs_voice_id'); if (!voiceId) return null;
+  const modelId = getConfig('elevenlabs_model') || 'eleven_multilingual_v2';
+  const stability = parseFloat(getConfig('elevenlabs_stability') || '0.65');
+  const similarity_boost = parseFloat(getConfig('elevenlabs_similarity') || '0.85');
+  const style = parseFloat(getConfig('elevenlabs_style') || '0.75');
+  const speed = parseFloat(getConfig('elevenlabs_speed') || '1.05');
+  try {
+    const ac = new AbortController(), t = setTimeout(() => ac.abort(), 30000);
+    const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'xi-api-key': apiKey, Accept: 'audio/mpeg' },
+      body: JSON.stringify({
+        text,
+        model_id: modelId,
+        voice_settings: { stability, similarity_boost, style, use_speaker_boost: true, speed }
+      }),
+      signal: ac.signal
+    });
+    clearTimeout(t);
+    if (!r.ok) { console.error('[TTS]', r.status, (await r.text()).slice(0, 200)); return null; }
+    return Buffer.from(await r.arrayBuffer());
+  } catch (e) { console.error('[TTS]', e.message || e); return null; }
 }
 
 // ═══ SOC ANALYST ═══
@@ -692,7 +732,8 @@ async function handleWs(ws, msg) {
     case 'red_preview': { const p = await doRedPreview(msg.tactic); ws.send(JSON.stringify({ type: 'red_preview', data: p })); break; }
     case 'red_execute': { try { await doRedExecute(msg.tactic, msg.commandIndices); } catch (e) { broadcast('terminal', { type: 'error', text: `[ERR] ${e.message}`, channel: 'red' }, 'red'); broadcast('red_done', { tactic: msg.tactic }); } break; }
     case 'exec_cmd': { if (msg.cmd) { const r = rawExec(msg.cmd, 'web'); broadcast('cmd_result', { cmd: msg.cmd, output: r.output, ok: r.ok }); } break; }
-    case 'set_key': { if (msg.key && msg.provider) { setConfig(msg.provider === 'venice' ? 'venice_api_key' : 'grok_api_key', msg.key); ws.send(JSON.stringify({ type: 'key_saved', data: { provider: msg.provider } })); broadcast('provider_status', getProviderStatus()); } break; }
+    case 'set_key': { if (msg.key && msg.provider) { const keyMap = { venice: 'venice_api_key', grok: 'grok_api_key', elevenlabs: 'elevenlabs_api_key' }; const cfg = keyMap[msg.provider]; if (cfg) { setConfig(cfg, msg.key); ws.send(JSON.stringify({ type: 'key_saved', data: { provider: msg.provider } })); broadcast('provider_status', getProviderStatus()); } } break; }
+    case 'set_voice_id': { if (msg.voiceId) { setConfig('elevenlabs_voice_id', msg.voiceId); ws.send(JSON.stringify({ type: 'voice_id_saved' })); broadcast('provider_status', getProviderStatus()); } break; }
     case 'set_provider': setConfig('ai_provider', msg.provider); broadcast('provider_status', getProviderStatus()); break;
     case 'get_provider': ws.send(JSON.stringify({ type: 'provider_status', data: getProviderStatus() })); break;
     case 'get_chat_history': ws.send(JSON.stringify({ type: 'chat_history', data: db.prepare('SELECT role,content,meta,timestamp FROM chat_history ORDER BY id').all() })); break;
@@ -719,7 +760,8 @@ app.post('/api/cli', async (req, res) => {
       case 'report': res.json({ lines: await doReport() }); break;
       case 'tasks': res.json(listTasks()); break;
       case 'kill': killTask(id); res.json({ message: `Killed ${id}` }); break;
-      case 'set_key': { setConfig(provider === 'venice' ? 'venice_api_key' : 'grok_api_key', key); broadcast('provider_status', getProviderStatus()); res.json({ message: `${provider} key saved.` }); break; }
+      case 'set_key': { const keyMap = { venice: 'venice_api_key', grok: 'grok_api_key', elevenlabs: 'elevenlabs_api_key' }; const cfg = keyMap[provider]; if (!cfg) { res.json({ error: `Unknown provider: ${provider}` }); break; } setConfig(cfg, key); broadcast('provider_status', getProviderStatus()); res.json({ message: `${provider} key saved.` }); break; }
+      case 'set_voice_id': { if (!req.body.voiceId) { res.json({ error: 'voiceId required' }); break; } setConfig('elevenlabs_voice_id', req.body.voiceId); broadcast('provider_status', getProviderStatus()); res.json({ message: 'Voice ID saved.' }); break; }
       case 'set_provider': setConfig('ai_provider', provider); broadcast('provider_status', getProviderStatus()); res.json({ message: `Provider: ${provider}` }); break;
       case 'autonomous': { agent.autonomous = req.body.mode === 'on'; broadcast('agent_status', getAgentStatus()); res.json({ message: `Autonomous: ${agent.autonomous ? 'ON' : 'OFF'}` }); break; }
       case 'agent_abort': agent.aborted = true; broadcast('agent_status', getAgentStatus()); res.json({ message: 'Aborting...' }); break;
@@ -727,6 +769,16 @@ app.post('/api/cli', async (req, res) => {
       default: res.json({ error: `Unknown: ${cmd}` });
     }
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/tts', async (req, res) => {
+  const text = (req.body?.text || '').toString().slice(0, 2500);
+  if (!text.trim()) return res.status(400).json({ error: 'text required' });
+  const audio = await ttsElevenLabs(text);
+  if (!audio) return res.status(503).json({ error: 'ElevenLabs TTS unavailable — check API key, voice ID and quota.' });
+  res.setHeader('Content-Type', 'audio/mpeg');
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(audio);
 });
 
 app.get('/api/status', (req, res) => res.json({ version: '5.0.0', ...collectIntel(), agentRunning: agent.running, socRunning: soc.running, provider: getConfig('ai_provider') || 'grok' }));
