@@ -117,14 +117,16 @@ function pickLucyVoice() {
   try {
     const v = window.speechSynthesis.getVoices();
     if (!v || !v.length) return null;
+    // Prefer clear, natural, adult female English voices. Avoid overly
+    // childish or robotic ones.
     const prefs = [
-      /Microsoft.*Zira/i, /Microsoft.*Samantha/i, /Microsoft.*Fiona/i, /Microsoft.*Hazel/i,
-      /Google.*English.*Female/i, /Google.*Jessica/i, /Google.*Samantha/i,
-      /Samantha/i, /Serena/i, /Allison/i, /Ava/i, /Karen/i, /Moira/i,
-      /Microsoft.*Aria/i, /Microsoft.*Jenny/i
+      /Microsoft.*Aria/i, /Microsoft.*Jenny/i, /Microsoft.*Libby/i,
+      /Google UK English Female/i, /Google US English/i,
+      /Samantha/i, /Serena/i, /Allison/i, /Ava/i, /Karen/i, /Kate/i,
+      /Microsoft.*Zira/i, /Microsoft.*Hazel/i
     ];
     for (const re of prefs) {
-      const m = v.find(x => re.test(x.name));
+      const m = v.find(x => re.test(x.name) && /en-?/i.test(x.lang || ''));
       if (m) return m;
     }
     return v.find(x => /en-(US|GB)/i.test(x.lang))
@@ -151,13 +153,14 @@ function speak(text, { onStart, onEnd } = {}) {
     let started = false;
     chunks.forEach((chunk, i) => {
       const u = new SpeechSynthesisUtterance(chunk);
-      u.pitch = 1.6;   // High pitched but within spec (max 2)
-      u.rate = 0.95;   // Natural speaking pace
-      u.volume = 0.9;
-      if (voice) u.voice = voice;
+      // Professional Lucy: clear, grounded adult female voice.
+      u.pitch = 1.4;
+      u.rate = 0.95;
+      u.volume = 0.95;
+      if (voice) { u.voice = voice; if (voice.lang) u.lang = voice.lang; }
       if (i === 0) u.onstart = () => { if (!started) { started = true; onStart?.(); } };
       if (i === chunks.length - 1) u.onend = () => onEnd?.();
-      setTimeout(() => { try { window.speechSynthesis.speak(u); } catch {} }, i * 50);
+      setTimeout(() => { try { window.speechSynthesis.speak(u); } catch {} }, i * 40);
     });
   } catch (e) { onEnd?.(); }
 }
@@ -167,16 +170,75 @@ function stopSpeaking() { try { window.speechSynthesis?.cancel(); } catch {} }
 function useMic({onFinal,onInterim}){
   const[listening,setListening]=useState(false);
   const rec=useRef(null);
+  const wanted=useRef(false);        // user intent: is mic supposed to be on?
+  const restartTimer=useRef(null);
+  const lastFinalAt=useRef(0);
+
+  const clearRestart=()=>{if(restartTimer.current){clearTimeout(restartTimer.current);restartTimer.current=null}};
+
+  const spawn=useCallback(()=>{
+    if(!SR||!wanted.current)return;
+    try{
+      // Stop any existing instance cleanly before starting a new one.
+      try{rec.current?.stop()}catch{}
+      const r=new SR();
+      r.lang='en-US';
+      r.interimResults=true;
+      r.continuous=true;            // keep listening across pauses
+      r.onstart=()=>setListening(true);
+      r.onresult=e=>{
+        let interim='',final='';
+        for(let i=e.resultIndex;i<e.results.length;i++){
+          const t=e.results[i][0].transcript;
+          if(e.results[i].isFinal)final+=t;else interim+=t;
+        }
+        if(interim)onInterim?.(interim);
+        if(final){
+          // simple debounce — some engines fire the same final twice
+          const now=Date.now();
+          if(now-lastFinalAt.current>300){lastFinalAt.current=now;onFinal?.(final.trim())}
+        }
+      };
+      r.onerror=ev=>{
+        // 'no-speech' / 'aborted' / 'audio-capture' — don't kill the toggle,
+        // just let onend re-spawn if still wanted.
+        if(ev?.error==='not-allowed'||ev?.error==='service-not-allowed'){
+          wanted.current=false;setListening(false);
+        }
+      };
+      r.onend=()=>{
+        setListening(false);
+        if(wanted.current){
+          // auto-restart after natural end (silence / engine timeout)
+          clearRestart();
+          restartTimer.current=setTimeout(spawn,250);
+        }
+      };
+      r.start();rec.current=r;
+    }catch{
+      if(wanted.current){
+        clearRestart();
+        restartTimer.current=setTimeout(spawn,500);
+      }else setListening(false);
+    }
+  },[onFinal,onInterim]);
+
   const start=useCallback(()=>{
     if(!SR){alert('Voice not supported in this browser.');return}
-    try{
-      const r=new SR();r.lang='en-US';r.interimResults=true;r.continuous=false;
-      r.onresult=e=>{let interim='',final='';for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0].transcript;if(e.results[i].isFinal)final+=t;else interim+=t}if(interim)onInterim?.(interim);if(final)onFinal?.(final.trim())};
-      r.onend=()=>setListening(false);r.onerror=()=>setListening(false);
-      r.start();rec.current=r;setListening(true);
-    }catch(e){setListening(false)}
-  },[onFinal,onInterim]);
-  const stop=useCallback(()=>{try{rec.current?.stop()}catch{}setListening(false)},[]);
+    wanted.current=true;
+    spawn();
+  },[spawn]);
+
+  const stop=useCallback(()=>{
+    wanted.current=false;
+    clearRestart();
+    try{rec.current?.stop()}catch{}
+    try{rec.current?.abort?.()}catch{}
+    setListening(false);
+  },[]);
+
+  useEffect(()=>()=>{wanted.current=false;clearRestart();try{rec.current?.abort?.()}catch{}},[]);
+
   return{listening,start,stop,supported:!!SR};
 }
 

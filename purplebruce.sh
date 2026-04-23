@@ -51,16 +51,29 @@ for i in 1 2 3 4 5 6 7 8 9 10; do
     sleep 1
 done
 
-echo "✅ Lucy Web UI is running!"
-echo "Open your browser → ${BASE}"
+echo "Lucy Web UI is running."
+echo "Open your browser -> ${BASE}"
+echo ""
+# Auto-load persisted provider + keys from the server (SQLite-backed).
+curl -s "${BASE}/api/provider" | node -e '
+  let s=""; process.stdin.on("data",c=>s+=c).on("end",()=>{
+    try{
+      const p=JSON.parse(s);
+      console.log(`[KEYS] provider=${p.provider} | grok=${p.grokHasKey?p.grokMask:"none"} | venice=${p.veniceHasKey?p.veniceMask:"none"}`);
+    }catch{}
+  });
+' 2>/dev/null
 echo ""
 echo "CLI is ready. Type commands below:"
-echo "   scan <target>    - Port-Scan"
-echo "   harden           - Security-Audit"
-echo "   hunt             - Threat-Hunting"
-echo "   agent <msg>      - Lucy fragen (single round)"
-echo "   report           - Gesamtbericht"
-echo "   tasks            - Laufende Tasks"
+echo "   scan <target>             - Port-Scan"
+echo "   harden                    - Security-Audit"
+echo "   hunt                      - Threat-Hunting"
+echo "   agent <msg>               - Lucy fragen (single round)"
+echo "   report                    - Gesamtbericht"
+echo "   tasks                     - Laufende Tasks"
+echo "   setkey <grok|venice> <k>  - API-Key setzen (sync mit Web-UI)"
+echo "   provider <grok|venice>    - Aktiven Provider waehlen"
+echo "   keys                      - Aktuellen Key-Status anzeigen"
 echo "   help | exit"
 echo ""
 
@@ -106,13 +119,16 @@ while true; do
     case "$verb" in
         exit|quit) cleanup ;;
         help|\?)
-            echo "  scan <target>    - Port-Scan"
-            echo "  harden           - Security-Audit"
-            echo "  hunt             - Threat-Hunting"
-            echo "  agent <msg>      - Lucy fragen"
-            echo "  report           - Gesamtbericht"
-            echo "  tasks            - Laufende Tasks"
-            echo "  exit             - Shutdown"
+            echo "  scan <target>             - Port-Scan"
+            echo "  harden                    - Security-Audit"
+            echo "  hunt                      - Threat-Hunting"
+            echo "  agent <msg>               - Lucy fragen"
+            echo "  report                    - Gesamtbericht"
+            echo "  tasks                     - Laufende Tasks"
+            echo "  setkey <grok|venice> <k>  - API-Key setzen (sync Web-UI)"
+            echo "  provider <grok|venice>    - Aktiven Provider waehlen"
+            echo "  keys                      - Key-Status anzeigen"
+            echo "  exit                      - Shutdown"
             ;;
         scan)
             if [ -z "$rest" ]; then echo "Usage: scan <target>"; continue; fi
@@ -127,6 +143,31 @@ while true; do
             if [ -z "$rest" ]; then echo "Usage: agent <message>"; continue; fi
             msg_json=$(printf '%s' "$rest" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>process.stdout.write(JSON.stringify(s)))')
             post_api "{\"cmd\":\"chat\",\"message\":${msg_json}}" | print_lines
+            ;;
+        setkey)
+            prov="${rest%% *}"
+            key="${rest#"$prov"}"; key="${key# }"
+            if [ -z "$prov" ] || [ -z "$key" ]; then echo "Usage: setkey <grok|venice> <key>"; continue; fi
+            if [ "$prov" != "grok" ] && [ "$prov" != "venice" ]; then echo "Provider must be grok or venice."; continue; fi
+            key_json=$(printf '%s' "$key" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>process.stdout.write(JSON.stringify(s.trim())))')
+            post_api "{\"cmd\":\"set_key\",\"provider\":\"${prov}\",\"key\":${key_json}}" | print_lines
+            ;;
+        provider)
+            prov="${rest%% *}"
+            if [ "$prov" != "grok" ] && [ "$prov" != "venice" ]; then echo "Usage: provider <grok|venice>"; continue; fi
+            post_api "{\"cmd\":\"set_provider\",\"provider\":\"${prov}\"}" | print_lines
+            ;;
+        keys)
+            curl -s "${BASE}/api/provider" | node -e '
+              let s=""; process.stdin.on("data",c=>s+=c).on("end",()=>{
+                try{
+                  const p=JSON.parse(s);
+                  console.log(`provider: ${p.provider}`);
+                  console.log(`grok:   ${p.grokHasKey?p.grokMask:"(none)"}`);
+                  console.log(`venice: ${p.veniceHasKey?p.veniceMask:"(none)"}`);
+                }catch{console.log(s)}
+              });
+            '
             ;;
         *)
             echo "Unknown command: $verb (type 'help')"
