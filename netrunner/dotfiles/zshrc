@@ -1,81 +1,56 @@
-# ═══════════════════════════════════════════════════════════════════════════
-#  PURPLE BRUCE · NETRUNNER ZSHRC — Cyberpunk Edgerunners flavour
-#  Palette: pink 201 · purple 129 · cyan 51 · yellow 226
-# ═══════════════════════════════════════════════════════════════════════════
+# Enhanced Cyberpunk Zsh Configuration
 
-# Instant prompt — must stay at the top for p10k
-if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
-  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
-fi
-
-export NETRUNNER_HOME="${NETRUNNER_HOME:-$HOME/.netrunner}"
-export ZSH="${ZSH:-$HOME/.oh-my-zsh}"
-export ZSH_CUSTOM="${ZSH_CUSTOM:-$ZSH/custom}"
-
-ZSH_THEME="powerlevel10k/powerlevel10k"
-DISABLE_AUTO_UPDATE="true"   # we drive updates ourselves
-plugins=(git sudo colored-man-pages extract zsh-autosuggestions zsh-syntax-highlighting zsh-completions fzf)
-[[ -f "$ZSH/oh-my-zsh.sh" ]] && source "$ZSH/oh-my-zsh.sh"
-[[ -f "$HOME/.p10k.zsh"   ]] && source "$HOME/.p10k.zsh"
-
-# zsh-completions path
-fpath+=("$ZSH_CUSTOM/plugins/zsh-completions/src" 2>/dev/null)
-autoload -U compinit && compinit -u
-
-# zsh-autosuggestions tuning — cyan suggestions
-ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=51,bold'
-ZSH_AUTOSUGGEST_STRATEGY=(history completion)
-
-# ── Tools with cyberpunk defaults ──────────────────────────────────────────
-command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init zsh)"
-command -v fzf    >/dev/null 2>&1 && [[ -f /usr/share/doc/fzf/examples/key-bindings.zsh ]] && \
-  source /usr/share/doc/fzf/examples/key-bindings.zsh
-export FZF_DEFAULT_OPTS="--color=fg:#d4d0e0,bg:#0a0014,hl:#ff2bd6,fg+:#00fff5,bg+:#2d1b4e,hl+:#bd00ff,info:#fcee0a,prompt:#ff2bd6,pointer:#00fff5,marker:#fcee0a,spinner:#bd00ff,header:#bd00ff --border=rounded --height=40%"
-
-# ── Aliases ────────────────────────────────────────────────────────────────
-if command -v eza >/dev/null 2>&1; then
-  alias ls='eza --icons --group-directories-first'
-  alias ll='eza -la --icons --git --group-directories-first'
-  alias la='eza -a  --icons --group-directories-first'
-  alias lt='eza --tree --icons --level=2'
-fi
-command -v bat >/dev/null 2>&1 && alias cat='bat --paging=never --style=plain'
-alias ..='cd ..'
-alias ...='cd ../..'
-alias ....='cd ../../..'
-alias gs='git status -sb'
-alias gp='git push'
-alias gl='git log --oneline --graph --decorate --all -n 20'
-alias gd='git diff'
-alias ga='git add'
-alias gc='git commit'
-alias please='sudo $(fc -ln -1)'
-alias weather='curl -s wttr.in/?format=3'
-alias myip='curl -s ifconfig.me && echo'
-alias ports='ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null'
-
-# ── Purple Bruce shortcuts ─────────────────────────────────────────────────
-alias pb='bash ~/purplebruce/purplebruce.sh'
-alias pb-status='bash ~/purplebruce/install-service.sh status'
-alias pb-logs='bash ~/purplebruce/install-service.sh logs'
-
-# ── Non-blocking update check on first prompt ──────────────────────────────
-_netrunner_update_check() {
-  ( command -v apt-get >/dev/null 2>&1 && [ -w /var/cache/apt ] && \
-    apt-get -qq update >/dev/null 2>&1 &
-  ) 2>/dev/null
+# Sticky MOTD Header System
+function motd {
+    echo "Welcome to the Cyberpunk Terminal!"
+    echo "============================"
 }
-[[ -z "${NETRUNNER_UPDATED:-}" ]] && { _netrunner_update_check; export NETRUNNER_UPDATED=1; }
+precmd() { motd; }
 
-# ── Pink blinking bar cursor ───────────────────────────────────────────────
-_cursor_pink_bar() {
-  printf '\033]12;#ff2bd6\007'
-  printf '\e[5 q'
+# Live Clock Display
+function clock {
+    echo -n "\[\e[38;5;14m\]$(date +'%H:%M:%S')\[\e[0m\] "
 }
-precmd_functions+=(_cursor_pink_bar)
 
-# ── Greeting ───────────────────────────────────────────────────────────────
-if [[ -z "${NETRUNNER_GREETED:-}" && -f "$NETRUNNER_HOME/motd.sh" && -o interactive ]]; then
-  bash "$NETRUNNER_HOME/motd.sh"
-  export NETRUNNER_GREETED=1
-fi
+# Enhanced Alias System
+alias ll='ls -la'
+alias g='git'
+# Add more aliases as needed
+
+#fzf integration
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+
+# Zoxide Smart CD
+eval "
+  _zoxide() {
+    zoxide query "$@"
+  }
+"
+
+# Syntax Highlighting
+source $ZSH/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+
+# Autosuggestions with Cyberpunk Colors
+source $ZSH/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
+
+# Pink Blinking Cursor via OSC 12
+echo '\[\e[5m\]'
+
+# Git-aware Prompt Optimization
+setopt prompt_subst
+autoload -Uz vcs_info
+precmd() { vcs_info };
+setopt prompt_subst
+PROMPT='%F{pink}%n@%m %F{cyan}%~ %F{yellow}[$vcs_info_msg_0_] %F{purple}$(clock)%f
+$ '
+
+# Intelligent Command Prediction
+ZSH_ALIAS_ENABLE='yes'
+
+# Performance Tuning for <300ms Startup
+ZSH_DISABLE_COMPFIX=true
+
+# Display Info Before Command Prompt
+precmd() {
+    echo "\[\e[35m\]$(date +'%Y-%m-%d %H:%M:%S')\[\e[0m\]";
+}
