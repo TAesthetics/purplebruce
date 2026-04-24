@@ -161,6 +161,25 @@ Missing packages are skipped, not fatal. Re-run safely.
 
 ---
 
+## 🔁 24/7 service (Termux / proot)
+
+Run Purple Bruce as a supervised background service with auto-restart and log rotation:
+
+```bash
+./install-service.sh install        # termux-services if available, else nohup watchdog
+./install-service.sh status         # node + watchdog + cron + HTTP liveness probe
+./install-service.sh logs           # tail ~/.purplebruce/service.log
+./install-service.sh restart
+./install-service.sh uninstall
+
+./install-service.sh enable-cron    # nightly 03:30 harden + hunt + report (localhost only)
+./install-service.sh disable-cron
+```
+
+All outbound calls target `127.0.0.1` only — nightly reports land in `~/.purplebruce/reports/YYYY-MM-DD.txt`.
+
+---
+
 ## 📁 Project layout
 
 ```
