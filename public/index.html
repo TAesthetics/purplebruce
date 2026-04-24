@@ -96,6 +96,7 @@ input,textarea,select{font-family:var(--f)}input::placeholder{color:var(--tm)}
       <button data-lang="de-DE" class="call-lang-btn" style="padding:3px 10px;border-radius:999px;cursor:pointer;background:transparent;color:var(--violet-soft);border:1px solid var(--violet)">DE</button>
       <button data-lang="en-US" class="call-lang-btn" style="padding:3px 10px;border-radius:999px;cursor:pointer;background:transparent;color:var(--td);border:1px solid var(--border)">EN</button>
       <button id="pttModeBtn" style="padding:3px 10px;border-radius:999px;cursor:pointer;background:transparent;color:var(--td);border:1px solid var(--border)">PTT OFF</button>
+      <button id="callMuteBtn" aria-pressed="false" title="Mute microphone" style="padding:3px 14px;border-radius:999px;cursor:pointer;background:transparent;color:var(--green);border:1px solid var(--green);font-weight:700">🎤 MIC ON</button>
     </div>
   </div>
 </div>
@@ -286,6 +287,7 @@ function useStableMic() {
 
   const start = useCallback(async () => {
     if (!SR) { console.warn('[MIC] SpeechRecognition not supported in this browser'); onStatusRef.current?.('SpeechRecognition not supported'); return; }
+    if (typeof window!=='undefined' && window.__callMuted) { console.log('[MIC] start() blocked — muted'); return; }
     const granted = await ensureMicPermission();
     if (!granted) { onStatusRef.current?.('Mic permission denied — allow microphone and retry'); return; }
     activeRef.current = true;
@@ -527,6 +529,48 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
     });
     return ()=>btns.forEach(b=>b.removeEventListener('click',handler));
   },[mic]);
+  // Mute toggle — stops Web Speech and blocks PTT while muted.
+  // Lives on window.__callMuted so the PTT handlers can gate on it.
+  useEffect(()=>{
+    const muteBtn=document.getElementById('callMuteBtn');
+    const bigMic=document.getElementById('bigMicBtn');
+    if(!muteBtn)return;
+    window.__callMuted=!!window.__callMuted;
+    const paint=()=>{
+      const m=!!window.__callMuted;
+      muteBtn.textContent=m?'🔇 MUTED':'🎤 MIC ON';
+      muteBtn.setAttribute('aria-pressed',m?'true':'false');
+      muteBtn.style.color=m?'var(--red)':'var(--green)';
+      muteBtn.style.borderColor=m?'var(--red)':'var(--green)';
+      muteBtn.style.background=m?'rgba(255,0,60,.08)':'transparent';
+      if(bigMic){
+        bigMic.style.opacity=m?'0.35':'';
+        bigMic.style.filter=m?'grayscale(1)':'';
+      }
+    };
+    const toggle=()=>{
+      const next=!window.__callMuted;
+      window.__callMuted=next;
+      console.log('[MIC] mute →',next);
+      if(next){
+        // Going muted: stop continuous recognition + any in-flight PTT recording.
+        try{mic.stop()}catch{}
+        try{if(typeof pttStop==='function')pttStop(()=>{},()=>{});}catch{}
+        setCallStatus('MUTED — click mic to unmute');
+      }else{
+        setCallStatus(`LUCY IS LISTENING (${mic.lang})`);
+        // Only resume continuous Web Speech if PTT mode is OFF; otherwise PTT owns the mic.
+        const pttBtn=document.getElementById('pttModeBtn');
+        const pttOn=pttBtn&&/PTT ON/.test(pttBtn.textContent||'');
+        if(!pttOn)mic.start();
+      }
+      paint();
+    };
+    muteBtn.addEventListener('click',toggle);
+    paint();
+    return ()=>muteBtn.removeEventListener('click',toggle);
+  },[mic]);
+
   // Push-to-talk mode: when ON, use Whisper via /api/stt instead of Web Speech.
   // Press-and-hold the big mic button to record, release to transcribe + send.
   useEffect(()=>{
@@ -563,6 +607,7 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
     };
     const begin=async(e)=>{
       if(!pttOn)return;
+      if(window.__callMuted){setCallStatus('MUTED — click mic button to unmute');return;}
       e.preventDefault();
       await pttStart((msg)=>setCallStatus(msg));
     };
