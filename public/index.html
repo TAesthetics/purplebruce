@@ -96,7 +96,7 @@ input,textarea,select{font-family:var(--f)}input::placeholder{color:var(--tm)}
       <button data-lang="de-DE" class="call-lang-btn" style="padding:3px 10px;border-radius:999px;cursor:pointer;background:transparent;color:var(--violet-soft);border:1px solid var(--violet)">DE</button>
       <button data-lang="en-US" class="call-lang-btn" style="padding:3px 10px;border-radius:999px;cursor:pointer;background:transparent;color:var(--td);border:1px solid var(--border)">EN</button>
       <button id="pttModeBtn" style="padding:3px 10px;border-radius:999px;cursor:pointer;background:transparent;color:var(--td);border:1px solid var(--border)">PTT OFF</button>
-      <button id="callMuteBtn" aria-pressed="false" title="Mute microphone" style="padding:3px 14px;border-radius:999px;cursor:pointer;background:transparent;color:var(--green);border:1px solid var(--green);font-weight:700">🎤 MIC ON</button>
+      <button id="callMuteBtn" aria-pressed="false" title="Mute microphone" style="padding:6px 18px;border-radius:999px;cursor:pointer;background:rgba(57,255,20,.08);color:var(--green);border:2px solid var(--green);font-weight:700;font-size:11px;box-shadow:0 0 10px rgba(57,255,20,.25)">🎤 MIC ON</button>
     </div>
   </div>
 </div>
@@ -179,15 +179,25 @@ function speakWebSpeech(clean){
     if(!window.speechSynthesis)return;
     window.speechSynthesis.cancel();
     const u=new SpeechSynthesisUtterance(clean);
-    u.rate=0.98;u.pitch=1.5;u.volume=1.0;
+    // Softer & more natural than pitch=1.5 — still girly but not chipmunk.
+    u.rate=0.95;u.pitch=1.3;u.volume=1.0;
     const voices=window.speechSynthesis.getVoices();
-    // Pick a cute, high-pitched female voice; respect input language when possible.
-    const isGerman=/[äöüß]/i.test(clean)||/\b(ich|und|nicht|der|die|das|ein|mit|auf|wir)\b/i.test(clean);
+    // Respect input language.
+    const isGerman=/[äöüß]/i.test(clean)||/\b(ich|und|nicht|der|die|das|ein|mit|auf|wir|bitte|danke|master)\b/i.test(clean);
+    if(isGerman)u.lang='de-DE'; else u.lang='en-US';
     const pool=voices.filter(v=>isGerman?/^de/i.test(v.lang):/^en/i.test(v.lang));
-    const pref=pool.find(v=>/Samantha/i.test(v.name))||pool.find(v=>/(Karen|Moira|Tessa|Fiona|Anna|Petra|Yuna|Google.*Female)/i.test(v.name))||pool.find(v=>!/Male/i.test(v.name))||pool[0]||voices[0];
-    if(pref)u.voice=pref;
+    // Prefer the most natural female voices per platform — Apple's Anna/Petra/Helena for
+    // German, Samantha for English. Avoid the old "Google Deutsch" robot voice when
+    // anything better is available.
+    const prefNames = isGerman
+      ? [/Anna/i, /Petra/i, /Marlene/i, /Helena/i, /Viktoria/i, /Google.*Deutsch/i]
+      : [/Samantha/i, /Karen/i, /Moira/i, /Tessa/i, /Fiona/i, /Ava/i, /Google US English/i];
+    let pref;
+    for(const rx of prefNames){ pref = pool.find(v=>rx.test(v.name)); if(pref) break; }
+    pref = pref || pool.find(v=>!/Male/i.test(v.name)) || pool[0] || voices[0];
+    if(pref){u.voice=pref; console.log('[TTS]',isGerman?'de':'en','→',pref.name);}
     window.speechSynthesis.speak(u);
-  }catch(e){}
+  }catch(e){console.error('[TTS]',e)}
 }
 async function speak(text){
   const clean=speakableText(text);
@@ -298,14 +308,32 @@ function useStableMic() {
       r.continuous = true;
       console.log('[MIC] starting recognition — lang=', r.lang);
       r.onstart = () => { console.log('[MIC] onstart'); onStatusRef.current?.(`LUCY IS LISTENING (${r.lang})`); };
+      // Quality filters to stop the recognizer from firing on every ambient blip:
+      // - minimum length  (>= 3 chars)
+      // - minimum confidence on the final alternative (>= 0.35)
+      // - dedupe against the last FINAL emitted within 2.5s
+      // - drop filler-only utterances ("ok", "ja", "hm", "uh", "mhm", ...)
+      let _lastFinal = '', _lastFinalAt = 0;
+      const _filler = /^(?:ok|okay|ja|nein|hm+|mhm+|uh+|äh+|ähm+|eh+|mh+|so|ah|oh|yeah|yes|no)$/i;
       r.onresult = e => {
-        let finalTxt = '', interimTxt = '';
+        let finalTxt = '', interimTxt = '', conf = 0;
         for (let i = e.resultIndex; i < e.results.length; i++) {
-          const t = e.results[i][0].transcript;
-          if (e.results[i].isFinal) finalTxt += t; else interimTxt += t;
+          const alt = e.results[i][0];
+          const t = alt.transcript;
+          if (e.results[i].isFinal) { finalTxt += t; conf = Math.max(conf, alt.confidence || 0); }
+          else interimTxt += t;
         }
         if (interimTxt) { console.log('[MIC] interim:', interimTxt); onInterimRef.current?.(interimTxt.trim()); }
-        if (finalTxt) { console.log('[MIC] FINAL:', finalTxt); onFinalRef.current?.(finalTxt.trim()); }
+        if (!finalTxt) return;
+        const cleaned = finalTxt.trim().replace(/\s+/g, ' ');
+        const now = Date.now();
+        if (cleaned.length < 3) { console.log('[MIC] drop: too short →', cleaned); return; }
+        if (conf && conf < 0.35) { console.log('[MIC] drop: low confidence', conf, '→', cleaned); return; }
+        if (_filler.test(cleaned)) { console.log('[MIC] drop: filler →', cleaned); return; }
+        if (cleaned === _lastFinal && (now - _lastFinalAt) < 2500) { console.log('[MIC] drop: duplicate →', cleaned); return; }
+        _lastFinal = cleaned; _lastFinalAt = now;
+        console.log('[MIC] FINAL:', cleaned, 'conf=', conf.toFixed(2));
+        onFinalRef.current?.(cleaned);
       };
       r.onend = () => {
         console.log('[MIC] onend — activeRef=', activeRef.current);
@@ -542,7 +570,8 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
       muteBtn.setAttribute('aria-pressed',m?'true':'false');
       muteBtn.style.color=m?'var(--red)':'var(--green)';
       muteBtn.style.borderColor=m?'var(--red)':'var(--green)';
-      muteBtn.style.background=m?'rgba(255,0,60,.08)':'transparent';
+      muteBtn.style.background=m?'rgba(255,0,60,.12)':'rgba(57,255,20,.08)';
+      muteBtn.style.boxShadow=m?'0 0 10px rgba(255,0,60,.35)':'0 0 10px rgba(57,255,20,.25)';
       if(bigMic){
         bigMic.style.opacity=m?'0.35':'';
         bigMic.style.filter=m?'grayscale(1)':'';
