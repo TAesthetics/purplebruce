@@ -92,6 +92,12 @@ input,textarea,select{font-family:var(--f)}input::placeholder{color:var(--tm)}
     <div class="call-wave listening" id="callWave"></div>
     <div class="call-mic-btn" id="bigMicBtn">🎤</div>
     <div class="call-status" id="callStatus">LUCY IS LISTENING</div>
+    <div id="callLangSwitch" style="display:flex;gap:6px;margin-top:6px;font-family:var(--fd);font-size:9px;letter-spacing:2px;flex-wrap:wrap;justify-content:center">
+      <button data-lang="de-DE" class="call-lang-btn" style="padding:3px 10px;border-radius:999px;cursor:pointer;background:transparent;color:var(--violet-soft);border:1px solid var(--violet)">DE</button>
+      <button data-lang="en-US" class="call-lang-btn" style="padding:3px 10px;border-radius:999px;cursor:pointer;background:transparent;color:var(--td);border:1px solid var(--border)">EN</button>
+      <button id="pttModeBtn" style="padding:3px 10px;border-radius:999px;cursor:pointer;background:transparent;color:var(--td);border:1px solid var(--border)">PTT OFF</button>
+      <button id="callMuteBtn" aria-pressed="false" title="Mute microphone" style="padding:3px 14px;border-radius:999px;cursor:pointer;background:transparent;color:var(--green);border:1px solid var(--green);font-weight:700">🎤 MIC ON</button>
+    </div>
   </div>
 </div>
 <div id="root"></div>
@@ -104,13 +110,26 @@ const{useState,useEffect,useRef,useCallback}=React;
 function useWS(){
   const ws=useRef(null),handlers=useRef({}),[conn,setConn]=useState(false);
   const connect=useCallback(()=>{
-    const w=new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}`);
-    w.onopen=()=>{setConn(true);ws.current=w};w.onclose=()=>{setConn(false);ws.current=null;setTimeout(connect,2000)};
-    w.onmessage=e=>{try{const m=JSON.parse(e.data);handlers.current[m.type]?.(m.data,m.channel)}catch{}};
+    const url=`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}`;
+    console.log('[WS] connecting →',url);
+    const w=new WebSocket(url);
+    w.onopen=()=>{console.log('[WS] open');setConn(true);ws.current=w};
+    w.onclose=(e)=>{console.warn('[WS] close code=',e?.code,'reason=',e?.reason);setConn(false);ws.current=null;setTimeout(connect,2000)};
+    w.onerror=(e)=>console.error('[WS] error',e);
+    w.onmessage=e=>{try{const m=JSON.parse(e.data);handlers.current[m.type]?.(m.data,m.channel)}catch(err){console.error('[WS] parse',err)}};
   },[]);
   useEffect(()=>{connect();return()=>ws.current?.close()},[connect]);
-  const send=useCallback((a,d={})=>{if(ws.current?.readyState===1)ws.current.send(JSON.stringify({action:a,...d}))},[]);
+  const send=useCallback((a,d={})=>{
+    if(ws.current?.readyState===1){
+      console.log('[WS] send',a,d);
+      ws.current.send(JSON.stringify({action:a,...d}));
+    }else{
+      console.warn('[WS] not open, drop',a,'state=',ws.current?.readyState);
+    }
+  },[]);
   const on=useCallback((t,h)=>{handlers.current[t]=h},[]);
+  // Expose for raw-DOM handlers (push-to-talk etc.) — keeps the PTT helpers decoupled from React
+  useEffect(()=>{window.__pbSend=send;return()=>{if(window.__pbSend===send)window.__pbSend=null}},[send]);
   return{send,on,conn};
 }
 function Term({lines,mh=500}){const r=useRef();useEffect(()=>{if(r.current)r.current.scrollTop=r.current.scrollHeight},[lines]);return(<div ref={r} className="tout" style={{maxHeight:mh,marginTop:8}}>{lines.map((l,i)=><div key={i} className={`tl ${l.type||'stdout'}`}>{l.text}</div>)}<span style={{color:'var(--cyan)',opacity:.6,animation:'blink 1s infinite'}}>█</span></div>);}
@@ -182,57 +201,163 @@ function stopSpeaking(){
   try{if(currentTtsUrl){URL.revokeObjectURL(currentTtsUrl);}}catch{}
   currentTtsAudio=null;currentTtsUrl=null;
 }
+// ═══ Push-to-talk STT — MediaRecorder → /api/stt (Whisper) ═══
+// Works everywhere getUserMedia works — including Android WebView / proot-distro browsers
+// that lack Web Speech Recognition.
+let __pttRec=null,__pttStream=null,__pttChunks=[],__pttMime='audio/webm';
+function __pttPickMime(){
+  const prefs=['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/mp4','audio/wav'];
+  for(const m of prefs){try{if(window.MediaRecorder&&MediaRecorder.isTypeSupported(m))return m}catch{}}
+  return '';
+}
+async function pttStart(onStatus){
+  if(__pttRec&&__pttRec.state!=='inactive'){console.warn('[STT] already recording');return false;}
+  if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){onStatus?.('MediaRecorder unavailable');return false;}
+  try{
+    __pttStream=await navigator.mediaDevices.getUserMedia({audio:true});
+  }catch(e){console.error('[STT] permission:',e?.name,e?.message);onStatus?.('mic permission denied');return false;}
+  __pttChunks=[];
+  __pttMime=__pttPickMime();
+  console.log('[STT] recording mime=',__pttMime||'(default)');
+  __pttRec=__pttMime?new MediaRecorder(__pttStream,{mimeType:__pttMime}):new MediaRecorder(__pttStream);
+  __pttRec.ondataavailable=e=>{if(e.data&&e.data.size>0)__pttChunks.push(e.data)};
+  __pttRec.start();
+  onStatus?.('RECORDING — release to send');
+  return true;
+}
+async function pttStop(onTranscript,onStatus){
+  if(!__pttRec||__pttRec.state==='inactive'){return false;}
+  const stopP=new Promise(r=>{__pttRec.onstop=r});
+  try{__pttRec.stop();}catch{}
+  await stopP;
+  try{__pttStream?.getTracks().forEach(t=>t.stop())}catch{}
+  const blob=new Blob(__pttChunks,{type:__pttMime||'audio/webm'});
+  console.log('[STT] blob bytes=',blob.size,'type=',blob.type);
+  __pttRec=null;__pttStream=null;__pttChunks=[];
+  if(blob.size<800){onStatus?.('too short — hold and speak');return false;}
+  onStatus?.('transcribing...');
+  try{
+    const lang=((window.__micLang||navigator.language||'de-DE')+'').slice(0,2);
+    const r=await fetch(`/api/stt?lang=${encodeURIComponent(lang)}`,{method:'POST',headers:{'Content-Type':blob.type},body:blob});
+    if(!r.ok){
+      const err=await r.text();
+      console.error('[STT] server:',r.status,err.slice(0,200));
+      onStatus?.(`stt failed (${r.status}) — check groq_api_key`);
+      return false;
+    }
+    const d=await r.json();
+    console.log('[STT] provider=',d.provider,'model=',d.model,'text=',d.text);
+    if(!d.text||!d.text.trim()){onStatus?.('empty transcript');return false;}
+    onTranscript?.(d.text.trim());
+    return true;
+  }catch(e){console.error('[STT]',e);onStatus?.('stt error');return false;}
+}
+
 // Stabiler Mic — ref-based callback, never stale
+// Pulls language from (priority):  explicit call arg  →  window.__micLang  →  navigator.language  →  'de-DE'
+function pickMicLang(override){
+  if(override)return override;
+  if(typeof window!=='undefined'&&window.__micLang)return window.__micLang;
+  const nl=(typeof navigator!=='undefined'&&navigator.language)||'de-DE';
+  // Normalize to BCP-47 forms Chrome supports
+  if(/^de/i.test(nl))return 'de-DE';
+  if(/^en/i.test(nl))return 'en-US';
+  return nl;
+}
+async function ensureMicPermission(){
+  try{
+    if(!navigator.mediaDevices?.getUserMedia){console.warn('[MIC] getUserMedia unavailable');return false;}
+    const s=await navigator.mediaDevices.getUserMedia({audio:true});
+    s.getTracks().forEach(t=>t.stop()); // release — SpeechRecognition opens its own stream
+    return true;
+  }catch(e){console.error('[MIC] permission denied:',e?.name,e?.message);return false;}
+}
 function useStableMic() {
   const [listening, setListening] = useState(false);
+  const [lang, setLang] = useState(pickMicLang());
   const rec = useRef(null);
   const restartTimer = useRef(null);
   const activeRef = useRef(false);
+  const langRef = useRef(lang);
   const onFinalRef = useRef(null);
+  const onInterimRef = useRef(null);
+  const onStatusRef = useRef(null);
 
-  const start = useCallback(() => {
-    if (!SR) return;
+  useEffect(()=>{langRef.current=lang},[lang]);
+
+  const start = useCallback(async () => {
+    if (!SR) { console.warn('[MIC] SpeechRecognition not supported in this browser'); onStatusRef.current?.('SpeechRecognition not supported'); return; }
+    if (typeof window!=='undefined' && window.__callMuted) { console.log('[MIC] start() blocked — muted'); return; }
+    const granted = await ensureMicPermission();
+    if (!granted) { onStatusRef.current?.('Mic permission denied — allow microphone and retry'); return; }
     activeRef.current = true;
     try {
       const r = new SR();
-      r.lang = 'en-US';
+      r.lang = langRef.current || 'de-DE';
       r.interimResults = true;
       r.continuous = true;
+      console.log('[MIC] starting recognition — lang=', r.lang);
+      r.onstart = () => { console.log('[MIC] onstart'); onStatusRef.current?.(`LUCY IS LISTENING (${r.lang})`); };
       r.onresult = e => {
-        let final = '';
+        let finalTxt = '', interimTxt = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
-          if (e.results[i].isFinal) final += e.results[i][0].transcript;
+          const t = e.results[i][0].transcript;
+          if (e.results[i].isFinal) finalTxt += t; else interimTxt += t;
         }
-        if (final && onFinalRef.current) onFinalRef.current(final.trim());
+        if (interimTxt) { console.log('[MIC] interim:', interimTxt); onInterimRef.current?.(interimTxt.trim()); }
+        if (finalTxt) { console.log('[MIC] FINAL:', finalTxt); onFinalRef.current?.(finalTxt.trim()); }
       };
       r.onend = () => {
+        console.log('[MIC] onend — activeRef=', activeRef.current);
         setListening(false);
-        if (activeRef.current) restartTimer.current = setTimeout(start, 300);
+        if (activeRef.current) restartTimer.current = setTimeout(() => start(), 300);
       };
-      r.onerror = () => {
+      r.onerror = ev => {
+        console.error('[MIC] onerror:', ev.error, ev.message || '');
+        onStatusRef.current?.(`mic error: ${ev.error}`);
         setListening(false);
-        if (activeRef.current) restartTimer.current = setTimeout(start, 500);
+        // Don't loop forever on fatal errors
+        if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed' || ev.error === 'audio-capture') {
+          activeRef.current = false;
+          return;
+        }
+        if (activeRef.current) restartTimer.current = setTimeout(() => start(), 500);
       };
       r.start();
       rec.current = r;
       setListening(true);
-    } catch(e) { setListening(false); }
+    } catch(e) { console.error('[MIC] start() threw:', e?.message || e); setListening(false); }
   }, []);
 
   const stop = useCallback(() => {
+    console.log('[MIC] stop()');
     activeRef.current = false;
     clearTimeout(restartTimer.current);
     try { rec.current?.stop(); } catch {}
     setListening(false);
   }, []);
 
-  return { listening, start, stop, supported: !!SR, onFinalRef };
+  const setMicLang = useCallback((l)=>{
+    console.log('[MIC] setMicLang →', l);
+    window.__micLang = l;
+    setLang(l);
+    // Restart recognition with new language if currently active
+    if (activeRef.current) {
+      try { rec.current?.stop(); } catch {}
+      restartTimer.current = setTimeout(() => start(), 200);
+    }
+  }, [start]);
+
+  return { listening, lang, setMicLang, start, stop, supported: !!SR, onFinalRef, onInterimRef, onStatusRef };
 }
 
 // Helper: add message to call chat with full CoT rendering
 function addCallChatMsg(role, text) {
   const chat = document.getElementById('callChat');
   if (!chat) return;
+  // Clear any interim-transcript pill first — a completed message replaces it
+  const interim = chat.querySelector('.cm-interim');
+  if (interim) interim.remove();
   const div = document.createElement('div');
   div.className = 'cm ' + role;
   if (role === 'assistant') {
@@ -259,6 +384,26 @@ function addCallChatMsg(role, text) {
   }
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
+}
+
+// Show live interim transcript as a single replacing pill (so user sees STT is actually working)
+function setCallInterim(text){
+  const chat=document.getElementById('callChat');
+  if(!chat)return;
+  let el=chat.querySelector('.cm-interim');
+  if(!el){
+    el=document.createElement('div');
+    el.className='cm user cm-interim';
+    el.style.opacity='0.6';
+    el.style.fontStyle='italic';
+    chat.appendChild(el);
+  }
+  el.textContent='… '+text;
+  chat.scrollTop=chat.scrollHeight;
+}
+function setCallStatus(text){
+  const cs=document.getElementById('callStatus');
+  if(cs)cs.textContent=text;
 }
 
 /* ═══ Render AI response with CoT styling ═══ */
@@ -334,21 +479,25 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
   const doExec=(cmd)=>send('exec_cmd',{cmd});
 
   const mic=useStableMic();
-  // Keep onFinalRef pointing to latest send — sends voice as chat message
+  // Wire the callbacks every render so they always see the latest `send` / state
   useEffect(()=>{
     mic.onFinalRef.current=(text)=>{
-      if(!text)return;
+      if(!text){console.warn('[MIC] final fired with empty text');return;}
+      console.log('[MIC] → sending to chat:', text);
       addCallChatMsg('user', text);
       send('chat',{message:text});
-      const cs=document.getElementById('callStatus');
-      if(cs){cs.textContent='PROCESSING...';setTimeout(()=>{if(cs)cs.textContent='LUCY IS LISTENING'},2000)}
+      setCallStatus('PROCESSING...');
+      setTimeout(()=>setCallStatus(`LUCY IS LISTENING (${mic.lang})`),2000);
     };
+    mic.onInterimRef.current=(text)=>setCallInterim(text);
+    mic.onStatusRef.current=(msg)=>setCallStatus(msg);
   });
   const toggleVoice=()=>{
     const n=!voiceMode;setVoiceMode(n);send('voice_mode_toggle',{enabled:n});
     const modal=document.getElementById('voiceCallModal');
     if(n){
       const cc=document.getElementById('callChat');if(cc)cc.innerHTML='';
+      setCallStatus('requesting mic permission...');
       mic.start();if(modal)modal.classList.add('active');
     }else{
       stopSpeaking();mic.stop();if(modal)modal.classList.remove('active');
@@ -359,6 +508,131 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
     if(!btn)return;
     btn.onclick=()=>{setVoiceMode(false);send('voice_mode_toggle',{enabled:false});stopSpeaking();mic.stop();document.getElementById('voiceCallModal').classList.remove('active')};
   },[send,setVoiceMode,mic]);
+  // Language switcher in call modal
+  useEffect(()=>{
+    const btns=document.querySelectorAll('.call-lang-btn');
+    const handler=e=>{
+      const l=e.currentTarget.getAttribute('data-lang');
+      mic.setMicLang(l);
+      btns.forEach(b=>{
+        const active=b.getAttribute('data-lang')===l;
+        b.style.color=active?'var(--violet-soft)':'var(--td)';
+        b.style.borderColor=active?'var(--violet)':'var(--border)';
+      });
+    };
+    btns.forEach(b=>b.addEventListener('click',handler));
+    // Sync initial active state
+    btns.forEach(b=>{
+      const active=b.getAttribute('data-lang')===mic.lang;
+      b.style.color=active?'var(--violet-soft)':'var(--td)';
+      b.style.borderColor=active?'var(--violet)':'var(--border)';
+    });
+    return ()=>btns.forEach(b=>b.removeEventListener('click',handler));
+  },[mic]);
+  // Mute toggle — stops Web Speech and blocks PTT while muted.
+  // Lives on window.__callMuted so the PTT handlers can gate on it.
+  useEffect(()=>{
+    const muteBtn=document.getElementById('callMuteBtn');
+    const bigMic=document.getElementById('bigMicBtn');
+    if(!muteBtn)return;
+    window.__callMuted=!!window.__callMuted;
+    const paint=()=>{
+      const m=!!window.__callMuted;
+      muteBtn.textContent=m?'🔇 MUTED':'🎤 MIC ON';
+      muteBtn.setAttribute('aria-pressed',m?'true':'false');
+      muteBtn.style.color=m?'var(--red)':'var(--green)';
+      muteBtn.style.borderColor=m?'var(--red)':'var(--green)';
+      muteBtn.style.background=m?'rgba(255,0,60,.08)':'transparent';
+      if(bigMic){
+        bigMic.style.opacity=m?'0.35':'';
+        bigMic.style.filter=m?'grayscale(1)':'';
+      }
+    };
+    const toggle=()=>{
+      const next=!window.__callMuted;
+      window.__callMuted=next;
+      console.log('[MIC] mute →',next);
+      if(next){
+        // Going muted: stop continuous recognition + any in-flight PTT recording.
+        try{mic.stop()}catch{}
+        try{if(typeof pttStop==='function')pttStop(()=>{},()=>{});}catch{}
+        setCallStatus('MUTED — click mic to unmute');
+      }else{
+        setCallStatus(`LUCY IS LISTENING (${mic.lang})`);
+        // Only resume continuous Web Speech if PTT mode is OFF; otherwise PTT owns the mic.
+        const pttBtn=document.getElementById('pttModeBtn');
+        const pttOn=pttBtn&&/PTT ON/.test(pttBtn.textContent||'');
+        if(!pttOn)mic.start();
+      }
+      paint();
+    };
+    muteBtn.addEventListener('click',toggle);
+    paint();
+    return ()=>muteBtn.removeEventListener('click',toggle);
+  },[mic]);
+
+  // Push-to-talk mode: when ON, use Whisper via /api/stt instead of Web Speech.
+  // Press-and-hold the big mic button to record, release to transcribe + send.
+  useEffect(()=>{
+    const pttBtn=document.getElementById('pttModeBtn');
+    const bigMic=document.getElementById('bigMicBtn');
+    if(!pttBtn||!bigMic)return;
+    let pttOn=false;
+    const setBtn=()=>{
+      pttBtn.textContent=pttOn?'PTT ON':'PTT OFF';
+      pttBtn.style.color=pttOn?'var(--cyan)':'var(--td)';
+      pttBtn.style.borderColor=pttOn?'var(--cyan)':'var(--border)';
+      bigMic.style.boxShadow=pttOn?'0 0 24px rgba(0,240,255,.5)':'';
+      bigMic.title=pttOn?'Hold to record (Whisper)':'';
+    };
+    const pttToggle=()=>{
+      pttOn=!pttOn;
+      setBtn();
+      if(pttOn){console.log('[STT] PTT mode ON — stopping Web Speech');mic.stop();setCallStatus('PTT mode — hold mic to talk');}
+      else{console.log('[STT] PTT mode OFF — resuming Web Speech');mic.start();}
+    };
+    pttBtn.addEventListener('click',pttToggle);
+    // Press-and-hold handlers on the big mic
+    const finish=async()=>{
+      await pttStop(
+        (text)=>{
+          console.log('[STT] → chat:',text);
+          addCallChatMsg('user',text);
+          send('chat',{message:text});
+          setCallStatus('PROCESSING...');
+        },
+        (msg)=>setCallStatus(msg)
+      );
+      setTimeout(()=>setCallStatus(pttOn?'PTT mode — hold mic to talk':`LUCY IS LISTENING (${mic.lang})`),1800);
+    };
+    const begin=async(e)=>{
+      if(!pttOn)return;
+      if(window.__callMuted){setCallStatus('MUTED — click mic button to unmute');return;}
+      e.preventDefault();
+      await pttStart((msg)=>setCallStatus(msg));
+    };
+    const end=(e)=>{
+      if(!pttOn)return;
+      e.preventDefault();
+      finish();
+    };
+    bigMic.addEventListener('mousedown',begin);
+    bigMic.addEventListener('mouseup',end);
+    bigMic.addEventListener('mouseleave',end);
+    bigMic.addEventListener('touchstart',begin,{passive:false});
+    bigMic.addEventListener('touchend',end);
+    bigMic.addEventListener('touchcancel',end);
+    setBtn();
+    return ()=>{
+      pttBtn.removeEventListener('click',pttToggle);
+      bigMic.removeEventListener('mousedown',begin);
+      bigMic.removeEventListener('mouseup',end);
+      bigMic.removeEventListener('mouseleave',end);
+      bigMic.removeEventListener('touchstart',begin);
+      bigMic.removeEventListener('touchend',end);
+      bigMic.removeEventListener('touchcancel',end);
+    };
+  },[send,mic]);
   return(<div style={{display:'flex',flexDirection:'column',height:'calc(100vh - 56px)'}}>
     <div style={{padding:'10px 16px 6px',flexShrink:0}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
@@ -467,7 +741,7 @@ function App(){
     on('chat_message',d=>{setChat(p=>[...p,d]);setThinking(false);if(voiceModeRef.current){if(d.role==='assistant'){addCallChatMsg('assistant',d.content);if(d.meta!=='tool')speak(d.content)}else if(d.role==='system'){addCallChatMsg('system',d.content)}}});
     on('chat_history',d=>setChat(d.map(h=>({role:h.role,content:h.content,meta:h.meta}))));
     on('chat_cleared',()=>{setChat([]);const cc=document.getElementById('callChat');if(cc)cc.innerHTML=''});
-    on('chat_thinking',()=>{setThinking(true);if(voiceModeRef.current){addCallChatMsg('system','\u{1F9E0} Lucy is thinking...')}});
+    on('chat_thinking',d=>{setThinking(true);if(voiceModeRef.current){const r=d?.round;addCallChatMsg('system',r?`\u{1F9E0} Lucy is thinking... (round ${r})`:'\u{1F9E0} Lucy is thinking...');setCallStatus(r?`LUCY IS THINKING — round ${r}`:'LUCY IS THINKING')}});
     on('cmd_pending',d=>{setPending(d);setThinking(false)});
     on('cmd_executing',()=>setPending(null));
     on('cmd_result',d=>{setChat(p=>[...p,{role:'system',content:`${d.ok?'✓':'✗'} ${d.cmd}\n${d.output}`,meta:d.ok?'result':'error'}]);if(voiceModeRef.current){addCallChatMsg('system',`${d.ok?'✓':'✗'} ${d.cmd}`)}});

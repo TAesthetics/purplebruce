@@ -732,7 +732,7 @@ async function handleWs(ws, msg) {
     case 'red_preview': { const p = await doRedPreview(msg.tactic); ws.send(JSON.stringify({ type: 'red_preview', data: p })); break; }
     case 'red_execute': { try { await doRedExecute(msg.tactic, msg.commandIndices); } catch (e) { broadcast('terminal', { type: 'error', text: `[ERR] ${e.message}`, channel: 'red' }, 'red'); broadcast('red_done', { tactic: msg.tactic }); } break; }
     case 'exec_cmd': { if (msg.cmd) { const r = rawExec(msg.cmd, 'web'); broadcast('cmd_result', { cmd: msg.cmd, output: r.output, ok: r.ok }); } break; }
-    case 'set_key': { if (msg.key && msg.provider) { const keyMap = { venice: 'venice_api_key', grok: 'grok_api_key', elevenlabs: 'elevenlabs_api_key' }; const cfg = keyMap[msg.provider]; if (cfg) { setConfig(cfg, msg.key); ws.send(JSON.stringify({ type: 'key_saved', data: { provider: msg.provider } })); broadcast('provider_status', getProviderStatus()); } } break; }
+    case 'set_key': { if (msg.key && msg.provider) { const keyMap = { venice: 'venice_api_key', grok: 'grok_api_key', elevenlabs: 'elevenlabs_api_key', groq: 'groq_api_key', openai: 'openai_api_key' }; const cfg = keyMap[msg.provider]; if (cfg) { setConfig(cfg, msg.key); ws.send(JSON.stringify({ type: 'key_saved', data: { provider: msg.provider } })); broadcast('provider_status', getProviderStatus()); } } break; }
     case 'set_voice_id': { if (msg.voiceId) { setConfig('elevenlabs_voice_id', msg.voiceId); ws.send(JSON.stringify({ type: 'voice_id_saved' })); broadcast('provider_status', getProviderStatus()); } break; }
     case 'set_provider': setConfig('ai_provider', msg.provider); broadcast('provider_status', getProviderStatus()); break;
     case 'get_provider': ws.send(JSON.stringify({ type: 'provider_status', data: getProviderStatus() })); break;
@@ -760,7 +760,7 @@ app.post('/api/cli', async (req, res) => {
       case 'report': res.json({ lines: await doReport() }); break;
       case 'tasks': res.json(listTasks()); break;
       case 'kill': killTask(id); res.json({ message: `Killed ${id}` }); break;
-      case 'set_key': { const keyMap = { venice: 'venice_api_key', grok: 'grok_api_key', elevenlabs: 'elevenlabs_api_key' }; const cfg = keyMap[provider]; if (!cfg) { res.json({ error: `Unknown provider: ${provider}` }); break; } setConfig(cfg, key); broadcast('provider_status', getProviderStatus()); res.json({ message: `${provider} key saved.` }); break; }
+      case 'set_key': { const keyMap = { venice: 'venice_api_key', grok: 'grok_api_key', elevenlabs: 'elevenlabs_api_key', groq: 'groq_api_key', openai: 'openai_api_key' }; const cfg = keyMap[provider]; if (!cfg) { res.json({ error: `Unknown provider: ${provider}` }); break; } setConfig(cfg, key); broadcast('provider_status', getProviderStatus()); res.json({ message: `${provider} key saved.` }); break; }
       case 'set_voice_id': { if (!req.body.voiceId) { res.json({ error: 'voiceId required' }); break; } setConfig('elevenlabs_voice_id', req.body.voiceId); broadcast('provider_status', getProviderStatus()); res.json({ message: 'Voice ID saved.' }); break; }
       case 'set_provider': setConfig('ai_provider', provider); broadcast('provider_status', getProviderStatus()); res.json({ message: `Provider: ${provider}` }); break;
       case 'autonomous': { agent.autonomous = req.body.mode === 'on'; broadcast('agent_status', getAgentStatus()); res.json({ message: `Autonomous: ${agent.autonomous ? 'ON' : 'OFF'}` }); break; }
@@ -779,6 +779,50 @@ app.post('/api/tts', async (req, res) => {
   res.setHeader('Content-Type', 'audio/mpeg');
   res.setHeader('Cache-Control', 'no-store');
   res.send(audio);
+});
+
+// ═══ STT — server-side fallback via Groq or OpenAI Whisper ═══
+// Client sends raw audio bytes (webm/ogg/mp4/wav) as the request body with
+// Content-Type set to the audio MIME. We forward to a Whisper-compatible API.
+app.post('/api/stt', express.raw({ type: 'audio/*', limit: '25mb' }), async (req, res) => {
+  const groqKey = getConfig('groq_api_key');
+  const openaiKey = getConfig('openai_api_key');
+  if (!groqKey && !openaiKey) return res.status(503).json({ error: 'No STT key configured. Save groq_api_key (preferred, free tier) or openai_api_key.' });
+  if (!req.body || !req.body.length) return res.status(400).json({ error: 'empty audio body' });
+
+  const useGroq = !!groqKey;
+  const url = useGroq
+    ? 'https://api.groq.com/openai/v1/audio/transcriptions'
+    : 'https://api.openai.com/v1/audio/transcriptions';
+  const model = useGroq
+    ? (getConfig('groq_stt_model') || 'whisper-large-v3-turbo')
+    : 'whisper-1';
+  const key = useGroq ? groqKey : openaiKey;
+
+  const lang = (req.query.lang || '').toString().slice(0, 5);
+  const mime = (req.headers['content-type'] || 'audio/webm').split(';')[0].trim();
+  const ext =
+    mime.includes('mp4') ? 'm4a' :
+    mime.includes('ogg') ? 'ogg' :
+    mime.includes('wav') ? 'wav' :
+    mime.includes('mpeg') ? 'mp3' : 'webm';
+
+  try {
+    const fd = new FormData();
+    fd.append('file', new Blob([req.body], { type: mime }), `audio.${ext}`);
+    fd.append('model', model);
+    if (lang && lang.toLowerCase() !== 'auto') fd.append('language', lang.slice(0, 2).toLowerCase());
+    fd.append('response_format', 'json');
+    const ac = new AbortController(), t = setTimeout(() => ac.abort(), 45000);
+    const r = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: fd, signal: ac.signal });
+    clearTimeout(t);
+    if (!r.ok) { const err = (await r.text()).slice(0, 400); console.error('[STT]', r.status, err); return res.status(502).json({ error: err }); }
+    const d = await r.json();
+    res.json({ text: (d.text || '').trim(), provider: useGroq ? 'groq' : 'openai', model });
+  } catch (e) {
+    console.error('[STT]', e.message || e);
+    res.status(500).json({ error: e.message || String(e) });
+  }
 });
 
 app.get('/api/status', (req, res) => res.json({ version: '5.0.0', ...collectIntel(), agentRunning: agent.running, socRunning: soc.running, provider: getConfig('ai_provider') || 'grok' }));
