@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# netrunner — shared entry point.
+#   Termux (host)  → proot-distro login ubuntu
+#   Ubuntu proot   → launch Purple Bruce (~/purplebruce/purplebruce.sh)
+
+set -u
+
+is_termux() { [ -n "${TERMUX_VERSION:-}" ] || [ -d /data/data/com.termux ]; }
+
+PB_DIR="${PURPLEBRUCE_DIR:-$HOME/purplebruce}"
+DISTRO="${NETRUNNER_DISTRO:-ubuntu}"
+
+if is_termux; then
+  if ! command -v proot-distro >/dev/null 2>&1; then
+    echo "[!] proot-distro not installed. Run:  pkg install proot-distro"
+    exit 1
+  fi
+  if ! proot-distro list 2>/dev/null | grep -qi "${DISTRO}.*installed"; then
+    echo "[*] ${DISTRO} proot-distro not installed. Run:  proot-distro install ${DISTRO}"
+    exit 1
+  fi
+  exec proot-distro login "${DISTRO}"
+fi
+
+# We are inside the proot — launch Purple Bruce.
+if [ ! -x "${PB_DIR}/purplebruce.sh" ]; then
+  echo "[!] purplebruce.sh not found at ${PB_DIR}. Set \$PURPLEBRUCE_DIR or clone the repo."
+  exit 1
+fi
+exec bash "${PB_DIR}/purplebruce.sh" "$@"

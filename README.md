@@ -180,6 +180,24 @@ All outbound calls target `127.0.0.1` only — nightly reports land in `~/.purpl
 
 ---
 
+## 🟣 Netrunner cyberpunk terminal (`netrunner/`)
+
+Optional zsh/tmux overlay with Edgerunners palette, Powerlevel10k two-line prompt, pink blinking cursor, custom ASCII logo + neofetch-style MOTD, and a shared `netrunner` command:
+
+- **Termux (Android)** → `netrunner` jumps into the Ubuntu proot (manual setup: `netrunner/TERMUX.md`)
+- **Ubuntu proot-distro** → `netrunner` launches Purple Bruce
+
+Install inside the proot:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install.sh | bash
+exec zsh
+```
+
+See `netrunner/README.md` for the full breakdown, subcommands (`install / uninstall / status`), dotfile layout and customisation hooks.
+
+---
+
 ## 📁 Project layout
 
 ```
