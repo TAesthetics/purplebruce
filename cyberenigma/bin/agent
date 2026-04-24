@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# cyberenigma · agent — tiny wrapper that forwards a prompt to a local LLM.
+# Reads the key from ~/.cyberenigma/agent.key. Minimal, no deps beyond curl+jq.
+
+set -u
+
+PROMPT="${*:-}"
+if [ -z "$PROMPT" ]; then
+  echo "usage: agent <your prompt>"
+  exit 2
+fi
+
+KEY_FILE="$HOME/.cyberenigma/agent.key"
+if [ ! -f "$KEY_FILE" ]; then
+  echo "[!] No key. Save one to $KEY_FILE (one line, your API key)."
+  exit 1
+fi
+
+KEY=$(tr -d '\n' < "$KEY_FILE")
+MODEL="${CYBERENIGMA_MODEL:-grok-3-mini}"
+URL="${CYBERENIGMA_URL:-https://api.x.ai/v1/chat/completions}"
+
+payload=$(jq -nc --arg m "$MODEL" --arg p "$PROMPT" \
+  '{model:$m, messages:[{role:"user", content:$p}], temperature:0.7}' 2>/dev/null) || {
+  payload="{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"${PROMPT//\"/\\\"}\"}],\"temperature\":0.7}"
+}
+
+printf '\033[38;5;226m⚡ thinking...\033[0m\n'
+resp=$(curl -sS --max-time 60 -X POST "$URL" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $KEY" \
+  -d "$payload")
+
+if command -v jq >/dev/null 2>&1; then
+  text=$(printf '%s' "$resp" | jq -r '.choices[0].message.content // .error.message // .')
+else
+  text=$(printf '%s' "$resp" | sed -n 's/.*"content":"\([^"]*\)".*/\1/p')
+fi
+
+printf '\033[38;5;201m[🧠 CYBERENIGMA]\033[0m\n%s\n' "$text"
