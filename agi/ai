@@ -1,0 +1,89 @@
+#!/usr/bin/env node
+// agi/ai — Multi-provider, multi-role AGI CLI.
+// Usage:
+//   ai                                 → interactive REPL (full pipeline)
+//   ai "prompt"                        → run full pipeline once
+//   ai role <lucy|bruce|strategist|operator> "prompt"
+//   ai exec [-n] [-y] [-e "why"] -- <command...>
+//   ai providers                       → list providers + key status
+//   ai pipeline "prompt"               → explicit alias of `ai "prompt"`
+
+'use strict';
+
+const path = require('path');
+const { spawnSync } = require('child_process');
+const { callRole, runPipeline } = require(path.join(__dirname, 'core', 'pipeline'));
+const { listStatus } = require(path.join(__dirname, 'core', 'router'));
+const { start } = require(path.join(__dirname, 'cli', 'repl'));
+
+const C = {
+  reset: '\x1b[0m', dim: '\x1b[2m',
+  pink: '\x1b[38;5;201m', purple: '\x1b[38;5;129m',
+  cyan: '\x1b[38;5;51m',  yellow: '\x1b[38;5;226m',
+  red: '\x1b[38;5;196m',
+};
+
+function printStep(s) {
+  process.stdout.write(`${C.purple}┌─ ${C.cyan}${s.role}${C.dim} · ${s.providerName}${C.reset}\n`);
+  for (const line of String(s.text).split('\n')) {
+    process.stdout.write(`${C.purple}│${C.reset} ${line}\n`);
+  }
+  process.stdout.write(`${C.purple}└────${C.reset}\n`);
+}
+
+async function main() {
+  const argv = process.argv.slice(2);
+
+  if (argv.length === 0) return start();
+
+  const [cmd, ...rest] = argv;
+
+  switch (cmd) {
+    case 'providers': {
+      const s = listStatus();
+      for (const [name, info] of Object.entries(s)) {
+        const tick = info.hasKey ? `${C.cyan}✓${C.reset}` : `${C.red}✗${C.reset}`;
+        process.stdout.write(`  ${tick} ${name.padEnd(10)} ${C.dim}${info.keyEnv}${C.reset}  model=${info.model}\n`);
+      }
+      return;
+    }
+
+    case 'role': {
+      const role = rest.shift();
+      const prompt = rest.join(' ');
+      if (!role || !prompt) {
+        process.stderr.write(`usage: ai role <lucy|bruce|strategist|operator> "prompt"\n`);
+        process.exit(2);
+      }
+      const out = await callRole(role, prompt);
+      printStep(out);
+      return;
+    }
+
+    case 'exec': {
+      const safeExec = path.join(__dirname, 'safe_exec.sh');
+      const r = spawnSync('bash', [safeExec, ...rest], { stdio: 'inherit' });
+      process.exit(r.status ?? 0);
+    }
+
+    case 'pipeline':
+    default: {
+      const prompt = (cmd === 'pipeline' ? rest : argv).join(' ').trim();
+      if (!prompt) {
+        process.stderr.write(`usage: ai "prompt"\n`);
+        process.exit(2);
+      }
+      const r = await runPipeline(prompt, { onStep: printStep });
+      if (r.blocked) {
+        process.stdout.write(`${C.red}[blocked]${C.reset} ${r.reason}\n`);
+        process.exit(3);
+      }
+      return;
+    }
+  }
+}
+
+main().catch((e) => {
+  process.stderr.write(`${C.red}error:${C.reset} ${e.message || e}\n`);
+  process.exit(1);
+});
