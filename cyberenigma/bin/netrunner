@@ -1,0 +1,12 @@
+#!/data/data/com.termux/files/usr/bin/bash
+
+proot-distro login ubuntu >/dev/null 2>&1
+
+if [ $? -eq 0 ]; then
+  echo "[+] Ubuntu detected → starting..."
+  proot-distro login ubuntu
+else
+  echo "[*] Installing Ubuntu..."
+  proot-distro install ubuntu
+  proot-distro login ubuntu
+fi

@@ -1,14 +1,55 @@
-# Enhanced Cyberpunk Zsh Configuration
+# ================================
+# Enhanced Cyberpunk Zsh Config
+# ================================
 
-# Oh-My-Zsh
+# Oh-My-Zsh Path
 export ZSH="$HOME/.oh-my-zsh"
-ZSH_THEME="powerlevel10k/powerlevel10k"
-plugins=(git fzf zoxide)
 
+# Theme
+ZSH_THEME="powerlevel10k/powerlevel10k"
+
+# Disable updates (Termux safe)
+DISABLE_AUTO_UPDATE="true"
+DISABLE_AUTO_TITLE="true"
+DISABLE_ZSH_COMPLTION_WIZARD="true"
+
+# ================================
+# Plugins
+# ================================
+plugins=(
+  git
+  sudo
+  colored-man-pages
+  extract
+  zsh-autosuggestions
+  zsh-syntax-highlighting
+  zsh-completions
+  fzf
+  zoxide
+)
+
+# ================================
+# Load Oh My Zsh
+# ================================
+[[ -f "$ZSH/oh-my-zsh.sh" ]] && source "$ZSH/oh-my-zsh.sh"
+
+# Powerlevel10k config
+[[ -f "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
+
+# ================================
+# FIX: completions (WICHTIG!)
+# ================================
+[ -d "$ZSH_CUSTOM/plugins/zsh-completions/src" ] && fpath+=("$ZSH_CUSTOM/plugins/zsh-completions/src")
+
+autoload -U compinit && compinit -u
+
+# ================================
 # Aliases
-alias pb='your purple bruce command'
-alias pb-status='your pb status command'
-alias pb-logs='your pb logs command'
+# ================================
+alias pb='echo "purple bruce"'
+alias pb-status='echo "status"'
+alias pb-logs='echo "logs"'
+
 alias gs='git status'
 alias gp='git push'
 alias gl='git pull'
@@ -18,48 +59,54 @@ alias gc='git commit'
 alias gco='git checkout'
 alias gb='git branch'
 
-# Directory Navigation
+# Directory
 alias ll='ls -la'
 alias la='ls -A'
 alias lt='ls -lt'
 
-# System Utilities
-alias ports='your ports command'
-alias myip='your ip command'
-alias weather='your weather command'
-alias please='your please command'
+# Utilities
+alias ports='netstat -tulnp 2>/dev/null'
+alias myip='curl ifconfig.me'
+alias weather='curl wttr.in'
+alias please='sudo'
 
-# MOTD header
+# ================================
+# MOTD (optional)
+# ================================
 if [ -f "$HOME/motd.sh" ]; then
     bash "$HOME/motd.sh"
 fi
 
-# Real-time HH:MM:SS clock in right prompt
+# ================================
+# Prompt Enhancements
+# ================================
+
+# Clock right side
 POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(time)
 
-# Optimize performance
-export DISABLE_AUTO_TITLE="true"
-
-# Syntax highlighting
-ZSH_HIGHLIGHT_HIGHLIGHTERS=(main
-    git
-    command
-    alias
-    builtin
-    function)
-ZSH_HIGHLIGHT_STYLES[command]='cyan'
-ZSH_HIGHLIGHT_STYLES[alias]='purple'
-ZSH_HIGHLIGHT_STYLES[builtin]='yellow'
-ZSH_HIGHLIGHT_STYLES[function]='pink'
-
-# FZF Colour Scheme
-export FZF_DEFAULT_OPTS="--color=bg+:cyan,fg:white"
-
-# Show command execution timing
+# Execution time
 ZSH_COMMAND_EXECUTION_TIME="500"
 
-# Blinking cursor
-printf '\e[?12;2;10;5h'
+# Cursor blink (Termux supported)
+printf '\e[?12;25h'
 
-# Disable configuration wizard
-DISABLE_ZSH_COMPLTION_WIZARD="true"
+# ================================
+# Syntax Highlighting
+# ================================
+ZSH_HIGHLIGHT_HIGHLIGHTERS=(main git command alias builtin function)
+
+ZSH_HIGHLIGHT_STYLES[command]='cyan'
+ZSH_HIGHLIGHT_STYLES[alias]='magenta'
+ZSH_HIGHLIGHT_STYLES[builtin]='yellow'
+ZSH_HIGHLIGHT_STYLES[function]='green'
+
+# ================================
+# FZF Colors
+# ================================
+export FZF_DEFAULT_OPTS="--color=bg+:cyan,fg:white"
+
+# ================================
+# TERMUX / TRUECOLOR FIX
+# ================================
+export COLORTERM=truecolor
+export TERM=xterm-256color

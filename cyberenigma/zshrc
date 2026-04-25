@@ -1,0 +1,71 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  CYBERENIGMA · Layer 1 zshrc   (www.cyberenigma.dev)
+#  Termux-native. Clean, reproducible, one-file config.
+#  Palette: magenta 201 · purple 129 · cyan 51 · yellow 226
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── PATH ───────────────────────────────────────────────────────────────────
+export PATH="$HOME/cyberenigma/bin:$PATH"
+
+# ── History ────────────────────────────────────────────────────────────────
+HISTFILE=~/.zsh_history
+HISTSIZE=10000
+SAVEHIST=10000
+setopt SHARE_HISTORY HIST_IGNORE_ALL_DUPS HIST_IGNORE_SPACE HIST_VERIFY
+
+# ── Completion ─────────────────────────────────────────────────────────────
+autoload -Uz compinit && compinit -u
+zstyle ':completion:*' menu select
+zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'
+
+# ── zsh-autosuggestions (optional) ─────────────────────────────────────────
+[ -f ~/.zsh/zsh-autosuggestions/zsh-autosuggestions.zsh ] \
+  && source ~/.zsh/zsh-autosuggestions/zsh-autosuggestions.zsh
+ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=51"
+
+# ── Aliases ────────────────────────────────────────────────────────────────
+alias ll='ls -lah'
+alias la='ls -a'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias cls='clear'
+alias update='pkg update -y && pkg upgrade -y'
+alias sys='neofetch'
+alias netrunner="$HOME/cyberenigma/bin/netrunner"
+alias agent="$HOME/cyberenigma/bin/agent"
+
+# ── AI helpers (opt-in, no preexec spam) ───────────────────────────────────
+typewrite() {
+  local s="$1"
+  for ((i=0; i<${#s}; i++)); do printf '%s' "${s:$i:1}"; sleep 0.01; done
+  echo
+}
+ai_think() { print -P "%F{226}⚡ thinking...%f"; sleep 0.3; }
+
+# Run a command with the "AI wrapper" look. Opt-in — call `ai <cmd>` manually.
+# NOTE: uses eval — only run commands you trust.
+ai() {
+  unalias ai 2>/dev/null  # in case a shell aliased it
+  [ $# -eq 0 ] && { echo "usage: ai <command>"; return 1; }
+  ai_think
+  print -P "%F{51}➜ $*%f"
+  print -P "%F{201}[🧠 AI]%f → %F{226}$*%f"
+  eval "$@"
+}
+
+# ── Prompt — two-line CyberEnigma ──────────────────────────────────────────
+PROMPT='%F{201}┌─[%F{51}%n%F{201}@%F{129}CYBER%F{201}]─[%F{129}%~%F{201}]%f
+%F{201}└─%F{129}⚡%f '
+RPROMPT='%F{129}[%F{51}%*%F{129}]%f'
+
+# ── Pink blinking bar cursor ───────────────────────────────────────────────
+_cursor_pink_bar() { printf '\033]12;#ff2bd6\007\e[5 q'; }
+precmd_functions+=(_cursor_pink_bar)
+
+# ── Startup HUD + neofetch (once per login, interactive only) ──────────────
+if [[ -o interactive && -z "${CYBERENIGMA_GREETED:-}" ]]; then
+  [ -x ~/.cyberenigma/hud/topbar.sh ] && bash ~/.cyberenigma/hud/topbar.sh
+  command -v neofetch >/dev/null 2>&1 && neofetch
+  print -P "%F{129}──────────────────────────────────────────%f"
+  export CYBERENIGMA_GREETED=1
+fi
