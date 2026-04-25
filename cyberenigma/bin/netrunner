@@ -1,19 +1,12 @@
-#!/usr/bin/env bash
-# cyberenigma · netrunner — jump into the Ubuntu proot-distro.
-# On the host: installs ubuntu proot on first run, then `proot-distro login`.
+#!/data/data/com.termux/files/usr/bin/bash
 
-set -u
+proot-distro login ubuntu >/dev/null 2>&1
 
-DISTRO="${CYBERENIGMA_DISTRO:-ubuntu}"
-
-if ! command -v proot-distro >/dev/null 2>&1; then
-  echo "[!] proot-distro not installed.  Run:  pkg install proot-distro"
-  exit 1
+if [ $? -eq 0 ]; then
+  echo "[+] Ubuntu detected → starting..."
+  proot-distro login ubuntu
+else
+  echo "[*] Installing Ubuntu..."
+  proot-distro install ubuntu
+  proot-distro login ubuntu
 fi
-
-if ! proot-distro list 2>/dev/null | grep -qi "${DISTRO}.*installed"; then
-  echo "[*] Installing ${DISTRO} proot-distro (first-time only)…"
-  proot-distro install "${DISTRO}" || exit 1
-fi
-
-exec proot-distro login "${DISTRO}"
