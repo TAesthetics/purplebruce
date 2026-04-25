@@ -1,0 +1,12 @@
+{
+  "name": "agi-cli",
+  "version": "0.1.0",
+  "description": "Multi-provider, multi-role AGI CLI for the CyberEnigma / Purple Bruce stack.",
+  "bin": {
+    "ai": "./ai"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "private": true
+}
