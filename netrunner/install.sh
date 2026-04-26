@@ -58,7 +58,7 @@ apt_install() {
   fi
   log "apt update ..."
   $SUDO apt-get update -y >/dev/null 2>&1 || true
-  local pkgs=(zsh git curl wget ca-certificates fzf tmux bat)
+  local pkgs=(zsh git curl wget ca-certificates fzf tmux bat fastfetch chafa)
   # eza / zoxide may not be in older distros; try and fall back.
   $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${pkgs[@]}" eza zoxide 2>/dev/null || {
     $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${pkgs[@]}" 2>/dev/null || true
@@ -97,6 +97,29 @@ install_omz() {
     || git clone --depth=1 https://github.com/zsh-users/zsh-completions "$CUSTOM/plugins/zsh-completions" >/dev/null
 }
 
+# populate_logo — Layer 2 image-logo populator (snake now, cross later).
+# Deterministic 3-tier; no runtime ASCII rendering.
+populate_logo() {
+  local LOGO_PATH="$HOME/.config/fastfetch/images/logo.png"
+  # Idempotence guard: skip unless explicitly refreshed.
+  [ -f "$LOGO_PATH" ] && [ "${NETRUNNER_REFRESH_LOGO:-0}" != "1" ] && return 0
+  # Ensure target dir exists before any write.
+  mkdir -p "$HOME/.config/fastfetch/images"
+  if [ -n "${CROSS_IMAGE_URL:-}" ] && [ "$CROSS_IMAGE_URL" != "<TBD-URL>" ]; then
+    # Tier 1: future cross identity. Silent + non-blocking.
+    curl -fsSL "$CROSS_IMAGE_URL" -o "$LOGO_PATH" \
+      || warn "logo fetch failed → fallback"
+  elif [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/assets/snake.png" ]; then
+    # Tier 2a: snake asset shipped in cloned repo.
+    cp "$SCRIPT_DIR/assets/snake.png" "$LOGO_PATH"
+  else
+    # Tier 2b: snake asset from remote (curl-piped install).
+    curl -fsSL "$BASE_URL/assets/snake.png" -o "$LOGO_PATH" \
+      || rm -f "$LOGO_PATH"
+  fi
+  # Tier 3: nothing populated → launcher falls back to motd.sh on its own.
+}
+
 deploy_dotfiles() {
   mkdir -p "$NETRUNNER_HOME" "$HOME/.cache"
   fetch dotfiles/zshrc     "$HOME/.zshrc.netrunner"
@@ -105,6 +128,12 @@ deploy_dotfiles() {
   fetch assets/logo.ascii  "$NETRUNNER_HOME/logo.ascii"
   fetch assets/motd.sh     "$NETRUNNER_HOME/motd.sh"
   chmod +x "$NETRUNNER_HOME/motd.sh"
+
+  # Layer 2: fastfetch config + launcher.
+  fetch assets/fastfetch.jsonc        "$NETRUNNER_HOME/fastfetch.jsonc"
+  fetch assets/fastfetch-launcher.sh  "$NETRUNNER_HOME/fastfetch-launcher.sh"
+  chmod +x "$NETRUNNER_HOME/fastfetch-launcher.sh"
+  populate_logo
 
   backup_if_exists "$HOME/.zshrc"
   backup_if_exists "$HOME/.p10k.zsh"
@@ -165,9 +194,28 @@ do_uninstall() {
     fi
   done
   rm -rf "$NETRUNNER_HOME"
+  # Layer 2: fastfetch logo asset. Remove file; rmdir dir if empty.
+  rm -f "$HOME/.config/fastfetch/images/logo.png"
+  rmdir "$HOME/.config/fastfetch/images" 2>/dev/null || true
+  rmdir "$HOME/.config/fastfetch"        2>/dev/null || true
   $SUDO rm -f /usr/local/bin/netrunner
   rm -f "$HOME/.local/bin/netrunner"
   ok "netrunner uninstalled (Oh-My-Zsh + plugins left intact)."
+}
+
+logo_identity() {
+  # snake | cross | missing — heuristic by source: cross = curl'd from URL,
+  # snake = shipped in repo. We tag at install time via xattr-free sentinel
+  # (the snake.png we ship has a known path; if logo.png matches that file
+  # by size+hash it's snake, otherwise cross).
+  local p="$HOME/.config/fastfetch/images/logo.png"
+  [ -f "$p" ] || { echo missing; return; }
+  local snake="$SCRIPT_DIR/assets/snake.png"
+  if [ -f "$snake" ] && cmp -s "$p" "$snake" 2>/dev/null; then
+    echo snake
+  else
+    echo cross
+  fi
 }
 
 do_status() {
@@ -177,6 +225,9 @@ do_status() {
   printf '  .zshrc          : %s\n'  "$([ -f "$HOME/.zshrc"    ] && echo ok || echo missing)"
   printf '  .p10k.zsh       : %s\n'  "$([ -f "$HOME/.p10k.zsh" ] && echo ok || echo missing)"
   printf '  motd.sh         : %s\n'  "$([ -f "$NETRUNNER_HOME/motd.sh" ] && echo ok || echo missing)"
+  printf '  fastfetch       : %s\n'  "$(command -v fastfetch || echo 'missing')"
+  printf '  fastfetch.jsonc : %s\n'  "$([ -f "$NETRUNNER_HOME/fastfetch.jsonc" ] && echo ok || echo missing)"
+  printf '  logo.png        : %s\n'  "$(logo_identity)"
   printf '  netrunner cmd   : %s\n'  "$(command -v netrunner  || echo 'missing')"
   printf '  login shell     : %s\n'  "${SHELL:-?}"
 }
