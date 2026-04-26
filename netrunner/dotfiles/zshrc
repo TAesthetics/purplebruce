@@ -71,10 +71,12 @@ alias weather='curl wttr.in'
 alias please='sudo'
 
 # ================================
-# MOTD (optional)
+# MOTD (Layer 2 banner: fastfetch → motd.sh fallback)
 # ================================
-if [ -f "$HOME/motd.sh" ]; then
-    bash "$HOME/motd.sh"
+if [ -x "$HOME/.netrunner/fastfetch-launcher.sh" ]; then
+    bash "$HOME/.netrunner/fastfetch-launcher.sh"
+elif [ -f "$HOME/.netrunner/motd.sh" ]; then
+    bash "$HOME/.netrunner/motd.sh"
 fi
 
 # ================================
