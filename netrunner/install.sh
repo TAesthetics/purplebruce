@@ -97,8 +97,8 @@ install_omz() {
     || git clone --depth=1 https://github.com/zsh-users/zsh-completions "$CUSTOM/plugins/zsh-completions" >/dev/null
 }
 
-# populate_logo — Layer 2 image-logo populator (snake now, cross later).
-# Deterministic 3-tier; no runtime ASCII rendering.
+# populate_logo — Layer 2 image-logo populator. Cross is the canonical
+# Layer 1 identity; snake stays as a fallback. Deterministic priority.
 populate_logo() {
   local LOGO_PATH="$HOME/.config/fastfetch/images/logo.png"
   # Idempotence guard: skip unless explicitly refreshed.
@@ -106,18 +106,23 @@ populate_logo() {
   # Ensure target dir exists before any write.
   mkdir -p "$HOME/.config/fastfetch/images"
   if [ -n "${CROSS_IMAGE_URL:-}" ] && [ "$CROSS_IMAGE_URL" != "<TBD-URL>" ]; then
-    # Tier 1: future cross identity. Silent + non-blocking.
+    # Tier 1: explicit URL override.
     curl -fsSL "$CROSS_IMAGE_URL" -o "$LOGO_PATH" \
       || warn "logo fetch failed → fallback"
+  elif [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/assets/cross.png" ]; then
+    # Tier 2a: cross asset shipped in cloned repo (canonical).
+    cp "$SCRIPT_DIR/assets/cross.png" "$LOGO_PATH"
   elif [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/assets/snake.png" ]; then
-    # Tier 2a: snake asset shipped in cloned repo.
+    # Tier 2b: snake fallback from cloned repo.
     cp "$SCRIPT_DIR/assets/snake.png" "$LOGO_PATH"
+  elif curl -fsSL "$BASE_URL/assets/cross.png" -o "$LOGO_PATH" 2>/dev/null; then
+    : # Tier 3a: cross from remote (curl-piped install).
   else
-    # Tier 2b: snake asset from remote (curl-piped install).
+    # Tier 3b: snake from remote (curl-piped install).
     curl -fsSL "$BASE_URL/assets/snake.png" -o "$LOGO_PATH" \
       || rm -f "$LOGO_PATH"
   fi
-  # Tier 3: nothing populated → launcher falls back to motd.sh on its own.
+  # Nothing populated → launcher falls back to motd.sh on its own.
 }
 
 deploy_dotfiles() {
@@ -204,17 +209,18 @@ do_uninstall() {
 }
 
 logo_identity() {
-  # snake | cross | missing — heuristic by source: cross = curl'd from URL,
-  # snake = shipped in repo. We tag at install time via xattr-free sentinel
-  # (the snake.png we ship has a known path; if logo.png matches that file
-  # by size+hash it's snake, otherwise cross).
+  # cross | snake | custom | missing — compare deployed logo.png against
+  # the in-repo cross.png and snake.png by exact bytes.
   local p="$HOME/.config/fastfetch/images/logo.png"
   [ -f "$p" ] || { echo missing; return; }
+  local cross="$SCRIPT_DIR/assets/cross.png"
   local snake="$SCRIPT_DIR/assets/snake.png"
-  if [ -f "$snake" ] && cmp -s "$p" "$snake" 2>/dev/null; then
+  if [ -f "$cross" ] && cmp -s "$p" "$cross" 2>/dev/null; then
+    echo cross
+  elif [ -f "$snake" ] && cmp -s "$p" "$snake" 2>/dev/null; then
     echo snake
   else
-    echo cross
+    echo custom
   fi
 }
 

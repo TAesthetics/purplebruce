@@ -1,10 +1,11 @@
 // netrunner/assets/fastfetch.jsonc
-// Layer 2 fastfetch config. Logo path is stable: snake now, cross later
-// (file replacement only — no config edits required for the swap).
+// Layer 2 fastfetch config. Logo path is stable: cross is the canonical
+// Layer 1 identity, snake is a fallback. File replacement only — no config
+// edits required to swap.
 {
   "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
   "logo": {
-    "type": "image",
+    "type": "chafa",
     "source": "~/.config/fastfetch/images/logo.png",
     "width": 26,
     "padding": { "top": 0, "right": 2 }
