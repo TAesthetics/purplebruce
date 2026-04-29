@@ -5,9 +5,10 @@
 set -u
 
 banner() {
-  echo "╔════════════════════════════════════════════╗"
-  echo "║ PURPLE BRUCE v5.0 — LUCY EDITION          ║"
-  echo "╚════════════════════════════════════════════╝"
+  local P=$'\033[38;5;201m' V=$'\033[38;5;129m' C=$'\033[38;5;51m' Y=$'\033[38;5;226m' N=$'\033[0m'
+  printf '%b╔══════════════════════════════════════════════╗%b\n' "$P" "$N"
+  printf '%b║%b  %bPURPLE BRUCE v6.0%b · %bNETRUNNER EDITION%b      %b║%b\n' "$P" "$N" "$P" "$N" "$C" "$N" "$P" "$N"
+  printf '%b╚══════════════════════════════════════════════╝%b\n' "$P" "$N"
 }
 
 banner
@@ -148,8 +149,8 @@ if ! kill -0 "$SERVER_PID" 2>/dev/null; then
   exit 1
 fi
 
-echo "[*] Lucy running (pid ${SERVER_PID}). Open ${BASE} in your browser."
-echo "[*] CLI ready. Type 'help' for commands. 'exit' to stop."
+printf '\n%b[✓]%b lucy is alive @ %b%s%b — open this in your phone browser\n' "$C_GREEN" "$C_RESET" "$C_YELLOW" "$BASE" "$C_RESET"
+printf '%b    type %b/help%b for the CLI · %bexit%b to shut down%b\n\n' "$C_DIM" "$C_CYAN" "$C_DIM" "$C_CYAN" "$C_DIM" "$C_RESET"
 
 show_help() {
   cat <<EOF

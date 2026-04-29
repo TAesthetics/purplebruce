@@ -1,30 +1,255 @@
 #!/usr/bin/env bash
-# netrunner — shared entry point.
-#   Termux (host)  → proot-distro login ubuntu
-#   Ubuntu proot   → launch Purple Bruce (~/purplebruce/purplebruce.sh)
+# netrunner — v6.0 universal launcher.
+#
+# Layer 1 (Termux host)   → opens the proot, runs `netrunner start` inside
+# Layer 2 (Ubuntu proot)  → bootstraps + starts Purple Bruce on 127.0.0.1:3000
+# Layer 3 (native Linux)  → just starts Purple Bruce
+#
+# Subcommands:
+#   start (default) · stop · status · logs · chat · bash · exit · help
 
 set -u
 
-is_termux() { [ -n "${TERMUX_VERSION:-}" ] || [ -d /data/data/com.termux ]; }
+NETRUNNER_VERSION="6.0.0"
 
+PB_REPO="${PURPLEBRUCE_REPO:-https://github.com/TAesthetics/purplebruce.git}"
 PB_DIR="${PURPLEBRUCE_DIR:-$HOME/purplebruce}"
 DISTRO="${NETRUNNER_DISTRO:-ubuntu}"
+PORT="${PORT:-3000}"
+BIND="${BIND:-127.0.0.1}"
+URL="http://${BIND}:${PORT}"
 
-if is_termux; then
+P=$'\033[38;5;201m'   # pink
+V=$'\033[38;5;129m'   # purple
+C=$'\033[38;5;51m'    # cyan
+Y=$'\033[38;5;226m'   # yellow
+R=$'\033[1;31m'       # red
+N=$'\033[0m'          # reset
+D=$'\033[2m'          # dim
+
+say()  { printf '%b[*]%b %s\n' "$C" "$N" "$*"; }
+ok()   { printf '%b[✓]%b %s\n' "$Y" "$N" "$*"; }
+warn() { printf '%b[!]%b %s\n' "$P" "$N" "$*" >&2; }
+err()  { printf '%b[x]%b %s\n' "$R" "$N" "$*" >&2; }
+
+is_termux() {
+  [ -n "${TERMUX_VERSION:-}" ] || [ "${PREFIX:-}" = "/data/data/com.termux/files/usr" ]
+}
+
+# Inside an Ubuntu/Debian/Kali proot. Detect by: user=root + apt-get exists +
+# os-release looks like Ubuntu/Debian/Kali. Termux itself has apt but no
+# /etc/os-release with those IDs.
+is_proot() {
+  [ "$(id -u)" -eq 0 ] && [ -r /etc/os-release ] \
+    && grep -qiE '^(ID|ID_LIKE)=.*(ubuntu|debian|kali)' /etc/os-release \
+    && ! is_termux
+}
+
+current_layer() {
+  if is_termux; then echo termux
+  elif is_proot;  then echo proot
+  else echo native
+  fi
+}
+
+banner() {
+  printf '\n'
+  printf '%b ███╗   ██╗███████╗████████╗██████╗ ██╗   ██╗███╗   ██╗%b\n' "$P" "$N"
+  printf '%b ████╗  ██║██╔════╝╚══██╔══╝██╔══██╗██║   ██║████╗  ██║%b\n' "$V" "$N"
+  printf '%b ██╔██╗ ██║█████╗     ██║   ██████╔╝██║   ██║██╔██╗ ██║%b\n' "$C" "$N"
+  printf '%b ██║╚██╗██║██╔══╝     ██║   ██╔══██╗██║   ██║██║╚██╗██║%b\n' "$V" "$N"
+  printf '%b ██║ ╚████║███████╗   ██║   ██║  ██║╚██████╔╝██║ ╚████║%b\n' "$P" "$N"
+  printf '%b ╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝%b\n' "$P" "$N"
+  printf '%b           PURPLE BRUCE v%s · NETRUNNER EDITION%b\n\n' "$Y" "$NETRUNNER_VERSION" "$N"
+}
+
+# ── Layer 1 (Termux) ─────────────────────────────────────────────────────────
+termux_ensure_proot() {
   if ! command -v proot-distro >/dev/null 2>&1; then
-    echo "[!] proot-distro not installed. Run:  pkg install proot-distro"
-    exit 1
+    say "installing proot-distro …"
+    pkg install -y proot-distro >/dev/null || { err "pkg install proot-distro failed"; return 1; }
   fi
   if ! proot-distro list 2>/dev/null | grep -qi "${DISTRO}.*installed"; then
-    echo "[*] ${DISTRO} proot-distro not installed. Run:  proot-distro install ${DISTRO}"
-    exit 1
+    say "installing ${DISTRO} distro (one-time, ~200 MB) …"
+    proot-distro install "$DISTRO" || { err "distro install failed"; return 1; }
   fi
-  exec proot-distro login "${DISTRO}"
-fi
+}
 
-# We are inside the proot — launch Purple Bruce.
-if [ ! -x "${PB_DIR}/purplebruce.sh" ]; then
-  echo "[!] purplebruce.sh not found at ${PB_DIR}. Set \$PURPLEBRUCE_DIR or clone the repo."
-  exit 1
-fi
-exec bash "${PB_DIR}/purplebruce.sh" "$@"
+termux_enter() {
+  termux_ensure_proot || return 1
+  local sub="${1:-start}"
+  # Drop into the proot and re-invoke ourselves there. /usr/local/bin/netrunner
+  # is set up by install.sh on first proot bootstrap. If it doesn't exist yet,
+  # the proot's shell rc will bootstrap it on first interactive login — but we
+  # want non-interactive too, so fall back to bash bootstrap.
+  exec proot-distro login "$DISTRO" -- bash -lc "
+    if command -v netrunner >/dev/null 2>&1; then
+      exec netrunner $(printf '%q ' "$sub")
+    else
+      cd /root
+      [ -d purplebruce ] || git clone --depth=1 '$PB_REPO' purplebruce
+      bash purplebruce/netrunner/install.sh install
+      exec netrunner $(printf '%q ' "$sub")
+    fi
+  "
+}
+
+# ── Layer 2 (proot) — bootstrap + state mgmt ─────────────────────────────────
+proot_bootstrap() {
+  if [ ! -d "$PB_DIR" ]; then
+    say "cloning purplebruce → $PB_DIR"
+    apt-get update -y >/dev/null 2>&1 || true
+    apt-get install -y --no-install-recommends git ca-certificates >/dev/null 2>&1 || true
+    git clone --depth=1 "$PB_REPO" "$PB_DIR" \
+      || { err "git clone failed"; return 1; }
+  fi
+  if ! command -v node >/dev/null 2>&1; then
+    say "installing nodejs + npm …"
+    apt-get install -y --no-install-recommends nodejs npm >/dev/null \
+      || warn "nodejs install failed — purplebruce.sh will retry"
+  fi
+  # cyberpunk terminal — only run if not already deployed
+  if [ ! -f "$HOME/.zshrc" ] || ! grep -q netrunner "$HOME/.zshrc" 2>/dev/null; then
+    say "deploying cyberpunk terminal (first run only) …"
+    bash "$PB_DIR/netrunner/install.sh" install
+  fi
+}
+
+pidfile() { echo "$PB_DIR/.purplebruce/server.pid"; }
+
+server_pid() {
+  local pf; pf="$(pidfile)"
+  [ -f "$pf" ] || return 1
+  local p; p="$(cat "$pf" 2>/dev/null)"
+  [ -n "$p" ] && kill -0 "$p" 2>/dev/null && { echo "$p"; return 0; }
+  return 1
+}
+
+http_alive() {
+  curl -fsS -o /dev/null --max-time 1 "${URL}/api/status" 2>/dev/null
+}
+
+proot_start() {
+  proot_bootstrap || return 1
+  if pid=$(server_pid 2>/dev/null); then
+    ok "purplebruce already running (pid $pid) at ${C}${URL}${N}"
+  else
+    mkdir -p "$PB_DIR/.purplebruce"
+    say "starting purplebruce on ${URL} …"
+    ( cd "$PB_DIR" && PORT="$PORT" BIND="$BIND" \
+        nohup bash purplebruce.sh </dev/null >>.purplebruce/server.log 2>&1 & echo $! >"$(pidfile)" )
+    # wait up to 15s for HTTP liveness
+    local i=0
+    while [ $i -lt 30 ]; do
+      http_alive && { ok "lucy is awake at ${C}${URL}${N}"; break; }
+      sleep 0.5; i=$((i+1))
+    done
+    if ! http_alive; then
+      warn "server didn't answer in 15s — see logs:  ${C}netrunner logs${N}"
+    fi
+  fi
+  printf '\n  %bopen this in your phone browser:%b  %b%s%b\n\n' "$D" "$N" "$Y" "$URL" "$N"
+}
+
+proot_stop() {
+  if pid=$(server_pid 2>/dev/null); then
+    say "stopping purplebruce (pid $pid) …"
+    kill "$pid" 2>/dev/null || true
+    sleep 1
+    kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null || true
+    rm -f "$(pidfile)"
+    ok "stopped."
+  else
+    warn "not running."
+    rm -f "$(pidfile)"
+  fi
+}
+
+proot_status() {
+  printf '  %blayer%b           : proot (%s)\n' "$C" "$N" "$(. /etc/os-release && echo "$PRETTY_NAME")"
+  printf '  %brepo%b            : %s %s\n' "$C" "$N" "$PB_DIR" "$([ -d "$PB_DIR" ] && echo ok || echo missing)"
+  printf '  %bnode%b            : %s\n' "$C" "$N" "$(command -v node || echo missing)"
+  printf '  %bzsh%b             : %s\n' "$C" "$N" "$(command -v zsh || echo missing)"
+  printf '  %bfastfetch%b       : %s\n' "$C" "$N" "$(command -v fastfetch || echo missing)"
+  if pid=$(server_pid 2>/dev/null); then
+    printf '  %bpurplebruce%b     : running (pid %s) at %s\n' "$Y" "$N" "$pid" "$URL"
+  else
+    printf '  %bpurplebruce%b     : stopped\n' "$D" "$N"
+  fi
+  http_alive && printf '  %bhttp%b            : alive\n' "$Y" "$N" \
+              || printf '  %bhttp%b            : %s\n' "$D" "$N" "no response"
+}
+
+proot_logs() {
+  local lf="$PB_DIR/.purplebruce/server.log"
+  [ -f "$lf" ] || { warn "no log yet ($lf)"; return; }
+  exec tail -n "${1:-60}" -f "$lf"
+}
+
+proot_chat() {
+  if ! http_alive; then
+    warn "purplebruce not running — try:  ${C}netrunner start${N}"
+    return 1
+  fi
+  exec bash "$PB_DIR/purplebruce.sh"
+}
+
+# ── help ──────────────────────────────────────────────────────────────────────
+show_help() {
+  banner
+  cat <<EOF
+  ${C}USAGE${N}    ${P}netrunner${N} [command]
+
+  ${C}LAYER 1 (Termux)${N}
+    ${Y}netrunner${N}                drops into Ubuntu proot + auto-starts UI
+    ${Y}netrunner status${N}         show distro state
+    ${Y}netrunner exit${N}           (n/a — just close Termux)
+
+  ${C}LAYER 2 (proot) / native${N}
+    ${Y}netrunner start${N}          bootstrap + run UI on ${URL}
+    ${Y}netrunner stop${N}           stop UI
+    ${Y}netrunner status${N}         what's running, what's missing
+    ${Y}netrunner logs${N}           tail -f server log
+    ${Y}netrunner chat${N}           interactive Lucy CLI (server must be up)
+    ${Y}netrunner bash${N}           drop to a shell (proot)
+    ${Y}netrunner exit${N}           leave the proot, back to Termux
+
+  ${C}ENV${N}
+    PORT=$PORT  BIND=$BIND  PURPLEBRUCE_DIR=$PB_DIR  NETRUNNER_DISTRO=$DISTRO
+EOF
+}
+
+# ── main ──────────────────────────────────────────────────────────────────────
+SUB="${1:-start}"
+LAYER="$(current_layer)"
+
+case "$LAYER:$SUB" in
+  termux:start|termux:"")    banner; termux_enter start ;;
+  termux:status)             banner
+                             printf '  %blayer%b   : termux (Android host)\n' "$C" "$N"
+                             printf '  %bdistro%b  : %s\n' "$C" "$N" \
+                               "$(proot-distro list 2>/dev/null | grep -i "$DISTRO" | head -1 | tr -s ' ' || echo 'not installed')"
+                             printf '  %bnetrunner%b: v%s\n' "$C" "$N" "$NETRUNNER_VERSION"
+                             ;;
+  termux:exit)               warn "you're already in Termux. Just close the app." ;;
+  termux:help|termux:-h|termux:--help) show_help ;;
+  termux:*)                  termux_enter "$SUB" ;;
+
+  proot:start|proot:"")      banner; proot_start ;;
+  proot:stop)                proot_stop ;;
+  proot:status)              banner; proot_status ;;
+  proot:logs)                proot_logs "${2:-60}" ;;
+  proot:chat)                proot_chat ;;
+  proot:bash|proot:shell)    exec bash -l ;;
+  proot:exit|proot:quit)     exit 0 ;;
+  proot:help|proot:-h|proot:--help) show_help ;;
+  proot:*)                   err "unknown command: $SUB"; show_help; exit 2 ;;
+
+  native:start|native:"")    banner; proot_start ;;
+  native:stop)               proot_stop ;;
+  native:status)             banner; proot_status ;;
+  native:logs)               proot_logs "${2:-60}" ;;
+  native:chat)               proot_chat ;;
+  native:help|native:-h|native:--help) show_help ;;
+  native:*)                  err "unknown command: $SUB"; show_help; exit 2 ;;
+esac

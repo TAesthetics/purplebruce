@@ -1,14 +1,21 @@
 #!/usr/bin/env bash
-# netrunner/install.sh — Cyberpunk terminal installer for Ubuntu proot-distro (Debian/Kali also).
-# Deploys: zsh + Oh-My-Zsh + Powerlevel10k + fzf + zoxide + bat + eza + tmux + cyberpunk dotfiles.
-# Idempotent. Backs up existing .zshrc / .p10k.zsh / .tmux.conf before overwriting.
+# netrunner/install.sh — v6.0 layer-aware installer.
+#
+# Layer 1 (Termux):  installs proot-distro + ubuntu + Termux-side `netrunner`
+# Layer 2 (proot):   installs zsh + Oh-My-Zsh + Powerlevel10k + plugins +
+#                    fzf/tmux/bat/fastfetch/chafa + cyberpunk dotfiles + the
+#                    proot-side `netrunner` command.
+#
+# Idempotent. Backs up existing dotfiles. Run with no args for `install`.
 
 set -u
 
+NETRUNNER_VERSION="6.0.0"
 MODE="${1:-install}"
 REPO="${NETRUNNER_REPO:-TAesthetics/purplebruce}"
 BRANCH="${NETRUNNER_BRANCH:-main}"
 BASE_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/netrunner"
+DISTRO="${NETRUNNER_DISTRO:-ubuntu}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd || echo '')"
 NETRUNNER_HOME="$HOME/.netrunner"
@@ -24,22 +31,57 @@ warn() { printf '%b[!]%b %s\n' "$P" "$R" "$*"; }
 
 banner() {
   printf '\n%b╔══════════════════════════════════════════════╗%b\n' "$P" "$R"
-  printf '%b║%b   %bNETRUNNER%b · %bcyberpunk terminal setup%b     %b║%b\n' "$P" "$R" "$P" "$R" "$C" "$R" "$P" "$R"
+  printf '%b║%b  %bNETRUNNER v%s%b · %bcyberpunk install%b           %b║%b\n' \
+    "$P" "$R" "$P" "$NETRUNNER_VERSION" "$R" "$C" "$R" "$P" "$R"
   printf '%b╚══════════════════════════════════════════════╝%b\n\n' "$P" "$R"
 }
 
-# fetch <rel-path> <dest>
-#   Uses local file if running from a cloned repo; otherwise downloads from GitHub.
+is_termux() {
+  [ -n "${TERMUX_VERSION:-}" ] || [ "${PREFIX:-}" = "/data/data/com.termux/files/usr" ]
+}
+
+# ── Layer 1: Termux side ─────────────────────────────────────────────────────
+do_install_termux() {
+  banner
+  log "host detected: Termux"
+
+  if ! command -v proot-distro >/dev/null 2>&1; then
+    log "installing proot-distro + git + curl …"
+    pkg install -y proot-distro git curl >/dev/null \
+      || { warn "pkg install failed — re-run with internet access"; exit 1; }
+  fi
+
+  if ! proot-distro list 2>/dev/null | grep -qi "${DISTRO}.*installed"; then
+    log "installing ${DISTRO} (one-time, ~200 MB) …"
+    proot-distro install "$DISTRO" \
+      || { warn "distro install failed — check connection"; exit 1; }
+  fi
+
+  # Drop the `netrunner` wrapper into Termux's PATH
+  local target="$PREFIX/bin/netrunner"
+  if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/bin/netrunner" ]; then
+    install -m 755 "$SCRIPT_DIR/bin/netrunner" "$target"
+  else
+    curl -fsSL "$BASE_URL/bin/netrunner" -o "$target" \
+      && chmod +x "$target" \
+      || { warn "could not fetch netrunner script"; exit 1; }
+  fi
+
+  printf '\n'
+  ok "Termux side ready. Just type:  ${P}netrunner${R}"
+  ok "First call drops you into ${DISTRO} and bootstraps Purple Bruce automatically."
+  printf '\n'
+}
+
+# ── Layer 2: proot side ──────────────────────────────────────────────────────
 fetch() {
   local rel="$1" dest="$2"
   mkdir -p "$(dirname "$dest")"
   if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/$rel" ]; then
     cp "$SCRIPT_DIR/$rel" "$dest"
   else
-    if ! curl -fsSL "$BASE_URL/$rel" -o "$dest"; then
-      warn "could not fetch $rel (offline? branch=$BRANCH)"
-      return 1
-    fi
+    curl -fsSL "$BASE_URL/$rel" -o "$dest" \
+      || { warn "could not fetch $rel"; return 1; }
   fi
 }
 
@@ -53,42 +95,40 @@ backup_if_exists() {
 
 apt_install() {
   if ! command -v apt-get >/dev/null 2>&1; then
-    warn "apt-get not found — this installer targets Debian/Ubuntu/Kali proot-distros."
+    warn "apt-get not found — this layer targets Debian/Ubuntu/Kali."
     return 1
   fi
-  log "apt update ..."
+  log "apt update …"
   $SUDO apt-get update -y >/dev/null 2>&1 || true
-  local pkgs=(zsh git curl wget ca-certificates fzf tmux bat fastfetch chafa)
-  # eza / zoxide may not be in older distros; try and fall back.
-  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${pkgs[@]}" eza zoxide 2>/dev/null || {
-    $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${pkgs[@]}" 2>/dev/null || true
-  }
-  # Debian names bat -> batcat. Symlink for consistency.
+  local pkgs=(zsh git curl wget ca-certificates fzf tmux bat fastfetch chafa nodejs npm)
+  $SUDO env DEBIAN_FRONTEND=noninteractive \
+    apt-get install -y --no-install-recommends "${pkgs[@]}" eza zoxide 2>/dev/null || {
+      $SUDO env DEBIAN_FRONTEND=noninteractive \
+        apt-get install -y --no-install-recommends "${pkgs[@]}" 2>/dev/null || true
+    }
   if ! command -v bat >/dev/null 2>&1 && command -v batcat >/dev/null 2>&1; then
     $SUDO ln -sf "$(command -v batcat)" /usr/local/bin/bat
   fi
-  # Fallbacks when distro packages are missing.
   if ! command -v zoxide >/dev/null 2>&1; then
     log "zoxide not in apt — installing via upstream script"
-    curl -fsSL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | $SUDO bash >/dev/null 2>&1 || true
+    curl -fsSL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh \
+      | $SUDO bash >/dev/null 2>&1 || true
   fi
 }
 
 install_omz() {
   export ZSH="${ZSH:-$HOME/.oh-my-zsh}"
   if [ -d "$ZSH" ]; then
-    log "Oh-My-Zsh already installed → update"
+    log "Oh-My-Zsh present → update"
     ( cd "$ZSH" && git pull --quiet --ff-only 2>/dev/null ) || true
   else
-    log "installing Oh-My-Zsh ..."
+    log "installing Oh-My-Zsh …"
     RUNZSH=no KEEP_ZSHRC=yes CHSH=no \
       sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended >/dev/null
   fi
   local CUSTOM="${ZSH_CUSTOM:-$ZSH/custom}"
-  # Powerlevel10k
   [ -d "$CUSTOM/themes/powerlevel10k" ] \
     || git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$CUSTOM/themes/powerlevel10k" >/dev/null
-  # Plugins
   [ -d "$CUSTOM/plugins/zsh-autosuggestions" ] \
     || git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions "$CUSTOM/plugins/zsh-autosuggestions" >/dev/null
   [ -d "$CUSTOM/plugins/zsh-syntax-highlighting" ] \
@@ -97,32 +137,25 @@ install_omz() {
     || git clone --depth=1 https://github.com/zsh-users/zsh-completions "$CUSTOM/plugins/zsh-completions" >/dev/null
 }
 
-# populate_logo — Layer 2 image-logo populator. Cross is the canonical
-# Layer 1 identity; snake stays as a fallback. Deterministic priority.
+# populate_logo — Layer 2 image-logo populator. Cross is canonical Layer 1
+# identity; snake stays as a fallback. Deterministic priority.
 populate_logo() {
   local LOGO_PATH="$HOME/.config/fastfetch/images/logo.png"
-  # Idempotence guard: skip unless explicitly refreshed.
   [ -f "$LOGO_PATH" ] && [ "${NETRUNNER_REFRESH_LOGO:-0}" != "1" ] && return 0
-  # Ensure target dir exists before any write.
   mkdir -p "$HOME/.config/fastfetch/images"
   if [ -n "${CROSS_IMAGE_URL:-}" ] && [ "$CROSS_IMAGE_URL" != "<TBD-URL>" ]; then
-    # Tier 1: explicit URL override.
     curl -fsSL "$CROSS_IMAGE_URL" -o "$LOGO_PATH" \
       || warn "logo fetch failed → fallback"
   elif [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/assets/cross.png" ]; then
-    # Tier 2a: cross asset shipped in cloned repo (canonical).
     cp "$SCRIPT_DIR/assets/cross.png" "$LOGO_PATH"
   elif [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/assets/snake.png" ]; then
-    # Tier 2b: snake fallback from cloned repo.
     cp "$SCRIPT_DIR/assets/snake.png" "$LOGO_PATH"
   elif curl -fsSL "$BASE_URL/assets/cross.png" -o "$LOGO_PATH" 2>/dev/null; then
-    : # Tier 3a: cross from remote (curl-piped install).
+    :
   else
-    # Tier 3b: snake from remote (curl-piped install).
     curl -fsSL "$BASE_URL/assets/snake.png" -o "$LOGO_PATH" \
       || rm -f "$LOGO_PATH"
   fi
-  # Nothing populated → launcher falls back to motd.sh on its own.
 }
 
 deploy_dotfiles() {
@@ -133,8 +166,6 @@ deploy_dotfiles() {
   fetch assets/logo.ascii  "$NETRUNNER_HOME/logo.ascii"
   fetch assets/motd.sh     "$NETRUNNER_HOME/motd.sh"
   chmod +x "$NETRUNNER_HOME/motd.sh"
-
-  # Layer 2: fastfetch config + launcher.
   fetch assets/fastfetch.jsonc        "$NETRUNNER_HOME/fastfetch.jsonc"
   fetch assets/fastfetch-launcher.sh  "$NETRUNNER_HOME/fastfetch-launcher.sh"
   chmod +x "$NETRUNNER_HOME/fastfetch-launcher.sh"
@@ -162,33 +193,39 @@ install_netrunner_bin() {
 set_shell() {
   local zsh_path; zsh_path="$(command -v zsh)"
   [ -z "$zsh_path" ] && { warn "zsh not found — skip chsh"; return; }
-  # shell must be in /etc/shells
   grep -qxF "$zsh_path" /etc/shells 2>/dev/null || echo "$zsh_path" | $SUDO tee -a /etc/shells >/dev/null
   if [ "${SHELL:-}" != "$zsh_path" ]; then
     if $SUDO chsh -s "$zsh_path" "$(id -un)" 2>/dev/null; then
       ok "login shell → $zsh_path"
     else
       warn "could not chsh automatically. Run manually:  chsh -s $zsh_path"
-      warn "or start zsh from your current shell: exec zsh"
+      warn "or just:  exec zsh"
     fi
   fi
 }
 
-do_install() {
+do_install_proot() {
   banner
+  log "host detected: proot / native Linux"
   apt_install
   install_omz
   deploy_dotfiles
   install_netrunner_bin
   set_shell
   printf '\n'
-  ok "netrunner installed. Open a new shell or run:  ${C}exec zsh${R}"
-  ok "then:  ${P}netrunner${R}   (from Termux → proot)  ·  inside proot → launches Purple Bruce"
+  ok "netrunner v$NETRUNNER_VERSION installed."
+  ok "open a new shell or:  ${C}exec zsh${R}"
+  ok "then anywhere:        ${P}netrunner${R}   (starts Purple Bruce on http://127.0.0.1:3000)"
   printf '\n'
 }
 
 do_uninstall() {
   banner
+  if is_termux; then
+    rm -f "$PREFIX/bin/netrunner"
+    ok "Termux-side netrunner removed. proot-distro + ${DISTRO} kept (use proot-distro remove if wanted)."
+    return
+  fi
   for f in "$HOME/.zshrc" "$HOME/.p10k.zsh" "$HOME/.tmux.conf"; do
     local latest; latest=$(ls -1t "${f}.netrunner-backup."* 2>/dev/null | head -1)
     if [ -n "$latest" ]; then
@@ -199,7 +236,6 @@ do_uninstall() {
     fi
   done
   rm -rf "$NETRUNNER_HOME"
-  # Layer 2: fastfetch logo asset. Remove file; rmdir dir if empty.
   rm -f "$HOME/.config/fastfetch/images/logo.png"
   rmdir "$HOME/.config/fastfetch/images" 2>/dev/null || true
   rmdir "$HOME/.config/fastfetch"        2>/dev/null || true
@@ -209,8 +245,6 @@ do_uninstall() {
 }
 
 logo_identity() {
-  # cross | snake | custom | missing — compare deployed logo.png against
-  # the in-repo cross.png and snake.png by exact bytes.
   local p="$HOME/.config/fastfetch/images/logo.png"
   [ -f "$p" ] || { echo missing; return; }
   local cross="$SCRIPT_DIR/assets/cross.png"
@@ -225,29 +259,40 @@ logo_identity() {
 }
 
 do_status() {
-  printf '  zsh             : %s\n'  "$(command -v zsh  || echo 'missing')"
+  if is_termux; then
+    printf '  %blayer%b           : termux\n' "$C" "$R"
+    printf '  proot-distro    : %s\n' "$(command -v proot-distro || echo missing)"
+    printf '  %s        : %s\n' "$DISTRO" \
+      "$(proot-distro list 2>/dev/null | grep -i "$DISTRO" | head -1 | sed 's/^[[:space:]]*//' || echo missing)"
+    printf '  netrunner cmd   : %s\n' "$(command -v netrunner || echo missing)"
+    return
+  fi
+  printf '  %blayer%b           : proot / native\n' "$C" "$R"
+  printf '  zsh             : %s\n'  "$(command -v zsh  || echo missing)"
   printf '  oh-my-zsh       : %s\n'  "$([ -d "$HOME/.oh-my-zsh" ] && echo ok || echo missing)"
   printf '  powerlevel10k   : %s\n'  "$([ -d "$HOME/.oh-my-zsh/custom/themes/powerlevel10k" ] && echo ok || echo missing)"
   printf '  .zshrc          : %s\n'  "$([ -f "$HOME/.zshrc"    ] && echo ok || echo missing)"
   printf '  .p10k.zsh       : %s\n'  "$([ -f "$HOME/.p10k.zsh" ] && echo ok || echo missing)"
   printf '  motd.sh         : %s\n'  "$([ -f "$NETRUNNER_HOME/motd.sh" ] && echo ok || echo missing)"
-  printf '  fastfetch       : %s\n'  "$(command -v fastfetch || echo 'missing')"
+  printf '  fastfetch       : %s\n'  "$(command -v fastfetch || echo missing)"
   printf '  fastfetch.jsonc : %s\n'  "$([ -f "$NETRUNNER_HOME/fastfetch.jsonc" ] && echo ok || echo missing)"
   printf '  logo.png        : %s\n'  "$(logo_identity)"
-  printf '  netrunner cmd   : %s\n'  "$(command -v netrunner  || echo 'missing')"
+  printf '  netrunner cmd   : %s\n'  "$(command -v netrunner  || echo missing)"
   printf '  login shell     : %s\n'  "${SHELL:-?}"
 }
 
 case "$MODE" in
-  install)    do_install ;;
+  install)
+    if is_termux; then do_install_termux; else do_install_proot; fi
+    ;;
   uninstall)  do_uninstall ;;
   status)     do_status ;;
   help|--help|-h|"")
     cat <<EOF
 usage: $0 <command>
-  install     — install zsh + Oh-My-Zsh + Powerlevel10k + plugins + cyberpunk dotfiles
-  uninstall   — restore backed-up dotfiles and remove the netrunner command
-  status      — show what's installed
+  install     — auto-detects layer; sets up Termux side or proot side
+  uninstall   — restore backed-up dotfiles, remove the netrunner command
+  status      — show what's installed in the current layer
 EOF
     ;;
   *) warn "unknown command: $MODE (try: help)"; exit 2 ;;
