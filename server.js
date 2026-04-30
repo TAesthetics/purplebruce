@@ -113,17 +113,41 @@ function collectIntel() {
 
 // ═══ AI PROVIDERS ═══
 function getProviderStatus() {
-  const p = getConfig('ai_provider') || 'grok', gk = getConfig('grok_api_key'), vk = getConfig('venice_api_key');
+  const p = getConfig('ai_provider') || 'grok';
+  const gk = getConfig('grok_api_key'), vk = getConfig('venice_api_key'), ok = getConfig('openai_api_key');
   const ek = getConfig('elevenlabs_api_key'), vid = getConfig('elevenlabs_voice_id');
   return {
     provider: p,
-    grokHasKey: !!gk, grokMask: gk ? gk.slice(0, 8) + '...' : null,
-    veniceHasKey: !!vk, veniceMask: vk ? vk.slice(0, 8) + '...' : null,
-    elevenHasKey: !!ek, elevenMask: ek ? ek.slice(0, 8) + '...' : null,
-    elevenVoiceId: vid || null
+    grokHasKey: !!gk,   grokMask:   gk ? gk.slice(0, 8)   + '...' : null,
+    veniceHasKey: !!vk, veniceMask: vk ? vk.slice(0, 8)   + '...' : null,
+    openaiHasKey: !!ok, openaiMask: ok ? ok.slice(0, 8)   + '...' : null,
+    elevenHasKey: !!ek, elevenMask: ek ? ek.slice(0, 8)   + '...' : null,
+    elevenVoiceId: vid || null,
+    routing: {
+      redteam:   vk ? 'venice' : (p === 'openai' ? 'openai' : 'grok'),
+      reasoning: p === 'venice' ? 'grok' : p,
+      voice:     ok ? 'openai' : (gk ? 'grok' : p),
+      fallback:  gk ? 'grok'   : (ok ? 'openai' : 'venice')
+    }
   };
 }
-async function callAI(messages) { return (getConfig('ai_provider') || 'grok') === 'venice' ? callVenice(messages) : callGrok(messages); }
+const REDTEAM_RX = /\b(exploit|pentest|offensive|red.?team|mitre|tactic|payload|\bc2\b|exfil|priv.?esc|reverse.?shell|ransomware|cred.?dump|lateral.?move|fileless|bypass|evasion|malware|backdoor|dropper)\b/i;
+function detectTaskType(messages) {
+  const text = messages.filter(m => m.role !== 'system').slice(-3).map(m => m.content || '').join(' ');
+  if (REDTEAM_RX.test(text)) return 'redteam';
+  return 'reasoning';
+}
+async function callAI(messages) {
+  const configured = getConfig('ai_provider') || 'grok';
+  const type = detectTaskType(messages);
+  let provider = configured;
+  if (type === 'redteam' && configured !== 'openai' && getConfig('venice_api_key')) provider = 'venice';
+  if (provider === 'grok' && !getConfig('grok_api_key') && getConfig('openai_api_key')) provider = 'openai';
+  broadcast('active_provider', { provider, task: type });
+  if (provider === 'venice') return callVenice(messages);
+  if (provider === 'openai') return callOpenAI(messages);
+  return callGrok(messages);
+}
 async function callGrok(msgs) {
   const k = getConfig('grok_api_key'); if (!k) return null;
   try { const ac = new AbortController(), t = setTimeout(() => ac.abort(), 90000); const r = await fetch('https://api.x.ai/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${k}` }, body: JSON.stringify({ model: 'grok-3-mini', messages: msgs, temperature: 0.9, max_tokens: 4000 }), signal: ac.signal }); clearTimeout(t); const d = await r.json(); return d?.choices?.[0]?.message?.content || null; } catch { return null; }
@@ -131,6 +155,10 @@ async function callGrok(msgs) {
 async function callVenice(msgs) {
   const k = getConfig('venice_api_key'); if (!k) return null;
   try { const ac = new AbortController(), t = setTimeout(() => ac.abort(), 90000); const r = await fetch('https://api.venice.ai/api/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${k}` }, body: JSON.stringify({ model: 'llama-3.3-70b', messages: msgs, temperature: 0.9, max_tokens: 4000 }), signal: ac.signal }); clearTimeout(t); const d = await r.json(); return d?.choices?.[0]?.message?.content || null; } catch { return null; }
+}
+async function callOpenAI(msgs) {
+  const k = getConfig('openai_api_key'); if (!k) return null;
+  try { const ac = new AbortController(), t = setTimeout(() => ac.abort(), 90000); const r = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${k}` }, body: JSON.stringify({ model: 'gpt-4o-mini', messages: msgs, temperature: 0.7, max_tokens: 4000 }), signal: ac.signal }); clearTimeout(t); const d = await r.json(); return d?.choices?.[0]?.message?.content || null; } catch { return null; }
 }
 
 // ═══ ELEVENLABS TTS — cute playful anime-girl voice ═══
@@ -832,7 +860,8 @@ app.post('/api/stt', express.raw({ type: 'audio/*', limit: '25mb' }), async (req
   }
 });
 
-app.get('/api/status', (req, res) => res.json({ version: '5.0.0', ...collectIntel(), agentRunning: agent.running, socRunning: soc.running, provider: getConfig('ai_provider') || 'grok' }));
+app.get('/api/status',    (req, res) => res.json({ version: '6.0.0', ...collectIntel(), agentRunning: agent.running, socRunning: soc.running, provider: getConfig('ai_provider') || 'grok' }));
+app.get('/api/providers', (req, res) => res.json(getProviderStatus()));
 app.get('/api/tasks', (req, res) => res.json(listTasks()));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
@@ -843,10 +872,11 @@ server.listen(PORT, '0.0.0.0', () => {
   audit('BOOT', `server port:${PORT}`, '', 'system');
   socStart();
   console.log(`
-╔══════════════════════════════════════════════════╗
-║  PURPLE BRUCE v5.0 — LUCY EDITION (PROFESSIONAL)  ║
-║  Port: ${PORT} | Chat = Agent | SOC: ACTIVE          ║
-║  Scope: UNRESTRICTED | Audit: ON                  ║
-╚══════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════╗
+║  PURPLE BRUCE v6.0 — TERTRATRONIC RIPPLER TIER 5             ║
+║  Port: ${PORT} | Multi-Provider AI Router | SOC: ACTIVE         ║
+║  Routing: Grok(reason) › Venice(redteam) › GPT-4o(fallback)  ║
+║  Scope: UNRESTRICTED | Audit: ON | /api/providers: LIVE       ║
+╚══════════════════════════════════════════════════════════════╝
   `);
 });

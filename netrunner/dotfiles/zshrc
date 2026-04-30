@@ -44,12 +44,22 @@ plugins=(
 autoload -U compinit && compinit -u
 
 # ================================
-# Aliases
+# Purple Bruce — Drop-In Aliases
 # ================================
-alias pb='echo "purple bruce"'
-alias pb-status='echo "status"'
-alias pb-logs='echo "logs"'
+alias pb='netrunner'
+alias purple='netrunner'
+alias start='netrunner start'
+alias stop='pkill -f "node server.js" && echo "Purple Bruce stopped." || echo "Not running."'
+alias logs='tail -f ~/.purplebruce/audit.log'
+alias chat='~/purplebruce/purplebruce.sh tui'
+alias doctor='netrunner doctor'
+alias deck='netrunner deck'
+alias overclock='netrunner overclock'
+alias scan='netrunner scan'
 
+# ================================
+# Git
+# ================================
 alias gs='git status'
 alias gp='git push'
 alias gl='git pull'
