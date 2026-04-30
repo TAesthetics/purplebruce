@@ -1,245 +1,262 @@
-# 🟣 Purple Bruce v5.0 — Lucy Edition
+# PURPLE BRUCE v6.0 — TERTRATRONIC RIPPLER TIER 5
 
-Purple-Team platform with a chat-first AI agent (Lucy), live SOC daemon, and a mobile-friendly web UI. Built to run **natively on Linux** and **inside a Termux `proot-distro` sandbox** (Ubuntu / Kali / BlackArch) on Android, without systemd or sudo assumptions.
+```
+  ███╗   ██╗███████╗████████╗██████╗ ██╗   ██╗███╗   ██╗███╗   ██╗███████╗██████╗
+  ████╗  ██║██╔════╝╚══██╔══╝██╔══██╗██║   ██║████╗  ██║████╗  ██║██╔════╝██╔══██╗
+  ██╔██╗ ██║█████╗     ██║   ██████╔╝██║   ██║██╔██╗ ██║██╔██╗ ██║█████╗  ██████╔╝
+  ██║╚██╗██║██╔══╝     ██║   ██╔══██╗██║   ██║██║╚██╗██║██║╚██╗██║██╔══╝  ██╔══██╗
+  ██║ ╚████║███████╗   ██║   ██║  ██║╚██████╔╝██║ ╚████║██║ ╚████║███████╗██║  ██║
+  ╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝
+  TERTRATRONIC RIPPLER v6.0  ·  TIER 5  ·  STUFE 2  ·  PURPLEBRUCE GRID
+```
 
----
-
-## ✨ Features
-
-- **Lucy — playful AI operator**: cute, energetic, lightly-teasing personal assistant that stays a purple-team agent at her core. Auto-detects the user's language (DE / EN) and mirrors it.
-- **Voice call**: full-duplex voice mode with two STT paths:
-  - Browser-native `Web Speech API` (free, offline-ish, works on desktop Chrome)
-  - Server-side **Whisper** via Groq (free tier) or OpenAI, used as a Push-to-Talk fallback everywhere else — including Android Chrome in a proot-distro setup
-- **TTS**: ElevenLabs for a natural, high-pitched anime-style female voice (pitch controlled by Voice Design, not runtime). Falls back to the browser's Web Speech synthesizer if ElevenLabs isn't configured.
-- **Chain-of-Thought trace** rendered live in the call modal: `🧠 THINK → 📋 PLAN → ⚡ CMD → 📊 ANALYSIS → ✅ DONE`, with round numbers.
-- **Blue-team SOC daemon**: continuously watches listeners, outbound connections, `LD_PRELOAD` injections, and crontabs; auto-quarantines and alerts on anomalies.
-- **Multi-LLM**: Grok (xAI) and Venice.ai supported out of the box.
-- **Mobile-friendly**: runs inside Termux proot-distro, single SQLite database, no system services required.
+**Purple-Team Cyberdeck** — one AI agent, three providers, zero downtime.  
+Runs on Android (Termux proot), native Linux, or WSL. No systemd. No sudo.
 
 ---
 
-## 📦 Install
+## What's New in v6.0 — Stufe 2
 
-### A. Termux + Ubuntu proot-distro (Android)
+| Stufe 1 (v5.0) | Stufe 2 (v6.0) |
+|---|---|
+| Single AI provider | **Self-healing 3-AI team** (Grok / Venice / GPT-4o) |
+| Manual provider switch | **Smart auto-routing** by task type |
+| No failover | **Automatic failover** + heal log |
+| Basic netrunner CLI | **Full Tier 5 CLI** (doctor, deck, team, overclock, scan) |
+| Pulsing circle voice UI | **Voice v2** — 8-bar visualizer + latency + provider badge |
+| No tmux layout | **3-pane auto-layout** (`netrunner start`) |
+| Basic aliases | **Drop-in alias set** (pb, purple, start, stop, team, …) |
+
+---
+
+## Features
+
+### Self-Healing AI Team
+
+Three AIs operate as one disciplined security team. They cover for each other automatically — but **never act autonomously on security tasks**. Every offensive action requires an explicit operator command.
+
+```
+⚡ GROK-3    ──  reasoning · code · analysis          (default)
+🔮 VENICE    ──  redteam · offensive · uncensored      (auto-routed on exploit/pentest keywords)
+🤖 GPT-4o   ──  voice · long-context · fallback       (STT/TTS + chain end)
+```
+
+**Routing rules (`config/ai-providers.json`)**
+
+| Task type | Primary | Fallback chain |
+|---|---|---|
+| `redteam` (exploit, pentest, C2, …) | Venice | Grok → GPT-4o |
+| `reasoning` (code, analysis, chat) | configured | GPT-4o |
+| `voice` (STT, TTS) | GPT-4o | Grok |
+
+**Self-healing mechanics (no API cost):**
+- Each call updates per-provider health (latency, error count)
+- After 2 consecutive failures → provider marked `offline`, next in chain takes over
+- When a call succeeds again → provider auto-recovers, heal event logged
+- 60-second background key-presence check (zero API calls)
+- All heal events broadcast to UI and audit log
+
+### Lucy — AI Operator
+
+Playful, disciplined, language-aware (DE/EN auto-detect). Works as a **purple-team agent** at her core:
+
+- Chain-of-Thought rendered live: `🧠 THINK → 📋 PLAN → ⚡ CMD → 📊 ANALYSIS → ✅ DONE`
+- Autonomous mode: runs until done, self-corrects errors
+- Approval mode: every shell command needs operator confirmation
+- Context-aware: knows current team health, SOC alerts, active tasks
+
+### Voice v2
+
+- **8-bar animated frequency visualizer** — bars pulse to match voice activity state
+- **Provider badge** in call modal — shows which AI is responding live
+- **Latency pill** — response time in ms after each reply
+- **Continuous Web Speech** (free, works on desktop Chrome)
+- **Push-to-Talk / Whisper** — hold big mic button → Groq or OpenAI Whisper → transcript sent. Works on Android Chrome, proot browsers, everything
+- **ElevenLabs TTS** with Web Speech fallback
+- Language switcher (DE / EN), mute toggle, PTT mode toggle
+
+### netrunner CLI (Tier 5)
 
 ```bash
-# 1) In Termux (as the regular termux user)
+netrunner doctor       # full health check + auto-repair
+                       # checks: proot, Node.js, port 3000, DB, AI keys,
+                       #         server process, log dir, required tools
+netrunner deck         # cyberdeck dashboard — RAM bar, uptime, server
+                       # status, provider routing, active sessions, features
+netrunner team         # AI team health — per-provider dot + latency +
+                       # heal log + routing rules + discipline note
+netrunner overclock    # 90s boost countdown + glitch cooldown effect
+netrunner scan <target> [mode]   # recon via /api/cli (QUICK/STANDARD/FULL/STEALTH)
+netrunner quickhack              # interactive protocol menu
+netrunner quickhack <target>     # direct injection sequence
+netrunner start                  # launch tmux 3-pane layout
+```
+
+### tmux 3-Pane Layout
+
+`netrunner start` creates a named `purplebruce` session:
+
+```
+┌─────────────────────────────────────────────────┐
+│  Pane 0 — npm start (Purple Bruce server)        │
+├──────────────────────┬──────────────────────────┤
+│  Pane 1 — audit.log  │  Pane 2 — Lucy chat CLI  │
+└──────────────────────┴──────────────────────────┘
+```
+
+`Prefix + B` from any tmux session also triggers the layout.
+
+### SOC Daemon — Blue Team
+
+- Watches listeners, outbound connections, `LD_PRELOAD`, crontabs, SUID changes, suspicious processes
+- Auto-quarantines hidden `/tmp` files, captures forensic snapshots
+- Alerts appear as `🛡 SOC [CRITICAL]` messages in chat
+- Toggle per-session via settings or `soc_toggle` WebSocket action
+
+### Black Ice — MITRE ATT&CK
+
+11 live execution modules mapped to the ATT&CK framework:
+
+`cred-dump` · `lateral` · `c2-https` · `ransomware` · `fileless` · `sched-task` · `dns-exfil` · `persistence` · `recon` · `discovery` · `exfiltration`
+
+Each module shows detection difficulty, preview commands, and checkbox-based selective execution.
+
+---
+
+## Install
+
+### A. Termux + Ubuntu proot (Android)
+
+```bash
+# In Termux
 pkg update -y
 pkg install -y proot-distro git
-proot-distro install ubuntu          # one-time
-proot-distro login ubuntu            # drop into the Ubuntu rootfs
+proot-distro install ubuntu
+proot-distro login ubuntu
 
-# 2) Inside the proot (you're root here — no sudo needed)
-apt update
-apt install -y nodejs npm git curl ca-certificates
+# Inside the proot
+apt update && apt install -y nodejs npm git curl ca-certificates
 cd /root
 git clone https://github.com/TAesthetics/purplebruce.git
 cd purplebruce
-chmod +x purplebruce.sh tools-install.sh
-./tools-install.sh --core            # optional: base pentest tools
-./purplebruce.sh                     # starts the web UI on 127.0.0.1:3000
+npm install
+./purplebruce.sh          # server on 127.0.0.1:3000
 ```
 
-Open `http://127.0.0.1:3000` in Android Chrome / Firefox to talk to Lucy. Localhost counts as a "secure context", so mic + Web Speech work without HTTPS.
+Open `http://127.0.0.1:3000` in Android Chrome.
 
-### B. Termux + Kali proot-distro (Android)
+### B. Native Linux / macOS / WSL
 
 ```bash
-pkg install -y proot-distro
-proot-distro install kali            # heavier install, ~1–2 GB
-proot-distro login kali
-
-apt update
-apt install -y nodejs npm git curl
-cd /root
+# Requires Node.js ≥ 18
 git clone https://github.com/TAesthetics/purplebruce.git
 cd purplebruce
-chmod +x purplebruce.sh tools-install.sh
-./tools-install.sh --kali            # adds metasploit, crackmapexec, wpscan, ...
+npm install
 ./purplebruce.sh
 ```
 
-### C. Termux + Arch / BlackArch proot-distro
+### C. Netrunner cyberpunk shell (optional)
 
-```bash
-proot-distro install archlinux
-proot-distro login archlinux
-
-pacman -Syu --noconfirm
-pacman -S --needed --noconfirm nodejs npm git curl
-# Optional — add the BlackArch repo (see blackarch.org for the official bootstrap)
-cd /root
-git clone https://github.com/TAesthetics/purplebruce.git
-cd purplebruce
-chmod +x purplebruce.sh tools-install.sh
-./tools-install.sh                   # auto-detects pacman + BlackArch repo
-./purplebruce.sh
-```
-
-### D. Native Linux / macOS / WSL
-
-```bash
-# Requires Node.js ≥ 18 (for native fetch/Blob/FormData)
-git clone https://github.com/TAesthetics/purplebruce.git
-cd purplebruce
-chmod +x purplebruce.sh tools-install.sh
-./tools-install.sh                    # optional
-./purplebruce.sh
-```
-
----
-
-## 🔑 API key setup
-
-Open the web UI → ⚙ Settings, or use the CLI.
-
-| Purpose | Provider | Config key | Where to get |
-|---|---|---|---|
-| Chat LLM (default) | Grok (xAI) | `grok_api_key` | <https://console.x.ai> |
-| Chat LLM (alt)     | Venice.ai  | `venice_api_key` | <https://venice.ai> |
-| TTS (anime voice)  | ElevenLabs | `elevenlabs_api_key` + `elevenlabs_voice_id` | <https://elevenlabs.io> |
-| STT (fallback, free tier) | Groq Whisper | `groq_api_key` | <https://console.groq.com> |
-| STT (fallback)     | OpenAI Whisper | `openai_api_key` | <https://platform.openai.com> |
-
-CLI:
-
-```bash
-purple> setkey grok        xai-xxxxxxxxxxxx
-purple> setkey elevenlabs  el_xxxxxxxxxxxx
-purple> setvoice           <elevenlabs_voice_id>
-purple> setkey groq        gsk_xxxxxxxxxxxx      # enables push-to-talk STT
-```
-
----
-
-## 🎙 Voice call — how it works
-
-1. Click the 🎙 button on the chat page to enter **voice call mode**.
-2. Default: **continuous Web Speech** — the browser listens, and any final transcript is sent to Lucy automatically. A live interim pill (`… your words…`) shows STT is actually picking up audio.
-3. Hit **PTT ON** in the call modal's language bar to switch to **Push-to-Talk / Whisper mode**:
-   - Press-and-hold the big mic button, speak, release.
-   - The audio blob is POSTed to `/api/stt` → Groq/OpenAI Whisper → transcript → sent as a chat message.
-   - Useful on Android WebView / in-proot browsers where Web Speech is flaky or unavailable.
-4. Lucy's replies come back as chat messages AND are spoken via ElevenLabs (or Web Speech TTS as fallback).
-5. **Thinking trace**: `chat_thinking` events surface round numbers live (`🧠 Lucy is thinking... (round 2)`), and the assistant's THINK/PLAN/CMD/ANALYSIS lines are CoT-styled inside the call modal.
-
-### Debug logs
-
-Open the browser console — every critical event is tagged:
-
-- `[WS]` — WebSocket connect / send / close
-- `[MIC]` — SpeechRecognition start / interim / final / error
-- `[STT]` — PTT recording, blob size, Whisper result
-- `[TTS]` — ElevenLabs request
-
-If voice seems dead, the log tells you exactly which step broke.
-
----
-
-## 🛠 Tools installer
-
-`./tools-install.sh` is a best-effort installer for a pragmatic pentest toolkit. It detects `apt` / `pacman` and installs what's available:
-
-| Group | Tools |
-|---|---|
-| Core recon / exploit | nmap, masscan, sqlmap, hydra, john, ncrack |
-| Web | ffuf, gobuster, wfuzz, nikto, wpscan |
-| Crypto / forensics | hashcat, binwalk, exiftool |
-| Wireless / network | aircrack-ng, tshark, tcpdump |
-| Python stacks (via pipx) | impacket, updog |
-| Kali-only (with `--kali` or on Kali) | metasploit-framework, crackmapexec, theharvester, enum4linux-ng, sslscan, amass |
-
-Modes:
-
-```bash
-./tools-install.sh           # core + extras
-./tools-install.sh --core    # only essentials
-./tools-install.sh --kali    # also Kali bundles (needs Kali repos)
-```
-
-Missing packages are skipped, not fatal. Re-run safely.
-
----
-
-## 🔁 24/7 service (Termux / proot)
-
-Run Purple Bruce as a supervised background service with auto-restart and log rotation:
-
-```bash
-./install-service.sh install        # termux-services if available, else nohup watchdog
-./install-service.sh status         # node + watchdog + cron + HTTP liveness probe
-./install-service.sh logs           # tail ~/.purplebruce/service.log
-./install-service.sh restart
-./install-service.sh uninstall
-
-./install-service.sh enable-cron    # nightly 03:30 harden + hunt + report (localhost only)
-./install-service.sh disable-cron
-```
-
-All outbound calls target `127.0.0.1` only — nightly reports land in `~/.purplebruce/reports/YYYY-MM-DD.txt`.
-
----
-
-## 🟣 Netrunner cyberpunk terminal (`netrunner/`)
-
-Optional zsh/tmux overlay with Edgerunners palette, Powerlevel10k two-line prompt, pink blinking cursor, custom ASCII logo + neofetch-style MOTD, and a shared `netrunner` command:
-
-- **Termux (Android)** → `netrunner` jumps into the Ubuntu proot (manual setup: `netrunner/TERMUX.md`)
-- **Ubuntu proot-distro** → `netrunner` launches Purple Bruce
-
-Install inside the proot:
+Install Powerlevel10k, zsh plugins, tmux theme, and drop-in aliases inside the proot:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install.sh | bash
 exec zsh
 ```
 
-See `netrunner/README.md` for the full breakdown, subcommands (`install / uninstall / status`), dotfile layout and customisation hooks.
+Available after install:
+
+```bash
+pb / purple        → netrunner (short form)
+start              → netrunner start (tmux 3-pane)
+stop               → pkill node server
+logs               → tail audit.log
+chat               → purplebruce.sh tui
+doctor / deck / team / overclock / scan  → netrunner subcommands
+```
 
 ---
 
-## 📁 Project layout
+## API Key Setup
+
+Settings → ⚙ in the UI, or via CLI:
+
+| Provider | Purpose | Config key | Get it at |
+|---|---|---|---|
+| Grok (xAI) | Default reasoning | `grok_api_key` | [console.x.ai](https://console.x.ai) |
+| Venice.ai | Redteam (auto-routed) | `venice_api_key` | [venice.ai](https://venice.ai) |
+| OpenAI | Voice fallback / GPT-4o | `openai_api_key` | [platform.openai.com](https://platform.openai.com) |
+| ElevenLabs | TTS voice | `elevenlabs_api_key` + `elevenlabs_voice_id` | [elevenlabs.io](https://elevenlabs.io) |
+| Groq | Whisper STT (free tier) | `groq_api_key` | [console.groq.com](https://console.groq.com) |
+
+```bash
+purple> setkey grok     xai-xxxxxxxxxxxx
+purple> setkey venice   venice-xxxxxxxxxx
+purple> setkey openai   sk-xxxxxxxxxxxxxxx
+purple> setkey groq     gsk_xxxxxxxxxxxx
+purple> setvoice        <elevenlabs_voice_id>
+```
+
+Or save keys in the browser UI → Settings. Keys persist in `purplebruce.db`.
+
+---
+
+## Project Layout
 
 ```
 purplebruce/
-├── server.js              # Express + WebSocket + agent loop + SOC daemon
-├── public/index.html      # React UI (single file, Babel standalone)
-├── purplebruce.sh         # Launcher (Termux/Proot aware, no hard sudo)
-├── tools-install.sh       # Pentest toolkit installer
-├── purplebruce.db         # SQLite (chat, config, audit, SOC alerts)
-└── .purplebruce/          # Runtime data (reports, quarantine, logs)
+├── server.js              # Express + WebSocket + AI team coordinator
+│                          # SOC daemon + agent loop + MITRE red modules
+├── public/index.html      # React UI — chat, voice v2, team panel, SOC, Black Ice
+├── purplebruce.sh         # Launcher (Termux + proot aware)
+├── config/
+│   └── ai-providers.json  # Provider definitions + routing rules
+├── netrunner/
+│   ├── bin/netrunner      # Tier 5 CLI — doctor / deck / team / overclock / scan
+│   ├── dotfiles/          # zshrc · p10k.zsh · tmux.conf
+│   └── install.sh         # Cyberpunk shell installer
+├── tools-install.sh       # Pentest toolkit (nmap, ffuf, sqlmap, …)
+├── install-service.sh     # 24/7 watchdog service
+└── purplebruce.db         # SQLite (chat, config, audit, SOC alerts, tasks)
 ```
 
 ---
 
-## 🧪 Smoke test after a fresh clone
+## 24/7 Service
 
 ```bash
-./purplebruce.sh &           # background the server
+./install-service.sh install        # supervised background service + auto-restart
+./install-service.sh status
+./install-service.sh logs
+./install-service.sh enable-cron    # nightly 03:30 harden + hunt + report
+./install-service.sh restart
+./install-service.sh uninstall
+```
+
+---
+
+## Security Scope
+
+`Unrestricted Access` means the agent executes real shell commands on the host. Inside a Termux proot-distro that is the proot rootfs (isolated from your Android system). On native Linux it is your actual machine.
+
+**Use only on systems you own or are explicitly authorized to assess.**  
+The AI team is a tool of order and discipline — not of arbitrary action.  
+No uninvited attacks. No autonomous offensive moves without an explicit operator command.
+
+---
+
+## Smoke Test
+
+```bash
+./purplebruce.sh &
 sleep 2
-curl -s http://127.0.0.1:3000/api/status | head -c 200 ; echo
-# Expect: {"version":"5.0.0",...}
+curl -s http://127.0.0.1:3000/api/status   | python3 -m json.tool | head -8
+curl -s http://127.0.0.1:3000/api/team     | python3 -m json.tool
+curl -s http://127.0.0.1:3000/api/providers | python3 -m json.tool
 ```
 
-In the browser, open DevTools → Console, hit 🎙, speak, and watch for:
-
-```
-[WS] open
-[MIC] starting recognition — lang= de-DE
-[MIC] onstart
-[MIC] interim: hallo lucy
-[MIC] FINAL: hallo lucy wie geht's
-[WS] send chat {message: "hallo lucy wie geht's"}
-```
-
-If you see `[MIC] FINAL` but no reply, check your LLM API key. If you see no `[MIC] interim` at all while speaking, switch to **PTT ON** (Whisper) — works when Web Speech doesn't.
+Expected: `"version": "6.0.0"` in status, three provider entries in team.
 
 ---
 
-## ⚠ Security note
-
-`Unrestricted Access` mode lets the agent execute shell commands on the host it runs on. Inside a Termux proot-distro that's the proot rootfs (not your Android system), but it's still **your data**. Use responsibly, only on systems you own or are authorized to assess.
-
----
-
-**Built by TAesthetics — Lucy v5.0**
+**Built by TAesthetics — TERTRATRONIC RIPPLER TIER 5 — Lucy v6.0**
