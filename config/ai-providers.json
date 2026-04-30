@@ -1,0 +1,41 @@
+{
+  "_doc": "TERTRATRONIC RIPPLER TIER 5 — Multi-Provider AI Router",
+  "routing": {
+    "redteam":   { "provider": "venice", "model": "llama-3.3-70b",  "fallback": "grok",  "keywords": ["exploit","pentest","offensive","red.?team","mitre","tactic","payload","c2","exfil","priv.?esc","reverse.?shell","ransomware","cred.?dump","lateral.?move","fileless","bypass","evasion","malware","backdoor","dropper"] },
+    "reasoning": { "provider": "grok",   "model": "grok-3-mini",    "fallback": "openai" },
+    "voice":     { "provider": "openai", "model": "gpt-4o-mini",    "fallback": "grok"   },
+    "fallback":  { "provider": "grok",   "model": "grok-3-mini" }
+  },
+  "providers": {
+    "grok": {
+      "label":       "GROK",
+      "badge":       "⚡ GROK-3",
+      "badge_color": "#ff00ff",
+      "base_url":    "https://api.x.ai/v1",
+      "model":       "grok-3-mini",
+      "temperature": 0.7,
+      "env_key":     "GROK_API_KEY",
+      "strength":    "Reasoning, code, analysis"
+    },
+    "venice": {
+      "label":       "VENICE",
+      "badge":       "🔮 VENICE",
+      "badge_color": "#ff2d95",
+      "base_url":    "https://api.venice.ai/api/v1",
+      "model":       "llama-3.3-70b",
+      "temperature": 0.8,
+      "env_key":     "VENICE_API_KEY",
+      "strength":    "Redteam, offensive, uncensored"
+    },
+    "openai": {
+      "label":       "GPT-4o",
+      "badge":       "🤖 GPT-4o",
+      "badge_color": "#00f0ff",
+      "base_url":    "https://api.openai.com/v1",
+      "model":       "gpt-4o-mini",
+      "temperature": 0.4,
+      "env_key":     "OPENAI_API_KEY",
+      "strength":    "Voice, long-context, multimodal, fallback"
+    }
+  }
+}

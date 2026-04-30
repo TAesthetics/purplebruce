@@ -78,18 +78,43 @@ input,textarea,select{font-family:var(--f)}input::placeholder{color:var(--tm)}
 @keyframes micPulse{0%,100%{transform:scale(1);box-shadow:0 0 40px #39ff14aa}50%{transform:scale(1.12);box-shadow:0 0 60px #39ff14cc}}
 .call-status{font-size:13px;margin-top:12px;opacity:0.8;font-family:var(--fd);letter-spacing:2px}
 .call-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid rgba(127,0,255,.15)}
+/* ── Voice v2 ── */
+.visualizer{display:flex;align-items:flex-end;gap:5px;height:72px;margin-bottom:14px;justify-content:center}
+.vbar{width:9px;border-radius:5px 5px 2px 2px;background:var(--cyan);animation:bar-dance .75s ease-in-out infinite}
+.vbar:nth-child(2){animation-delay:.1s}.vbar:nth-child(3){animation-delay:.2s}.vbar:nth-child(4){animation-delay:.3s}
+.vbar:nth-child(5){animation-delay:.4s}.vbar:nth-child(6){animation-delay:.5s}.vbar:nth-child(7){animation-delay:.6s}.vbar:nth-child(8){animation-delay:.7s}
+@keyframes bar-dance{0%,100%{height:6px;background:var(--cyan)}50%{height:50px;background:var(--mag)}}
+.vbar.idle{animation:none!important;height:3px!important;background:var(--tm)!important}
+.vbar.processing{animation:bar-proc .25s ease-in-out infinite}
+@keyframes bar-proc{0%,100%{height:22px;background:var(--gold)}50%{height:54px;background:var(--violet-soft)}}
+.provider-badge{font-family:var(--fd);font-size:9px;letter-spacing:2px;padding:2px 8px;border-radius:999px;border:1px solid;display:inline-flex;align-items:center;gap:4px}
+.provider-badge.grok{color:#ff00ff;border-color:#ff00ff44;background:rgba(255,0,255,.08)}
+.provider-badge.venice{color:var(--mag);border-color:rgba(255,45,149,.4);background:rgba(255,45,149,.08)}
+.provider-badge.openai{color:var(--cyan);border-color:rgba(0,240,255,.4);background:rgba(0,240,255,.08)}
+.latency-pill{font-size:8px;color:var(--green);font-family:var(--fd);letter-spacing:1.5px;padding:2px 6px;border:1px solid rgba(57,255,20,.3);border-radius:999px;background:rgba(57,255,20,.06)}
+.cb.team{align-self:flex-start;background:rgba(127,0,255,.04);border:1px solid rgba(127,0,255,.2);max-width:95%;font-size:10px}
+.team-dot-ok{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);display:inline-block}
+.team-dot-off{width:7px;height:7px;border-radius:50%;background:var(--red);display:inline-block}
+.team-dot-na{width:7px;height:7px;border-radius:50%;background:var(--tm);display:inline-block}
 </style>
 </head>
 <body>
 <div class="crt"></div>
 <div id="voiceCallModal" class="call-modal">
   <div class="call-header">
-    <span style="font-family:var(--fd);font-size:12px;letter-spacing:3px;color:var(--violet-soft)">⬡ VOICE CALL — LUCY</span>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-family:var(--fd);font-size:12px;letter-spacing:3px;color:var(--violet-soft)">⬡ VOICE CALL — LUCY</span>
+      <span id="callProviderBadge" class="provider-badge grok">⚡ GROK-3</span>
+      <span id="callLatencyPill" class="latency-pill" style="display:none"></span>
+    </div>
     <button id="endCallBtn" style="padding:6px 16px;background:rgba(255,45,85,.15);color:var(--red);border:1px solid var(--red);border-radius:999px;font-size:10px;font-family:var(--fd);letter-spacing:2px;cursor:pointer">END CALL</button>
   </div>
   <div class="call-chat" id="callChat"></div>
   <div class="call-bottom">
-    <div class="call-wave listening" id="callWave"></div>
+    <div class="visualizer" id="callVisualizer">
+      <div class="vbar"></div><div class="vbar"></div><div class="vbar"></div><div class="vbar"></div>
+      <div class="vbar"></div><div class="vbar"></div><div class="vbar"></div><div class="vbar"></div>
+    </div>
     <div class="call-mic-btn" id="bigMicBtn">🎤</div>
     <div class="call-status" id="callStatus">LUCY IS LISTENING</div>
     <div id="callLangSwitch" style="display:flex;gap:6px;margin-top:6px;font-family:var(--fd);font-size:9px;letter-spacing:2px;flex-wrap:wrap;justify-content:center">
@@ -432,6 +457,12 @@ function setCallInterim(text){
 function setCallStatus(text){
   const cs=document.getElementById('callStatus');
   if(cs)cs.textContent=text;
+  const bars=document.querySelectorAll('#callVisualizer .vbar');
+  if(bars.length){
+    const processing=/THINK|PROCESS|TRANSCRIB/i.test(text);
+    const idle=/TERMIN|END CALL|idle/i.test(text);
+    bars.forEach(b=>{b.classList.toggle('processing',processing);b.classList.toggle('idle',idle&&!processing)});
+  }
 }
 
 /* ═══ Render AI response with CoT styling ═══ */
@@ -451,18 +482,25 @@ function RenderCoT({text}){
   });
 }
 
-const SettingsModal=({provider,grokHasKey,grokMask,veniceHasKey,veniceMask,setShowSettings,send,socRunning,socAutoRespond})=>{
-  const[gk,setGk]=useState('');const[vk,setVk]=useState('');
+const SettingsModal=({provider,grokHasKey,grokMask,veniceHasKey,veniceMask,openaiHasKey,openaiMask,setShowSettings,send,socRunning,socAutoRespond})=>{
+  const[gk,setGk]=useState('');const[vk,setVk]=useState('');const[ok,setOk]=useState('');
   return(<div className="modal-overlay"><div className="modal" style={{border:'1px solid var(--cyan)'}}>
-    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}><span style={{color:'var(--cyan)',fontSize:13,fontFamily:'var(--fd)',letterSpacing:3}}>SETTINGS</span><button className="btn s" onClick={()=>setShowSettings(false)} style={{borderColor:'var(--td)',color:'var(--td)'}}>CLOSE</button></div>
-    <div style={{color:'var(--td)',fontSize:10,marginBottom:8}}>AI PROVIDER</div>
-    <div style={{display:'flex',gap:8,marginBottom:14}}><button className={`btn s ${provider==='grok'?'gn':''}`} onClick={()=>send('set_provider',{provider:'grok'})} style={provider!=='grok'?{borderColor:'var(--td)',color:'var(--td)'}:{}}>GROK 3</button><button className={`btn s ${provider==='venice'?'mg':''}`} onClick={()=>send('set_provider',{provider:'venice'})} style={provider!=='venice'?{borderColor:'var(--td)',color:'var(--td)'}:{}}>VENICE</button></div>
-    <div style={{color:'var(--td)',fontSize:10,marginBottom:4}}>GROK KEY</div>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}><span style={{color:'var(--cyan)',fontSize:13,fontFamily:'var(--fd)',letterSpacing:3}}>SETTINGS — TIER 5</span><button className="btn s" onClick={()=>setShowSettings(false)} style={{borderColor:'var(--td)',color:'var(--td)'}}>CLOSE</button></div>
+    <div style={{color:'var(--td)',fontSize:10,marginBottom:8}}>DEFAULT PROVIDER  <span style={{color:'var(--tm)',fontSize:8}}>(smart routing overrides for redteam tasks)</span></div>
+    <div style={{display:'flex',gap:6,marginBottom:14,flexWrap:'wrap'}}>
+      <button className={`btn s ${provider==='grok'?'gn':''}`} onClick={()=>send('set_provider',{provider:'grok'})} style={provider!=='grok'?{borderColor:'var(--td)',color:'var(--td)'}:{}}>⚡ GROK-3</button>
+      <button className={`btn s ${provider==='venice'?'mg':''}`} onClick={()=>send('set_provider',{provider:'venice'})} style={provider!=='venice'?{borderColor:'var(--td)',color:'var(--td)'}:{}}>🔮 VENICE</button>
+      <button className={`btn s ${provider==='openai'?'cy':''}`} onClick={()=>send('set_provider',{provider:'openai'})} style={provider!=='openai'?{borderColor:'var(--td)',color:'var(--td)'}:{}}>🤖 GPT-4o</button>
+    </div>
+    <div style={{color:'var(--td)',fontSize:10,marginBottom:4}}>⚡ GROK KEY</div>
     {grokHasKey&&<div style={{color:'var(--green)',fontSize:10,marginBottom:4}}>✓ {grokMask}</div>}
-    <div style={{display:'flex',gap:6,marginBottom:12}}><input value={gk} onChange={e=>setGk(e.target.value)} placeholder="xai-..." type="password" className="inp" style={{flex:1}}/><button className="btn s gn" onClick={()=>{if(gk.trim()){send('set_key',{key:gk.trim(),provider:'grok'});setGk('')}}}>SAVE</button></div>
-    <div style={{color:'var(--td)',fontSize:10,marginBottom:4}}>VENICE KEY</div>
+    <div style={{display:'flex',gap:6,marginBottom:10}}><input value={gk} onChange={e=>setGk(e.target.value)} placeholder="xai-..." type="password" className="inp" style={{flex:1}}/><button className="btn s gn" onClick={()=>{if(gk.trim()){send('set_key',{key:gk.trim(),provider:'grok'});setGk('')}}}>SAVE</button></div>
+    <div style={{color:'var(--td)',fontSize:10,marginBottom:4}}>🔮 VENICE KEY  <span style={{color:'var(--tm)',fontSize:8}}>auto-routed for redteam</span></div>
     {veniceHasKey&&<div style={{color:'var(--green)',fontSize:10,marginBottom:4}}>✓ {veniceMask}</div>}
-    <div style={{display:'flex',gap:6,marginBottom:14}}><input value={vk} onChange={e=>setVk(e.target.value)} placeholder="venice-..." type="password" className="inp" style={{flex:1}}/><button className="btn s mg" onClick={()=>{if(vk.trim()){send('set_key',{key:vk.trim(),provider:'venice'});setVk('')}}}>SAVE</button></div>
+    <div style={{display:'flex',gap:6,marginBottom:10}}><input value={vk} onChange={e=>setVk(e.target.value)} placeholder="venice-..." type="password" className="inp" style={{flex:1}}/><button className="btn s mg" onClick={()=>{if(vk.trim()){send('set_key',{key:vk.trim(),provider:'venice'});setVk('')}}}>SAVE</button></div>
+    <div style={{color:'var(--td)',fontSize:10,marginBottom:4}}>🤖 OPENAI KEY  <span style={{color:'var(--tm)',fontSize:8}}>voice / fallback</span></div>
+    {openaiHasKey&&<div style={{color:'var(--green)',fontSize:10,marginBottom:4}}>✓ {openaiMask}</div>}
+    <div style={{display:'flex',gap:6,marginBottom:14}}><input value={ok} onChange={e=>setOk(e.target.value)} placeholder="sk-..." type="password" className="inp" style={{flex:1}}/><button className="btn s cy" onClick={()=>{if(ok.trim()){send('set_key',{key:ok.trim(),provider:'openai'});setOk('')}}}>SAVE</button></div>
     <div style={{borderTop:'1px solid var(--border)',paddingTop:12,marginTop:8}}>
       <div style={{color:'var(--td)',fontSize:10,marginBottom:8}}>SOC ANALYST</div>
       <div style={{display:'flex',gap:8}}><button className={`btn s ${socRunning?'gn':''}`} onClick={()=>send('soc_toggle',{enabled:!socRunning})}>{socRunning?'SOC: ON':'SOC: OFF'}</button><button className={`btn s ${socAutoRespond?'cy':''}`} onClick={()=>send('soc_auto_toggle',{enabled:!socAutoRespond})}>{socAutoRespond?'AUTO-RESPOND: ON':'AUTO-RESPOND: OFF'}</button></div>
@@ -472,7 +510,37 @@ const SettingsModal=({provider,grokHasKey,grokMask,veniceHasKey,veniceMask,setSh
 };
 const TaskModal=({setShowTasks,tasks,send})=>(<div className="modal-overlay"><div className="modal" style={{border:'1px solid var(--cyan)'}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:14}}><span style={{color:'var(--cyan)',fontSize:13,fontFamily:'var(--fd)',letterSpacing:3}}>TASKS</span><button className="btn s" onClick={()=>setShowTasks(false)} style={{borderColor:'var(--td)',color:'var(--td)'}}>CLOSE</button></div><button className="btn s cy" onClick={()=>send('task_list')} style={{marginBottom:10}}>REFRESH</button>{tasks.length===0?<div style={{color:'var(--tm)',padding:20,textAlign:'center'}}>Empty</div>:<div style={{display:'flex',flexDirection:'column',gap:5}}>{tasks.map(t=>(<div key={t.id} style={{background:'var(--card)',border:`1px solid ${t.status==='running'?'var(--green)':'var(--border)'}`,borderRadius:'var(--rad-md)',padding:'7px 10px',display:'flex',justifyContent:'space-between',alignItems:'center'}}><div><div style={{color:t.status==='running'?'var(--green)':'var(--td)',fontSize:10,fontFamily:'var(--fd)'}}>{t.type.toUpperCase()}</div><div style={{color:'var(--text)',fontSize:9}}>{t.label}</div><div style={{color:'var(--tm)',fontSize:8}}>{t.id}|{t.status}</div></div>{t.status==='running'&&t.alive&&<button className="btn s" onClick={()=>send('task_kill',{id:t.id})}>KILL</button>}</div>))}</div>}</div></div>);
 
-const Home=({status,agentStatus,socStatus,tasks,setTab,setShowSettings,setShowTasks,provider})=>(<div style={{padding:'12px 16px 100px'}}>
+const TEAM_LABELS={grok:'⚡ GROK',venice:'🔮 VENICE',openai:'🤖 GPT-4o'};
+const TeamPanel=({teamStatus})=>{
+  if(!teamStatus?.providers)return null;
+  const provs=['grok','venice','openai'];
+  const allHealthy=provs.every(n=>!teamStatus.providers[n]?.hasKey||teamStatus.providers[n]?.healthy!==false);
+  const anyKey=provs.some(n=>teamStatus.providers[n]?.hasKey);
+  return(<div className="panel" style={{marginBottom:10,borderColor:allHealthy&&anyKey?'rgba(57,255,20,.2)':'rgba(255,179,71,.2)'}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:7}}>
+      <span style={{color:'var(--violet-soft)',fontSize:9,fontFamily:'var(--fd)',letterSpacing:3}}>AI TEAM — SELF-HEALING</span>
+      <span style={{fontSize:8,color:allHealthy&&anyKey?'var(--green)':'var(--gold)'}}>{allHealthy&&anyKey?'● STABLE':'⚠ DEGRADED'}</span>
+    </div>
+    <div style={{display:'flex',gap:6,marginBottom:teamStatus.healLog?.length?6:0,flexWrap:'wrap'}}>
+      {provs.map(n=>{const p=teamStatus.providers[n]||{};const hasKey=p.hasKey;const ok=hasKey&&p.healthy!==false;
+        return(<div key={n} style={{display:'flex',alignItems:'center',gap:5,background:'rgba(0,0,0,.2)',border:`1px solid ${ok?'rgba(57,255,20,.2)':hasKey?'rgba(255,45,85,.2)':'rgba(80,70,100,.3)'}`,borderRadius:'var(--rad-sm)',padding:'4px 8px',flex:1,minWidth:80}}>
+          <span className={ok?'team-dot-ok':hasKey?'team-dot-off':'team-dot-na'}></span>
+          <div><div style={{color:ok?'var(--text)':'var(--tm)',fontSize:9,fontFamily:'var(--fd)'}}>{TEAM_LABELS[n]||n}</div>
+          <div style={{color:'var(--tm)',fontSize:7}}>{!hasKey?'no key':ok?(p.latency?`${p.latency}ms`:'ready'):'offline'}</div></div>
+        </div>);
+      })}
+    </div>
+    {teamStatus.healLog?.length>0&&<div style={{borderTop:'1px solid var(--border)',paddingTop:5,marginTop:2}}>
+      {teamStatus.healLog.slice(-2).map((h,i)=>(
+        <div key={i} style={{color:'var(--tm)',fontSize:8,fontFamily:'var(--fd)',padding:'1px 0'}}>
+          <span style={{color:'var(--mag)'}}>{TEAM_LABELS[h.provider]||h.provider}</span> {h.action}
+        </div>
+      ))}
+    </div>}
+  </div>);
+};
+
+const Home=({status,agentStatus,socStatus,tasks,setTab,setShowSettings,setShowTasks,provider,teamStatus})=>(<div style={{padding:'12px 16px 100px'}}>
   <div style={{textAlign:'center',marginBottom:14}}><pre style={{color:'var(--violet-soft)',fontSize:6,lineHeight:1.05,textShadow:'0 0 12px var(--vg-strong)',whiteSpace:'pre',margin:0}}>{`██████╗ ██╗   ██╗██████╗ ██████╗ ██╗     ███████╗
 ██╔══██╗██║   ██║██╔══██╗██╔══██╗██║     ██╔════╝
 ██████╔╝██║   ██║██████╔╝██████╔╝██║     █████╗
@@ -480,11 +548,12 @@ const Home=({status,agentStatus,socStatus,tasks,setTab,setShowSettings,setShowTa
 ██║     ╚██████╔╝██║  ██║██║     ███████╗███████╗
 ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚══════╝╚══════╝`}</pre>
     <div style={{color:'var(--violet-soft)',fontSize:10,fontFamily:'var(--fd)',letterSpacing:4,marginTop:8}} className="pulse">L U C Y · E D I T I O N</div>
-    <div style={{color:'var(--td)',fontSize:9,marginTop:4}}>v5.0 · {provider==='venice'?'Venice.ai':'Grok'} · Chat = Agent · SOC Active</div>
+    <div style={{color:'var(--td)',fontSize:9,marginTop:4}}>v6.0 · TERTRATRONIC RIPPLER TIER 5 · SOC + AI TEAM</div>
   </div>
+  <TeamPanel teamStatus={teamStatus}/>
   <div className="panel" style={{marginBottom:12}}>
     <div style={{color:'var(--violet-soft)',fontSize:10,fontFamily:'var(--fd)',letterSpacing:3,marginBottom:8}}>STATUS</div>
-    {[['USER',status.user],['IP',status.ip],['AI',provider==='venice'?'Venice.ai':'Grok-3-mini','var(--mag)'],['AGENT',agentStatus.running?`ACTIVE R${agentStatus.round} ${agentStatus.autonomous?'[AUTO]':'[APR]'}`:'STANDBY — type to engage',agentStatus.running?'var(--green)':'var(--td)'],['SOC',socStatus.running?`ACTIVE · ${socStatus.alertCount} alerts · cycle ${socStatus.cycle}`:'OFFLINE',socStatus.running?'var(--cyan)':'var(--td)'],['SCOPE','localhost · LAN · own IP','var(--gold)']].map(([k,v,c])=>(<div key={k} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',borderBottom:'1px solid #1e163511'}}><span style={{color:'var(--td)',fontSize:10}}>{k}</span><span style={{color:c||'var(--text)',fontSize:10,maxWidth:'65%',textAlign:'right',overflow:'hidden',textOverflow:'ellipsis'}}>{v||'...'}</span></div>))}
+    {[['USER',status.user],['IP',status.ip],['AI',provider==='venice'?'Venice.ai':provider==='openai'?'GPT-4o':'Grok-3-mini','var(--mag)'],['AGENT',agentStatus.running?`ACTIVE R${agentStatus.round} ${agentStatus.autonomous?'[AUTO]':'[APR]'}`:'STANDBY — type to engage',agentStatus.running?'var(--green)':'var(--td)'],['SOC',socStatus.running?`ACTIVE · ${socStatus.alertCount} alerts · cycle ${socStatus.cycle}`:'OFFLINE',socStatus.running?'var(--cyan)':'var(--td)'],['SCOPE','localhost · LAN · own IP','var(--gold)']].map(([k,v,c])=>(<div key={k} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',borderBottom:'1px solid #1e163511'}}><span style={{color:'var(--td)',fontSize:10}}>{k}</span><span style={{color:c||'var(--text)',fontSize:10,maxWidth:'65%',textAlign:'right',overflow:'hidden',textOverflow:'ellipsis'}}>{v||'...'}</span></div>))}
   </div>
   <div onClick={()=>setTab('agent')} className="glow" style={{border:'1px solid var(--violet)',borderRadius:'var(--rad-lg)',padding:'16px 0',textAlign:'center',marginBottom:14,cursor:'pointer',background:'linear-gradient(135deg,rgba(127,0,255,.18),rgba(255,45,149,.08))'}}><span style={{color:'var(--violet-soft)',fontSize:12,fontFamily:'var(--fd)',letterSpacing:4}}>⬡ NETGHOST — TYPE TO ENGAGE ⬡</span></div>
   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
@@ -694,10 +763,10 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
         </div>
       </div>}
       {chat.map((m,i)=>{
-        const isTool=m.meta==='tool';const isSoc=m.meta==='soc';const isExec=m.meta==='exec'||m.meta==='result';
-        const cls=isSoc?'soc':isTool?'tool':isExec?'exec':m.role==='user'?'user':'assistant';
-        const label=isSoc?'🛡 SOC ANALYST':isTool?'⚡ EXECUTION':isExec?'⚙ SYSTEM':m.role==='user'?'NETRUNNER':'🧠 NETGHOST';
-        const lc=isSoc?'var(--red)':isTool?'var(--cyan)':isExec?'var(--green)':m.role==='user'?'var(--purple)':'var(--mag)';
+        const isTool=m.meta==='tool';const isSoc=m.meta==='soc';const isExec=m.meta==='exec'||m.meta==='result';const isTeam=m.meta==='team';
+        const cls=isTeam?'team':isSoc?'soc':isTool?'tool':isExec?'exec':m.role==='user'?'user':'assistant';
+        const label=isTeam?'🛠 AI TEAM':isSoc?'🛡 SOC ANALYST':isTool?'⚡ EXECUTION':isExec?'⚙ SYSTEM':m.role==='user'?'NETRUNNER':'🧠 NETGHOST';
+        const lc=isTeam?'var(--violet-soft)':isSoc?'var(--red)':isTool?'var(--cyan)':isExec?'var(--green)':m.role==='user'?'var(--purple)':'var(--mag)';
         return(<div key={i} className={`cb ${cls}`}>
           <div style={{color:lc,fontSize:7.5,fontFamily:'var(--fd)',letterSpacing:2,marginBottom:3}}>{label}</div>
           <div style={{color:'var(--text)',fontSize:11,whiteSpace:'pre-wrap',lineHeight:1.6}}>
@@ -755,6 +824,8 @@ function App(){
   const[chat,setChat]=useState([]);const[thinking,setThinking]=useState(false);const[pending,setPending]=useState(null);
   const[autonomous,setAutonomous]=useState(false);
   const[voiceMode,setVoiceMode]=useState(false);
+  const[activeProvider,setActiveProvider]=useState(null);
+  const[teamStatus,setTeamStatus]=useState({providers:{},healLog:[],primary:'grok'});
   const voiceModeRef=useRef(false);
   useEffect(()=>{voiceModeRef.current=voiceMode},[voiceMode]);
 
@@ -767,10 +838,32 @@ function App(){
     on('task_registered',()=>send('task_list'));on('task_completed',()=>send('task_list'));on('task_killed',()=>send('task_list'));
     on('agent_status',d=>{setAgentStatus(d);if(d.autonomous!==undefined)setAutonomous(d.autonomous);if(d.voiceMode!==undefined)setVoiceMode(d.voiceMode);if(!d.running){setThinking(false);setPending(null)}});
     on('soc_status',d=>setSocStatus(d));
-    on('chat_message',d=>{setChat(p=>[...p,d]);setThinking(false);if(voiceModeRef.current){if(d.role==='assistant'){addCallChatMsg('assistant',d.content);if(d.meta!=='tool')speak(d.content)}else if(d.role==='system'){addCallChatMsg('system',d.content)}}});
+    on('chat_message',d=>{
+      setChat(p=>[...p,d]);setThinking(false);
+      if(d.role==='assistant'&&window.__latencyStart){
+        const ms=Date.now()-window.__latencyStart;window.__latencyStart=0;
+        const pill=document.getElementById('callLatencyPill');
+        if(pill){pill.textContent=`${ms}ms`;pill.style.display='inline';}
+      }
+      if(voiceModeRef.current){if(d.role==='assistant'){addCallChatMsg('assistant',d.content);if(d.meta!=='tool')speak(d.content);}else if(d.role==='system'){addCallChatMsg('system',d.content);}}
+    });
     on('chat_history',d=>setChat(d.map(h=>({role:h.role,content:h.content,meta:h.meta}))));
     on('chat_cleared',()=>{setChat([]);const cc=document.getElementById('callChat');if(cc)cc.innerHTML=''});
-    on('chat_thinking',d=>{setThinking(true);if(voiceModeRef.current){const r=d?.round;addCallChatMsg('system',r?`\u{1F9E0} Lucy is thinking... (round ${r})`:'\u{1F9E0} Lucy is thinking...');setCallStatus(r?`LUCY IS THINKING — round ${r}`:'LUCY IS THINKING')}});
+    on('team_status',d=>setTeamStatus(d));
+    on('team_heal',d=>{
+      setTeamStatus(prev=>({...prev,healLog:[...(prev.healLog||[]),d].slice(-8)}));
+      setChat(p=>[...p,{role:'system',content:`🛠 TEAM [${d.provider.toUpperCase()}] ${d.issue} → ${d.action}`,meta:'team'}]);
+    });
+    on('active_provider',d=>{
+      setActiveProvider(d);
+      const badge=document.getElementById('callProviderBadge');
+      if(badge){const labels={grok:'⚡ GROK-3',venice:'🔮 VENICE',openai:'🤖 GPT-4o'};badge.textContent=labels[d.provider]||d.provider.toUpperCase();badge.className='provider-badge '+(d.provider||'grok');}
+    });
+    on('chat_thinking',d=>{
+      window.__latencyStart=Date.now();
+      setThinking(true);
+      if(voiceModeRef.current){const r=d?.round;addCallChatMsg('system',r?`\u{1F9E0} Lucy is thinking... (round ${r})`:'\u{1F9E0} Lucy is thinking...');setCallStatus(r?`LUCY IS THINKING — round ${r}`:'LUCY IS THINKING');}
+    });
     on('cmd_pending',d=>{setPending(d);setThinking(false)});
     on('cmd_executing',()=>setPending(null));
     on('cmd_result',d=>{setChat(p=>[...p,{role:'system',content:`${d.ok?'✓':'✗'} ${d.cmd}\n${d.output}`,meta:d.ok?'result':'error'}]);if(voiceModeRef.current){addCallChatMsg('system',`${d.ok?'✓':'✗'} ${d.cmd}`)}});
@@ -778,7 +871,7 @@ function App(){
     on('soc_response',d=>{setChat(p=>[...p,{role:'system',content:`🛡 SOC AUTO-RESPONSE: ${d.actions.join(' | ')}`,meta:'soc'}])});
     on('red_preview',d=>setRedPreview(d));
   },[on,send]);
-  useEffect(()=>{if(conn){send('get_provider');send('get_status');send('task_list');send('get_chat_history')}},[conn,send]);
+  useEffect(()=>{if(conn){send('get_provider');send('get_status');send('task_list');send('get_chat_history');send('get_team_status');}},[conn,send]);
   useEffect(()=>{const l=scanOut[scanOut.length-1];if(l?.text?.includes('complete'))setScanning(false)},[scanOut]);
   useEffect(()=>{const l=hardenOut[hardenOut.length-1];if(l?.text?.includes('complete'))setHardening(false)},[hardenOut]);
   useEffect(()=>{const l=huntOut[huntOut.length-1];if(l?.text?.includes('complete'))setHunting(false)},[huntOut]);
@@ -796,14 +889,17 @@ function App(){
       <div className="pill-row">
         {agentStatus.running&&<span className="pill mg pulse"><span className="dot" style={{background:'var(--mag)'}}></span>R{agentStatus.round}</span>}
         {voiceSupported&&<span className={`pill ${voiceMode?'cy':''} click`} onClick={()=>{const n=!voiceMode;setVoiceMode(n);send('voice_mode_toggle',{enabled:n});if(!n){stopSpeaking()}}} title="Voice mode (STT + TTS)"><span className="dot" style={{background:voiceMode?'var(--cyan)':'var(--tm)'}}></span>🎙 {voiceMode?'ON':'OFF'}</span>}
+        {(()=>{const ps=teamStatus?.providers||{};const keys=['grok','venice','openai'];const anyKey=keys.some(n=>ps[n]?.hasKey);const allOk=keys.every(n=>!ps[n]?.hasKey||ps[n]?.healthy!==false);return(<span className={`pill ${anyKey?(allOk?'on':'off'):''}`} title="AI Team health"><span className="dot" style={{background:anyKey?(allOk?'var(--green)':'var(--red)'):'var(--tm)'}}></span>TEAM</span>);})()}
         <span className={`pill ${socStatus.running?'soc-on':'soc-off'}`}>🛡 {socStatus.running?`SOC·${socStatus.alertCount}`:'SOC OFF'}</span>
-        <span className="pill vio">{providerInfo.provider==='venice'?'VEN':'GROK'}</span>
+        <span className={`pill ${activeProvider?.provider==='venice'?'mg':activeProvider?.provider==='openai'?'cy':'vio'}`} title={activeProvider?`task: ${activeProvider.task}`:''}>
+          {activeProvider?{grok:'⚡ GROK',venice:'🔮 VEN',openai:'🤖 GPT'}[activeProvider.provider]||activeProvider.provider.toUpperCase():(providerInfo.provider==='venice'?'🔮 VEN':providerInfo.provider==='openai'?'🤖 GPT':'⚡ GROK')}
+        </span>
         <span className="pill cy click" onClick={()=>{send('task_list');setShowTasks(true)}}>⊞{tasks.filter(t=>t.status==='running').length}</span>
         <span className={`pill ${conn?'on':'off'}`}><span className="dot" style={{background:conn?'var(--green)':'var(--red)'}}></span>{conn?'UP':'DOWN'}</span>
         <span className="pill clock">{time.toLocaleTimeString()}</span>
       </div>
     </div>
-    {tab==='home'&&<Home status={status} agentStatus={agentStatus} socStatus={socStatus} tasks={tasks} setTab={setTab} setShowSettings={setShowSettings} setShowTasks={setShowTasks} provider={providerInfo.provider}/>}
+    {tab==='home'&&<Home status={status} agentStatus={agentStatus} socStatus={socStatus} tasks={tasks} setTab={setTab} setShowSettings={setShowSettings} setShowTasks={setShowTasks} provider={providerInfo.provider} teamStatus={teamStatus}/>}
     {tab==='scan'&&<Scan scanMode={scanMode} setScanMode={setScanMode} scanTarget={scanTarget} setScanTarget={setScanTarget} doScan={doScan} scanning={scanning} scanOut={scanOut}/>}
     {tab==='harden'&&<Harden hardenOut={hardenOut} hardening={hardening} doHarden={doHarden}/>}
     {tab==='hunt'&&<Hunt huntOut={huntOut} hunting={hunting} doHunt={doHunt}/>}
