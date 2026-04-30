@@ -92,6 +92,10 @@ input,textarea,select{font-family:var(--f)}input::placeholder{color:var(--tm)}
 .provider-badge.venice{color:var(--mag);border-color:rgba(255,45,149,.4);background:rgba(255,45,149,.08)}
 .provider-badge.openai{color:var(--cyan);border-color:rgba(0,240,255,.4);background:rgba(0,240,255,.08)}
 .latency-pill{font-size:8px;color:var(--green);font-family:var(--fd);letter-spacing:1.5px;padding:2px 6px;border:1px solid rgba(57,255,20,.3);border-radius:999px;background:rgba(57,255,20,.06)}
+.cb.team{align-self:flex-start;background:rgba(127,0,255,.04);border:1px solid rgba(127,0,255,.2);max-width:95%;font-size:10px}
+.team-dot-ok{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);display:inline-block}
+.team-dot-off{width:7px;height:7px;border-radius:50%;background:var(--red);display:inline-block}
+.team-dot-na{width:7px;height:7px;border-radius:50%;background:var(--tm);display:inline-block}
 </style>
 </head>
 <body>
@@ -506,7 +510,37 @@ const SettingsModal=({provider,grokHasKey,grokMask,veniceHasKey,veniceMask,opena
 };
 const TaskModal=({setShowTasks,tasks,send})=>(<div className="modal-overlay"><div className="modal" style={{border:'1px solid var(--cyan)'}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:14}}><span style={{color:'var(--cyan)',fontSize:13,fontFamily:'var(--fd)',letterSpacing:3}}>TASKS</span><button className="btn s" onClick={()=>setShowTasks(false)} style={{borderColor:'var(--td)',color:'var(--td)'}}>CLOSE</button></div><button className="btn s cy" onClick={()=>send('task_list')} style={{marginBottom:10}}>REFRESH</button>{tasks.length===0?<div style={{color:'var(--tm)',padding:20,textAlign:'center'}}>Empty</div>:<div style={{display:'flex',flexDirection:'column',gap:5}}>{tasks.map(t=>(<div key={t.id} style={{background:'var(--card)',border:`1px solid ${t.status==='running'?'var(--green)':'var(--border)'}`,borderRadius:'var(--rad-md)',padding:'7px 10px',display:'flex',justifyContent:'space-between',alignItems:'center'}}><div><div style={{color:t.status==='running'?'var(--green)':'var(--td)',fontSize:10,fontFamily:'var(--fd)'}}>{t.type.toUpperCase()}</div><div style={{color:'var(--text)',fontSize:9}}>{t.label}</div><div style={{color:'var(--tm)',fontSize:8}}>{t.id}|{t.status}</div></div>{t.status==='running'&&t.alive&&<button className="btn s" onClick={()=>send('task_kill',{id:t.id})}>KILL</button>}</div>))}</div>}</div></div>);
 
-const Home=({status,agentStatus,socStatus,tasks,setTab,setShowSettings,setShowTasks,provider})=>(<div style={{padding:'12px 16px 100px'}}>
+const TEAM_LABELS={grok:'⚡ GROK',venice:'🔮 VENICE',openai:'🤖 GPT-4o'};
+const TeamPanel=({teamStatus})=>{
+  if(!teamStatus?.providers)return null;
+  const provs=['grok','venice','openai'];
+  const allHealthy=provs.every(n=>!teamStatus.providers[n]?.hasKey||teamStatus.providers[n]?.healthy!==false);
+  const anyKey=provs.some(n=>teamStatus.providers[n]?.hasKey);
+  return(<div className="panel" style={{marginBottom:10,borderColor:allHealthy&&anyKey?'rgba(57,255,20,.2)':'rgba(255,179,71,.2)'}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:7}}>
+      <span style={{color:'var(--violet-soft)',fontSize:9,fontFamily:'var(--fd)',letterSpacing:3}}>AI TEAM — SELF-HEALING</span>
+      <span style={{fontSize:8,color:allHealthy&&anyKey?'var(--green)':'var(--gold)'}}>{allHealthy&&anyKey?'● STABLE':'⚠ DEGRADED'}</span>
+    </div>
+    <div style={{display:'flex',gap:6,marginBottom:teamStatus.healLog?.length?6:0,flexWrap:'wrap'}}>
+      {provs.map(n=>{const p=teamStatus.providers[n]||{};const hasKey=p.hasKey;const ok=hasKey&&p.healthy!==false;
+        return(<div key={n} style={{display:'flex',alignItems:'center',gap:5,background:'rgba(0,0,0,.2)',border:`1px solid ${ok?'rgba(57,255,20,.2)':hasKey?'rgba(255,45,85,.2)':'rgba(80,70,100,.3)'}`,borderRadius:'var(--rad-sm)',padding:'4px 8px',flex:1,minWidth:80}}>
+          <span className={ok?'team-dot-ok':hasKey?'team-dot-off':'team-dot-na'}></span>
+          <div><div style={{color:ok?'var(--text)':'var(--tm)',fontSize:9,fontFamily:'var(--fd)'}}>{TEAM_LABELS[n]||n}</div>
+          <div style={{color:'var(--tm)',fontSize:7}}>{!hasKey?'no key':ok?(p.latency?`${p.latency}ms`:'ready'):'offline'}</div></div>
+        </div>);
+      })}
+    </div>
+    {teamStatus.healLog?.length>0&&<div style={{borderTop:'1px solid var(--border)',paddingTop:5,marginTop:2}}>
+      {teamStatus.healLog.slice(-2).map((h,i)=>(
+        <div key={i} style={{color:'var(--tm)',fontSize:8,fontFamily:'var(--fd)',padding:'1px 0'}}>
+          <span style={{color:'var(--mag)'}}>{TEAM_LABELS[h.provider]||h.provider}</span> {h.action}
+        </div>
+      ))}
+    </div>}
+  </div>);
+};
+
+const Home=({status,agentStatus,socStatus,tasks,setTab,setShowSettings,setShowTasks,provider,teamStatus})=>(<div style={{padding:'12px 16px 100px'}}>
   <div style={{textAlign:'center',marginBottom:14}}><pre style={{color:'var(--violet-soft)',fontSize:6,lineHeight:1.05,textShadow:'0 0 12px var(--vg-strong)',whiteSpace:'pre',margin:0}}>{`██████╗ ██╗   ██╗██████╗ ██████╗ ██╗     ███████╗
 ██╔══██╗██║   ██║██╔══██╗██╔══██╗██║     ██╔════╝
 ██████╔╝██║   ██║██████╔╝██████╔╝██║     █████╗
@@ -514,11 +548,12 @@ const Home=({status,agentStatus,socStatus,tasks,setTab,setShowSettings,setShowTa
 ██║     ╚██████╔╝██║  ██║██║     ███████╗███████╗
 ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚══════╝╚══════╝`}</pre>
     <div style={{color:'var(--violet-soft)',fontSize:10,fontFamily:'var(--fd)',letterSpacing:4,marginTop:8}} className="pulse">L U C Y · E D I T I O N</div>
-    <div style={{color:'var(--td)',fontSize:9,marginTop:4}}>v5.0 · {provider==='venice'?'Venice.ai':'Grok'} · Chat = Agent · SOC Active</div>
+    <div style={{color:'var(--td)',fontSize:9,marginTop:4}}>v6.0 · TERTRATRONIC RIPPLER TIER 5 · SOC + AI TEAM</div>
   </div>
+  <TeamPanel teamStatus={teamStatus}/>
   <div className="panel" style={{marginBottom:12}}>
     <div style={{color:'var(--violet-soft)',fontSize:10,fontFamily:'var(--fd)',letterSpacing:3,marginBottom:8}}>STATUS</div>
-    {[['USER',status.user],['IP',status.ip],['AI',provider==='venice'?'Venice.ai':'Grok-3-mini','var(--mag)'],['AGENT',agentStatus.running?`ACTIVE R${agentStatus.round} ${agentStatus.autonomous?'[AUTO]':'[APR]'}`:'STANDBY — type to engage',agentStatus.running?'var(--green)':'var(--td)'],['SOC',socStatus.running?`ACTIVE · ${socStatus.alertCount} alerts · cycle ${socStatus.cycle}`:'OFFLINE',socStatus.running?'var(--cyan)':'var(--td)'],['SCOPE','localhost · LAN · own IP','var(--gold)']].map(([k,v,c])=>(<div key={k} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',borderBottom:'1px solid #1e163511'}}><span style={{color:'var(--td)',fontSize:10}}>{k}</span><span style={{color:c||'var(--text)',fontSize:10,maxWidth:'65%',textAlign:'right',overflow:'hidden',textOverflow:'ellipsis'}}>{v||'...'}</span></div>))}
+    {[['USER',status.user],['IP',status.ip],['AI',provider==='venice'?'Venice.ai':provider==='openai'?'GPT-4o':'Grok-3-mini','var(--mag)'],['AGENT',agentStatus.running?`ACTIVE R${agentStatus.round} ${agentStatus.autonomous?'[AUTO]':'[APR]'}`:'STANDBY — type to engage',agentStatus.running?'var(--green)':'var(--td)'],['SOC',socStatus.running?`ACTIVE · ${socStatus.alertCount} alerts · cycle ${socStatus.cycle}`:'OFFLINE',socStatus.running?'var(--cyan)':'var(--td)'],['SCOPE','localhost · LAN · own IP','var(--gold)']].map(([k,v,c])=>(<div key={k} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',borderBottom:'1px solid #1e163511'}}><span style={{color:'var(--td)',fontSize:10}}>{k}</span><span style={{color:c||'var(--text)',fontSize:10,maxWidth:'65%',textAlign:'right',overflow:'hidden',textOverflow:'ellipsis'}}>{v||'...'}</span></div>))}
   </div>
   <div onClick={()=>setTab('agent')} className="glow" style={{border:'1px solid var(--violet)',borderRadius:'var(--rad-lg)',padding:'16px 0',textAlign:'center',marginBottom:14,cursor:'pointer',background:'linear-gradient(135deg,rgba(127,0,255,.18),rgba(255,45,149,.08))'}}><span style={{color:'var(--violet-soft)',fontSize:12,fontFamily:'var(--fd)',letterSpacing:4}}>⬡ NETGHOST — TYPE TO ENGAGE ⬡</span></div>
   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
@@ -728,10 +763,10 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
         </div>
       </div>}
       {chat.map((m,i)=>{
-        const isTool=m.meta==='tool';const isSoc=m.meta==='soc';const isExec=m.meta==='exec'||m.meta==='result';
-        const cls=isSoc?'soc':isTool?'tool':isExec?'exec':m.role==='user'?'user':'assistant';
-        const label=isSoc?'🛡 SOC ANALYST':isTool?'⚡ EXECUTION':isExec?'⚙ SYSTEM':m.role==='user'?'NETRUNNER':'🧠 NETGHOST';
-        const lc=isSoc?'var(--red)':isTool?'var(--cyan)':isExec?'var(--green)':m.role==='user'?'var(--purple)':'var(--mag)';
+        const isTool=m.meta==='tool';const isSoc=m.meta==='soc';const isExec=m.meta==='exec'||m.meta==='result';const isTeam=m.meta==='team';
+        const cls=isTeam?'team':isSoc?'soc':isTool?'tool':isExec?'exec':m.role==='user'?'user':'assistant';
+        const label=isTeam?'🛠 AI TEAM':isSoc?'🛡 SOC ANALYST':isTool?'⚡ EXECUTION':isExec?'⚙ SYSTEM':m.role==='user'?'NETRUNNER':'🧠 NETGHOST';
+        const lc=isTeam?'var(--violet-soft)':isSoc?'var(--red)':isTool?'var(--cyan)':isExec?'var(--green)':m.role==='user'?'var(--purple)':'var(--mag)';
         return(<div key={i} className={`cb ${cls}`}>
           <div style={{color:lc,fontSize:7.5,fontFamily:'var(--fd)',letterSpacing:2,marginBottom:3}}>{label}</div>
           <div style={{color:'var(--text)',fontSize:11,whiteSpace:'pre-wrap',lineHeight:1.6}}>
@@ -790,6 +825,7 @@ function App(){
   const[autonomous,setAutonomous]=useState(false);
   const[voiceMode,setVoiceMode]=useState(false);
   const[activeProvider,setActiveProvider]=useState(null);
+  const[teamStatus,setTeamStatus]=useState({providers:{},healLog:[],primary:'grok'});
   const voiceModeRef=useRef(false);
   useEffect(()=>{voiceModeRef.current=voiceMode},[voiceMode]);
 
@@ -813,6 +849,11 @@ function App(){
     });
     on('chat_history',d=>setChat(d.map(h=>({role:h.role,content:h.content,meta:h.meta}))));
     on('chat_cleared',()=>{setChat([]);const cc=document.getElementById('callChat');if(cc)cc.innerHTML=''});
+    on('team_status',d=>setTeamStatus(d));
+    on('team_heal',d=>{
+      setTeamStatus(prev=>({...prev,healLog:[...(prev.healLog||[]),d].slice(-8)}));
+      setChat(p=>[...p,{role:'system',content:`🛠 TEAM [${d.provider.toUpperCase()}] ${d.issue} → ${d.action}`,meta:'team'}]);
+    });
     on('active_provider',d=>{
       setActiveProvider(d);
       const badge=document.getElementById('callProviderBadge');
@@ -830,7 +871,7 @@ function App(){
     on('soc_response',d=>{setChat(p=>[...p,{role:'system',content:`🛡 SOC AUTO-RESPONSE: ${d.actions.join(' | ')}`,meta:'soc'}])});
     on('red_preview',d=>setRedPreview(d));
   },[on,send]);
-  useEffect(()=>{if(conn){send('get_provider');send('get_status');send('task_list');send('get_chat_history')}},[conn,send]);
+  useEffect(()=>{if(conn){send('get_provider');send('get_status');send('task_list');send('get_chat_history');send('get_team_status');}},[conn,send]);
   useEffect(()=>{const l=scanOut[scanOut.length-1];if(l?.text?.includes('complete'))setScanning(false)},[scanOut]);
   useEffect(()=>{const l=hardenOut[hardenOut.length-1];if(l?.text?.includes('complete'))setHardening(false)},[hardenOut]);
   useEffect(()=>{const l=huntOut[huntOut.length-1];if(l?.text?.includes('complete'))setHunting(false)},[huntOut]);
@@ -848,6 +889,7 @@ function App(){
       <div className="pill-row">
         {agentStatus.running&&<span className="pill mg pulse"><span className="dot" style={{background:'var(--mag)'}}></span>R{agentStatus.round}</span>}
         {voiceSupported&&<span className={`pill ${voiceMode?'cy':''} click`} onClick={()=>{const n=!voiceMode;setVoiceMode(n);send('voice_mode_toggle',{enabled:n});if(!n){stopSpeaking()}}} title="Voice mode (STT + TTS)"><span className="dot" style={{background:voiceMode?'var(--cyan)':'var(--tm)'}}></span>🎙 {voiceMode?'ON':'OFF'}</span>}
+        {(()=>{const ps=teamStatus?.providers||{};const keys=['grok','venice','openai'];const anyKey=keys.some(n=>ps[n]?.hasKey);const allOk=keys.every(n=>!ps[n]?.hasKey||ps[n]?.healthy!==false);return(<span className={`pill ${anyKey?(allOk?'on':'off'):''}`} title="AI Team health"><span className="dot" style={{background:anyKey?(allOk?'var(--green)':'var(--red)'):'var(--tm)'}}></span>TEAM</span>);})()}
         <span className={`pill ${socStatus.running?'soc-on':'soc-off'}`}>🛡 {socStatus.running?`SOC·${socStatus.alertCount}`:'SOC OFF'}</span>
         <span className={`pill ${activeProvider?.provider==='venice'?'mg':activeProvider?.provider==='openai'?'cy':'vio'}`} title={activeProvider?`task: ${activeProvider.task}`:''}>
           {activeProvider?{grok:'⚡ GROK',venice:'🔮 VEN',openai:'🤖 GPT'}[activeProvider.provider]||activeProvider.provider.toUpperCase():(providerInfo.provider==='venice'?'🔮 VEN':providerInfo.provider==='openai'?'🤖 GPT':'⚡ GROK')}
@@ -857,7 +899,7 @@ function App(){
         <span className="pill clock">{time.toLocaleTimeString()}</span>
       </div>
     </div>
-    {tab==='home'&&<Home status={status} agentStatus={agentStatus} socStatus={socStatus} tasks={tasks} setTab={setTab} setShowSettings={setShowSettings} setShowTasks={setShowTasks} provider={providerInfo.provider}/>}
+    {tab==='home'&&<Home status={status} agentStatus={agentStatus} socStatus={socStatus} tasks={tasks} setTab={setTab} setShowSettings={setShowSettings} setShowTasks={setShowTasks} provider={providerInfo.provider} teamStatus={teamStatus}/>}
     {tab==='scan'&&<Scan scanMode={scanMode} setScanMode={setScanMode} scanTarget={scanTarget} setScanTarget={setScanTarget} doScan={doScan} scanning={scanning} scanOut={scanOut}/>}
     {tab==='harden'&&<Harden hardenOut={hardenOut} hardening={hardening} doHarden={doHarden}/>}
     {tab==='hunt'&&<Hunt huntOut={huntOut} hunting={hunting} doHunt={doHunt}/>}

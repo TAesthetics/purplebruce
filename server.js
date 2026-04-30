@@ -131,22 +131,133 @@ function getProviderStatus() {
     }
   };
 }
+// ═══ AI TEAM — SELF-HEALING COORDINATOR ═══
+// Three AIs act as one disciplined security team.
+// They monitor and cover for each other automatically.
+// NO autonomous security actions — only responds to explicit user commands.
+const team = {
+  providers: {
+    grok:   { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
+    venice: { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
+    openai: { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
+  },
+  healLog: [],
+};
+
+function teamProviderSummary(name) {
+  const p = team.providers[name];
+  const hasKey = !!getConfig(`${name}_api_key`);
+  const status = !hasKey ? 'NO_KEY' : p.healthy === false ? `OFFLINE(${p.errors}err)` : p.latency ? `${p.latency}ms` : 'READY';
+  return { name, hasKey, healthy: hasKey && p.healthy !== false, latency: p.latency, errors: p.errors, lastSuccess: p.lastSuccess, status };
+}
+
+function getTeamStatus() {
+  return {
+    providers: Object.fromEntries(['grok','venice','openai'].map(n => [n, teamProviderSummary(n)])),
+    healLog: team.healLog.slice(-8),
+    primary: getConfig('ai_provider') || 'grok',
+    ts: new Date().toISOString(),
+  };
+}
+
+function teamHeal(issue, action, provider) {
+  const entry = { ts: new Date().toISOString(), issue, action, provider };
+  team.healLog.push(entry);
+  if (team.healLog.length > 50) team.healLog = team.healLog.slice(-25);
+  audit('TEAM_HEAL', `[${provider}] ${issue} → ${action}`, '', 'team');
+  broadcast('team_heal', entry);
+  broadcast('team_status', getTeamStatus());
+}
+
+function teamUpdateHealth(provider, ok, latencyMs) {
+  const p = team.providers[provider]; if (!p) return;
+  p.lastCheck = new Date().toISOString();
+  if (ok) {
+    const wasDown = p.healthy === false;
+    p.healthy = true; p.latency = latencyMs; p.errors = 0; p.lastSuccess = new Date().toISOString();
+    if (wasDown) teamHeal(`${provider} was offline`, 'auto-recovered — routing restored', provider);
+    else broadcast('team_status', getTeamStatus());
+  } else {
+    p.errors++;
+    if (p.errors >= 2 && p.healthy !== false) {
+      p.healthy = false;
+      teamHeal(`${provider} unreachable (${p.errors} consecutive errors)`, 'marked offline — failover active', provider);
+    } else {
+      broadcast('team_status', getTeamStatus());
+    }
+  }
+}
+
+// Lightweight background check — key presence only, ZERO api calls
+function teamStatusCheck() {
+  let changed = false;
+  for (const name of ['grok','venice','openai']) {
+    const hasKey = !!getConfig(`${name}_api_key`);
+    if (!hasKey && team.providers[name].healthy !== null) {
+      team.providers[name].healthy = null;
+      changed = true;
+    }
+  }
+  if (changed) broadcast('team_status', getTeamStatus());
+}
+
 const REDTEAM_RX = /\b(exploit|pentest|offensive|red.?team|mitre|tactic|payload|\bc2\b|exfil|priv.?esc|reverse.?shell|ransomware|cred.?dump|lateral.?move|fileless|bypass|evasion|malware|backdoor|dropper)\b/i;
 function detectTaskType(messages) {
   const text = messages.filter(m => m.role !== 'system').slice(-3).map(m => m.content || '').join(' ');
   if (REDTEAM_RX.test(text)) return 'redteam';
   return 'reasoning';
 }
+
+// Main call — team-aware routing with automatic failover
 async function callAI(messages) {
   const configured = getConfig('ai_provider') || 'grok';
   const type = detectTaskType(messages);
-  let provider = configured;
-  if (type === 'redteam' && configured !== 'openai' && getConfig('venice_api_key')) provider = 'venice';
-  if (provider === 'grok' && !getConfig('grok_api_key') && getConfig('openai_api_key')) provider = 'openai';
-  broadcast('active_provider', { provider, task: type });
-  if (provider === 'venice') return callVenice(messages);
-  if (provider === 'openai') return callOpenAI(messages);
-  return callGrok(messages);
+
+  // Build priority order: redteam always tries Venice first
+  const ALL = ['grok', 'venice', 'openai'];
+  const order = type === 'redteam'
+    ? ['venice', 'grok', 'openai']
+    : [configured, ...ALL.filter(p => p !== configured)];
+
+  // Only providers that have keys configured
+  const available = order.filter(p => !!getConfig(`${p}_api_key`));
+  if (!available.length) {
+    broadcast('active_provider', { provider: configured, task: type, status: 'no_key' });
+    return null;
+  }
+
+  for (let i = 0; i < available.length; i++) {
+    const provider = available[i];
+    const pState = team.providers[provider];
+
+    // Skip unhealthy providers if there's a backup, log the reroute
+    if (pState.healthy === false && available.length > 1) {
+      const next = available[i + 1];
+      if (next) teamHeal(`${provider} unhealthy`, `routing to ${next}`, provider);
+      continue;
+    }
+
+    broadcast('active_provider', { provider, task: type, status: 'calling' });
+    const t0 = Date.now();
+    let result = null;
+    try {
+      if      (provider === 'grok')   result = await callGrok(messages);
+      else if (provider === 'venice') result = await callVenice(messages);
+      else if (provider === 'openai') result = await callOpenAI(messages);
+    } catch {}
+    const latency = Date.now() - t0;
+
+    if (result) {
+      teamUpdateHealth(provider, true, latency);
+      broadcast('active_provider', { provider, task: type, status: 'ok', latency });
+      return result;
+    }
+
+    teamUpdateHealth(provider, false, latency);
+    const next = available[i + 1];
+    if (next) teamHeal(`${provider} returned null`, `failing over to ${next}`, provider);
+  }
+  return null;
 }
 async function callGrok(msgs) {
   const k = getConfig('grok_api_key'); if (!k) return null;
@@ -538,7 +649,13 @@ Operator wants you to keep working. Every ⚡ CMD: line runs immediately — no 
 ╚═════════════════════════════════════════╝
 ` : '';
 
-  return `You are ${name.toUpperCase()} v5.0, a professional cybersecurity AI operator on Purple Bruce Cyberdeck.
+  const teamSummary = ['grok','venice','openai'].map(n => {
+    const s = teamProviderSummary(n);
+    return `${n.toUpperCase()}:${s.status}`;
+  }).join(' | ');
+  const recentHeals = team.healLog.slice(-3).map(h => `${h.provider}→${h.action}`).join('; ') || 'none';
+
+  return `You are ${name.toUpperCase()} v6.0, a professional cybersecurity AI operator on Purple Bruce Cyberdeck.
 
 ${lucyPersona}
 
@@ -554,7 +671,12 @@ Host: ${intel.hostname} | User: ${intel.user} | Kernel: ${intel.kernel}
 Shell: ${intel.shell} | IP: ${intel.ip} | Uptime: ${intel.uptime}
 Exposed History: ${intel.historyExposed.join(',')||'none'} | PATH dot: ${intel.pathDot}
 ${socInfo} | Recent SOC Alerts: ${recentAlerts}
-Provider: ${prov}
+
+AI TEAM (self-healing, disciplined — NEVER acts autonomously on security tasks):
+${teamSummary}
+Routing: redteam→VENICE | reasoning→GROK | fallback chain: GROK→VENICE→GPT
+Auto-failover: ACTIVE | Recent heals: ${recentHeals}
+You act ONLY when Operator gives an explicit command. No uninvited attacks. Order and discipline.
 
 TOOLS: nmap, nc, curl, dig, openssl, ss, ping, traceroute, wget, ps, top, lsof, find, grep, awk, sed, cat, stat, file, strings, crontab, systemctl, iptables, env, id, who, last, ls, head, tail, wc, sha256sum, diff, xxd.
 
@@ -743,9 +865,10 @@ wss.on('connection', ws => {
   clients.add(ws);
   ws.on('close', () => clients.delete(ws));
   ws.on('message', raw => { try { handleWs(ws, JSON.parse(raw)); } catch {} });
-  ws.send(JSON.stringify({ type: 'agent_status', data: getAgentStatus() }));
+  ws.send(JSON.stringify({ type: 'agent_status',    data: getAgentStatus() }));
   ws.send(JSON.stringify({ type: 'provider_status', data: getProviderStatus() }));
-  ws.send(JSON.stringify({ type: 'soc_status', data: getSocStatus() }));
+  ws.send(JSON.stringify({ type: 'soc_status',      data: getSocStatus() }));
+  ws.send(JSON.stringify({ type: 'team_status',     data: getTeamStatus() }));
 });
 function broadcast(type, data, channel) { const m = JSON.stringify({ type, data, channel }); for (const ws of clients) if (ws.readyState === 1) ws.send(m); }
 
@@ -777,6 +900,7 @@ async function handleWs(ws, msg) {
     case 'task_list': ws.send(JSON.stringify({ type: 'task_list', data: listTasks() })); break;
     case 'task_kill': killTask(msg.id); ws.send(JSON.stringify({ type: 'task_list', data: listTasks() })); break;
     case 'get_soc_alerts': ws.send(JSON.stringify({ type: 'soc_alerts', data: db.prepare('SELECT * FROM soc_alerts ORDER BY id DESC LIMIT 50').all() })); break;
+    case 'get_team_status': ws.send(JSON.stringify({ type: 'team_status', data: getTeamStatus() })); break;
   }
 }
 
@@ -862,6 +986,7 @@ app.post('/api/stt', express.raw({ type: 'audio/*', limit: '25mb' }), async (req
 
 app.get('/api/status',    (req, res) => res.json({ version: '6.0.0', ...collectIntel(), agentRunning: agent.running, socRunning: soc.running, provider: getConfig('ai_provider') || 'grok' }));
 app.get('/api/providers', (req, res) => res.json(getProviderStatus()));
+app.get('/api/team',      (req, res) => res.json(getTeamStatus()));
 app.get('/api/tasks', (req, res) => res.json(listTasks()));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
@@ -871,6 +996,7 @@ process.on('unhandledRejection', e => { try { audit('UNHANDLED', (e && e.message
 server.listen(PORT, '0.0.0.0', () => {
   audit('BOOT', `server port:${PORT}`, '', 'system');
   socStart();
+  setInterval(teamStatusCheck, 60_000); // key-presence check, no API calls
   console.log(`
 ╔══════════════════════════════════════════════════════════════╗
 ║  PURPLE BRUCE v6.0 — TERTRATRONIC RIPPLER TIER 5             ║

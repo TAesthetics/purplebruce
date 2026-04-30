@@ -360,6 +360,76 @@ cmd_quickhack_target() {
   echo -e "\n  ${BG}[OK]${RS}  ${G}${target} compromised.${RS}\n"
 }
 
+# ─── TEAM ──────────────────────────────────────────────────────────────────
+cmd_team() {
+  local resp; resp=$(api "/api/team")
+  if [ -z "$resp" ]; then
+    echo -e "\n  ${BR}[ERR]${RS}  ${R}Server offline — start with: netrunner start${RS}\n"; return 1
+  fi
+
+  echo -e "\n  ${BM}┌───────────────────────────────────────────────────────────────┐${RS}"
+  echo -e "  ${BM}│${RS}  ${BC}AI TEAM — SELF-HEALING SECURITY COORDINATOR${RS}                  ${BM}│${RS}"
+  echo -e "  ${BM}└───────────────────────────────────────────────────────────────┘${RS}"
+  echo -e "  ${DM}${C}Three AIs. One team. Discipline over willpower.${RS}\n"
+
+  # Provider status
+  echo -e "  ${BM}PROVIDERS${RS}"
+  hr
+  for provider in grok venice openai; do
+    local label badge
+    case "$provider" in
+      grok)   label="⚡ GROK-3   "; badge="${BM}" ;;
+      venice) label="🔮 VENICE   "; badge="${BR}" ;;
+      openai) label="🤖 GPT-4o   "; badge="${BC}" ;;
+    esac
+
+    if command -v jq >/dev/null 2>&1; then
+      local hasKey healthy latency errors status_str
+      hasKey=$(echo "$resp"  | jq -r ".providers.${provider}.hasKey // false"  2>/dev/null || echo "false")
+      healthy=$(echo "$resp" | jq -r ".providers.${provider}.healthy // null"  2>/dev/null || echo "null")
+      latency=$(echo "$resp" | jq -r ".providers.${provider}.latency // null"  2>/dev/null || echo "null")
+      errors=$(echo  "$resp" | jq -r ".providers.${provider}.errors  // 0"     2>/dev/null || echo "0")
+
+      if [ "$hasKey" = "false" ]; then
+        echo -e "  ${badge}${label}${RS}  ${K}○${RS}  ${DM}no key configured${RS}"
+      elif [ "$healthy" = "false" ]; then
+        echo -e "  ${badge}${label}${RS}  ${BR}●${RS}  ${R}OFFLINE${RS}  ${DM}(${errors} errors)${RS}"
+      else
+        local lat_str="${DM}first call pending${RS}"
+        [ "$latency" != "null" ] && lat_str="${BG}${latency}ms${RS}"
+        echo -e "  ${badge}${label}${RS}  ${BG}●${RS}  ${G}READY${RS}  ${lat_str}"
+      fi
+    else
+      echo -e "  ${badge}${label}${RS}  ${DM}(install jq for details)${RS}"
+    fi
+  done
+
+  # Heal log
+  local heal_count=0
+  if command -v jq >/dev/null 2>&1; then
+    heal_count=$(echo "$resp" | jq '.healLog | length' 2>/dev/null || echo "0")
+  fi
+  if [ "$heal_count" -gt 0 ] 2>/dev/null; then
+    echo; echo -e "  ${BM}RECENT HEALS${RS}"
+    hr
+    echo "$resp" | jq -r '.healLog[-4:][] | "  \(.provider | ascii_upcase) → \(.action)"' 2>/dev/null | while IFS= read -r line; do
+      echo -e "  ${M}${line}${RS}"
+    done
+  fi
+
+  # Routing rules
+  echo; echo -e "  ${BM}ROUTING RULES${RS}"
+  hr
+  echo -e "  ${C}redteam     ${BM}→ VENICE${RS}  ${DM}(exploit, pentest, offensive)${RS}"
+  echo -e "  ${C}reasoning   ${BM}→ GROK${RS}    ${DM}(code, analysis, chat)${RS}"
+  echo -e "  ${C}voice       ${BM}→ GPT-4o${RS}  ${DM}(STT, TTS, long-context)${RS}"
+  echo -e "  ${C}failover    ${BM}→ AUTO${RS}     ${DM}(next healthy provider in chain)${RS}"
+  echo
+  echo -e "  ${DM}${Y}Constraint: team acts ONLY on explicit user command.${RS}"
+  echo -e "  ${DM}${Y}No uninvited attacks. Authorized redteam scope only.${RS}"
+  echo
+}
+
 # ─── START (tmux 3-pane layout) ────────────────────────────────────────────
 cmd_start() {
   local session="purplebruce"
@@ -401,6 +471,7 @@ usage() {
   echo -e "\n  ${BC}usage:${RS}  netrunner <command> [args]\n"
   echo -e "  ${BM}doctor${RS}               full health check + auto-repair"
   echo -e "  ${BM}deck${RS}                 cyberdeck status dashboard"
+  echo -e "  ${BM}team${RS}                 AI team health + routing status"
   echo -e "  ${BM}overclock${RS}            90s boost timer + cooldown + glitch"
   echo -e "  ${BM}scan <target>${RS}        recon via Purple Bruce API"
   echo -e "  ${BM}scan <t> <mode>${RS}      modes: QUICK  STANDARD  FULL  STEALTH"
@@ -416,6 +487,7 @@ banner
 case "${1:-}" in
   doctor)    cmd_doctor ;;
   deck)      cmd_deck ;;
+  team)      cmd_team ;;
   overclock) cmd_overclock ;;
   scan)      cmd_scan "${2:-}" "${3:-STANDARD}" ;;
   quickhack)

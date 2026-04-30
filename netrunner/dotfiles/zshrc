@@ -56,6 +56,7 @@ alias doctor='netrunner doctor'
 alias deck='netrunner deck'
 alias overclock='netrunner overclock'
 alias scan='netrunner scan'
+alias team='netrunner team'
 
 # ================================
 # Git
