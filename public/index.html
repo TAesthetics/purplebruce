@@ -512,6 +512,10 @@ const SettingsModal=({provider,grokHasKey,grokMask,veniceHasKey,veniceMask,gemin
       <div style={{color:'var(--td)',fontSize:10,marginBottom:8}}>SOC ANALYST</div>
       <div style={{display:'flex',gap:8}}><button className={`btn s ${socRunning?'gn':''}`} onClick={()=>send('soc_toggle',{enabled:!socRunning})}>{socRunning?'SOC: ON':'SOC: OFF'}</button><button className={`btn s ${socAutoRespond?'cy':''}`} onClick={()=>send('soc_auto_toggle',{enabled:!socAutoRespond})}>{socAutoRespond?'AUTO-RESPOND: ON':'AUTO-RESPOND: OFF'}</button></div>
     </div>
+    <div style={{borderTop:'1px solid var(--border)',paddingTop:12,marginTop:8}}>
+      <div style={{color:'var(--td)',fontSize:10,marginBottom:8}}>⚡ PREMIUM TIER</div>
+      <button className="btn cy" onClick={async()=>{const r=await fetch('/api/stripe/checkout',{method:'POST',headers:{'Authorization':`Bearer ${window.__token||''}`}});const d=await r.json();if(d.url)window.location=d.url}} style={{width:'100%'}}>💳 UPGRADE TO PRO</button>
+    </div>
     <div style={{color:'var(--tm)',fontSize:9,marginTop:10}}>Scope: UNRESTRICTED — Full System Access</div>
   </div></div>);
 };
@@ -575,8 +579,20 @@ const Hunt=({huntOut,hunting,doHunt})=>(<div style={{padding:'12px 16px 100px'}}
 /* ═══ NETGHOST — CHAT IS THE AGENT ═══ */
 const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTasks,chat,thinking,pending,socAlerts,autonomous,setAutonomous,voiceMode,setVoiceMode})=>{
   const[chatIn,setChatIn]=useState('');
-  const cr=useRef(),inputRef=useRef();
-  useEffect(()=>{if(cr.current)cr.current.scrollTop=cr.current.scrollHeight},[chat,thinking,pending,socAlerts]);
+  const cr=useRef(),inputRef=useRef(),userScrolled=useRef(false);
+  // Only auto-scroll when user is near bottom or a new user message arrives
+  useEffect(()=>{
+    const el=cr.current; if(!el) return;
+    const atBottom=el.scrollHeight-el.scrollTop-el.clientHeight<80;
+    if(atBottom||!userScrolled.current) el.scrollTop=el.scrollHeight;
+  },[chat,thinking,pending]);
+  // Track manual scroll up — pause auto-scroll; resume when user scrolls back down
+  useEffect(()=>{
+    const el=cr.current; if(!el) return;
+    const onScroll=()=>{ const atBottom=el.scrollHeight-el.scrollTop-el.clientHeight<80; userScrolled.current=!atBottom; };
+    el.addEventListener('scroll',onScroll,{passive:true});
+    return()=>el.removeEventListener('scroll',onScroll);
+  },[]);
   const doSend=(ov)=>{const m=ov||chatIn.trim();if(!m)return;if(!hasKey){setShowSettings(true);return}setChatIn('');send('chat',{message:m})};
   const approve=(a)=>{if(pending)send('cmd_approve',{approve:a})};
   const toggleAuto=()=>{const n=!autonomous;setAutonomous(n);send('autonomous_toggle',{enabled:n})};
@@ -816,9 +832,22 @@ const RedTab=({send,redOut,preview,setPreview,clearRedOut,running,setRunning})=>
   </div>);
 };
 
+const LoginModal=({setShowLogin,setAuth})=>{
+  const[mode,setMode]=useState('login');const[em,setEm]=useState('');const[pw,setPw]=useState('');const[err,setErr]=useState('');const[loading,setLoading]=useState(false);
+  const submit=async()=>{setLoading(true);setErr('');const url=`/api/auth/${mode}`;try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:em,password:pw})});const d=await r.json();if(!r.ok){setErr(d.error||'Failed');setLoading(false);return}window.__token=d.token;setAuth({user:d.user,token:d.token});setShowLogin(false);localStorage.setItem('pb_token',d.token);}catch(e){setErr(e.message);setLoading(false);}};
+  return(<div className="modal-overlay"><div className="modal" style={{border:'1px solid var(--cyan)'}}><div style={{marginBottom:16}}><span style={{color:'var(--cyan)',fontSize:13,fontFamily:'var(--fd)',letterSpacing:3}}>{mode==='login'?'LOGIN':'REGISTER'}</span></div>
+    <div style={{display:'flex',gap:6,marginBottom:12}}><button className={`btn s ${mode==='login'?'cy':''}`} onClick={()=>setMode('login')} style={{flex:1}}>LOGIN</button><button className={`btn s ${mode==='register'?'cy':''}`} onClick={()=>setMode('register')} style={{flex:1}}>REGISTER</button></div>
+    <input value={em} onChange={e=>setEm(e.target.value)} placeholder="email@example.com" className="inp" style={{marginBottom:8}}/>
+    <input value={pw} onChange={e=>setPw(e.target.value)} placeholder="password" type="password" className="inp" style={{marginBottom:8}}/>
+    {err&&<div style={{color:'var(--red)',fontSize:9,marginBottom:8}}>✗ {err}</div>}
+    <div style={{display:'flex',gap:6}}><button className="btn gn" onClick={submit} disabled={loading||!em||!pw} style={{flex:1}}>{loading?'...':'GO'}</button><button className="btn" onClick={()=>setShowLogin(false)} style={{flex:1,borderColor:'var(--tm)',color:'var(--tm)'}}>CANCEL</button></div>
+  </div></div>);
+};
+
 function App(){
   const{send,on,conn}=useWS();
   const[tab,setTab]=useState('home');const[time,setTime]=useState(new Date());const[status,setStatus]=useState({});
+  const[auth,setAuth]=useState(()=>{const t=localStorage.getItem('pb_token');if(t){window.__token=t;return{token:t};}return null;});const[showLogin,setShowLogin]=useState(!auth);
   const[scanTarget,setScanTarget]=useState('');const[scanMode,setScanMode]=useState('STANDARD');
   const[scanOut,setScanOut]=useState([]);const[scanning,setScanning]=useState(false);
   const[hardenOut,setHardenOut]=useState([]);const[hardening,setHardening]=useState(false);
@@ -888,6 +917,7 @@ function App(){
   const doHarden=()=>{setHardening(true);setHardenOut([]);send('harden')};
   const doHunt=()=>{setHunting(true);setHuntOut([]);send('hunt')};
 
+  if(!auth||showLogin)return<LoginModal setShowLogin={setShowLogin} setAuth={setAuth}/>;
   return(<div>
     {showSettings&&<SettingsModal {...providerInfo} setShowSettings={setShowSettings} send={send} socRunning={socStatus.running} socAutoRespond={socStatus.autoRespond}/>}
     {showTasks&&<TaskModal setShowTasks={setShowTasks} tasks={tasks} send={send}/>}
