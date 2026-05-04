@@ -38,16 +38,16 @@ Three AIs operate as one disciplined security team. They cover for each other au
 ```
 ⚡ GROK-3    ──  reasoning · code · analysis          (default)
 🔮 VENICE    ──  redteam · offensive · uncensored      (auto-routed on exploit/pentest keywords)
-🤖 GPT-4o   ──  voice · long-context · fallback       (STT/TTS + chain end)
+✨ GEMINI    ──  long-context · multimodal · fallback   (free tier · chain end)
 ```
 
 **Routing rules (`config/ai-providers.json`)**
 
 | Task type | Primary | Fallback chain |
 |---|---|---|
-| `redteam` (exploit, pentest, C2, …) | Venice | Grok → GPT-4o |
-| `reasoning` (code, analysis, chat) | configured | GPT-4o |
-| `voice` (STT, TTS) | GPT-4o | Grok |
+| `redteam` (exploit, pentest, C2, …) | Venice | Grok → Gemini |
+| `reasoning` (code, analysis, chat) | configured | Gemini |
+| `voice` (STT, TTS) | Gemini | Grok |
 
 **Self-healing mechanics (no API cost):**
 - Each call updates per-provider health (latency, error count)
@@ -71,8 +71,8 @@ Playful, disciplined, language-aware (DE/EN auto-detect). Works as a **purple-te
 - **Provider badge** in call modal — shows which AI is responding live
 - **Latency pill** — response time in ms after each reply
 - **Continuous Web Speech** (free, works on desktop Chrome)
-- **Push-to-Talk / Whisper** — hold big mic button → Groq or OpenAI Whisper → transcript sent. Works on Android Chrome, proot browsers, everything
-- **ElevenLabs TTS** with Web Speech fallback
+- **Push-to-Talk / Whisper** — hold big mic button → Groq Whisper-large-v3-turbo → transcript sent. Tuned with cyberdeck vocab prompt + temperature 0 for accuracy
+- **Microsoft Edge TTS** (default, free, no API key) — neural voices: `de-DE-KatjaNeural`, `en-US-AriaNeural` and ~10 more. ElevenLabs fallback if configured. Web Speech as last resort
 - Language switcher (DE / EN), mute toggle, PTT mode toggle
 
 ### netrunner CLI (Tier 5)
@@ -185,16 +185,18 @@ Settings → ⚙ in the UI, or via CLI:
 |---|---|---|---|
 | Grok (xAI) | Default reasoning | `grok_api_key` | [console.x.ai](https://console.x.ai) |
 | Venice.ai | Redteam (auto-routed) | `venice_api_key` | [venice.ai](https://venice.ai) |
-| OpenAI | Voice fallback / GPT-4o | `openai_api_key` | [platform.openai.com](https://platform.openai.com) |
-| ElevenLabs | TTS voice | `elevenlabs_api_key` + `elevenlabs_voice_id` | [elevenlabs.io](https://elevenlabs.io) |
+| Gemini (Google) | Long-context fallback (free) | `gemini_api_key` | [aistudio.google.com](https://aistudio.google.com/app/apikey) |
 | Groq | Whisper STT (free tier) | `groq_api_key` | [console.groq.com](https://console.groq.com) |
+| ElevenLabs (optional) | Premium TTS — only if Edge TTS quality not enough | `elevenlabs_api_key` + `elevenlabs_voice_id` | [elevenlabs.io](https://elevenlabs.io) |
+
+> TTS is **free by default** via Microsoft Edge Neural Voices — no key needed.
 
 ```bash
 purple> setkey grok     xai-xxxxxxxxxxxx
 purple> setkey venice   venice-xxxxxxxxxx
-purple> setkey openai   sk-xxxxxxxxxxxxxxx
+purple> setkey gemini   AIza-xxxxxxxxxxx
 purple> setkey groq     gsk_xxxxxxxxxxxx
-purple> setvoice        <elevenlabs_voice_id>
+purple> setvoice        <elevenlabs_voice_id>   # only if using ElevenLabs
 ```
 
 Or save keys in the browser UI → Settings. Keys persist in `purplebruce.db`.

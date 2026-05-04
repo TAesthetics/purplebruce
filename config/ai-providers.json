@@ -1,9 +1,9 @@
 {
-  "_doc": "TERTRATRONIC RIPPLER TIER 5 — Multi-Provider AI Router",
+  "_doc": "TERTRATRONIC RIPPLER TIER 5 — Multi-Provider AI Router (Grok / Venice / Gemini)",
   "routing": {
-    "redteam":   { "provider": "venice", "model": "llama-3.3-70b",  "fallback": "grok",  "keywords": ["exploit","pentest","offensive","red.?team","mitre","tactic","payload","c2","exfil","priv.?esc","reverse.?shell","ransomware","cred.?dump","lateral.?move","fileless","bypass","evasion","malware","backdoor","dropper"] },
-    "reasoning": { "provider": "grok",   "model": "grok-3-mini",    "fallback": "openai" },
-    "voice":     { "provider": "openai", "model": "gpt-4o-mini",    "fallback": "grok"   },
+    "redteam":   { "provider": "venice", "model": "llama-3.3-70b",     "fallback": "grok",   "keywords": ["exploit","pentest","offensive","red.?team","mitre","tactic","payload","c2","exfil","priv.?esc","reverse.?shell","ransomware","cred.?dump","lateral.?move","fileless","bypass","evasion","malware","backdoor","dropper"] },
+    "reasoning": { "provider": "grok",   "model": "grok-3-mini",       "fallback": "gemini" },
+    "voice":     { "provider": "gemini", "model": "gemini-2.0-flash",  "fallback": "grok"   },
     "fallback":  { "provider": "grok",   "model": "grok-3-mini" }
   },
   "providers": {
@@ -27,15 +27,15 @@
       "env_key":     "VENICE_API_KEY",
       "strength":    "Redteam, offensive, uncensored"
     },
-    "openai": {
-      "label":       "GPT-4o",
-      "badge":       "🤖 GPT-4o",
+    "gemini": {
+      "label":       "GEMINI",
+      "badge":       "✨ GEMINI",
       "badge_color": "#00f0ff",
-      "base_url":    "https://api.openai.com/v1",
-      "model":       "gpt-4o-mini",
-      "temperature": 0.4,
-      "env_key":     "OPENAI_API_KEY",
-      "strength":    "Voice, long-context, multimodal, fallback"
+      "base_url":    "https://generativelanguage.googleapis.com/v1beta",
+      "model":       "gemini-2.0-flash",
+      "temperature": 0.7,
+      "env_key":     "GEMINI_API_KEY",
+      "strength":    "Long-context, multimodal, free tier, fallback"
     }
   }
 }
