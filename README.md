@@ -7,25 +7,26 @@
   ██║╚██╗██║██╔══╝     ██║   ██╔══██╗██║   ██║██║╚██╗██║██║╚██╗██║██╔══╝  ██╔══██╗
   ██║ ╚████║███████╗   ██║   ██║  ██║╚██████╔╝██║ ╚████║██║ ╚████║███████╗██║  ██║
   ╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝
-  TERTRATRONIC RIPPLER v6.0  ·  TIER 5  ·  STUFE 2  ·  PURPLEBRUCE GRID
+  
+  TERTRATRONIC RIPPLER v6.0  ·  TIER 5  ·  STUFE 2  ·  AUTHENTICATION + PAYMENTS
 ```
 
-**Purple-Team Cyberdeck** — one AI agent, three providers, zero downtime.  
-Runs on Android (Termux proot), native Linux, or WSL. No systemd. No sudo.
+**Professional Purple-Team Cyberdeck** — AI security agent + voice interface + team coordination + Stripe payments.  
+Runs on Android (Termux/proot), Linux, WSL. No systemd required.
 
 ---
 
-## What's New in v6.0 — Stufe 2
+## What's New in v6.0 Stufe 2
 
-| Stufe 1 (v5.0) | Stufe 2 (v6.0) |
-|---|---|
-| Single AI provider | **Self-healing 3-AI team** (Grok / Venice / GPT-4o) |
-| Manual provider switch | **Smart auto-routing** by task type |
-| No failover | **Automatic failover** + heal log |
-| Basic netrunner CLI | **Full Tier 5 CLI** (doctor, deck, team, overclock, scan) |
-| Pulsing circle voice UI | **Voice v2** — 8-bar visualizer + latency + provider badge |
-| No tmux layout | **3-pane auto-layout** (`netrunner start`) |
-| Basic aliases | **Drop-in alias set** (pb, purple, start, stop, team, …) |
+| Feature | Stufe 1 | Stufe 2 |
+|---------|---------|---------|
+| **AI Providers** | OpenAI only | Grok / Venice / **Gemini** (free tier) |
+| **Voice TTS** | ElevenLabs only | **Microsoft Edge Neural** (free) + ElevenLabs fallback |
+| **Voice STT** | Web Speech API | **Groq Whisper-large-v3-turbo** + vocab prompt |
+| **Auth** | None | **Registration + JWT** (Supabase-ready) |
+| **Payments** | None | **Stripe** integration (settings modal) |
+| **Chat Layout** | Misaligned on mobile | **Fixed 42px uniform buttons** + dvh |
+| **CLI** | Basic netrunner | **Full Tier 5** (doctor, deck, team, overclock, scan) |
 
 ---
 
@@ -33,173 +34,196 @@ Runs on Android (Termux proot), native Linux, or WSL. No systemd. No sudo.
 
 ### Self-Healing AI Team
 
-Three AIs operate as one disciplined security team. They cover for each other automatically — but **never act autonomously on security tasks**. Every offensive action requires an explicit operator command.
+Three AIs work as ONE disciplined security team — automatic failover, no API costs for health checks.
 
 ```
 ⚡ GROK-3    ──  reasoning · code · analysis          (default)
-🔮 VENICE    ──  redteam · offensive · uncensored      (auto-routed on exploit/pentest keywords)
-✨ GEMINI    ──  long-context · multimodal · fallback   (free tier · chain end)
+🔮 VENICE    ──  redteam · offensive · uncensored      (auto-routed on exploit/pentest)
+✨ GEMINI    ──  long-context · multimodal · fallback   (free tier — Google)
 ```
 
-**Routing rules (`config/ai-providers.json`)**
+**Smart Routing:**
+- `redteam` tasks → Venice (uncensored) → Grok → Gemini
+- `reasoning` tasks → configured provider → Gemini
+- Auto-failover after 2 consecutive failures
+- Zero-cost background health monitoring every 60s
+- Heal events logged to audit trail + broadcast to UI
 
-| Task type | Primary | Fallback chain |
-|---|---|---|
-| `redteam` (exploit, pentest, C2, …) | Venice | Grok → Gemini |
-| `reasoning` (code, analysis, chat) | configured | Gemini |
-| `voice` (STT, TTS) | Gemini | Grok |
+### Voice v2 — Full Neural Stack
 
-**Self-healing mechanics (no API cost):**
-- Each call updates per-provider health (latency, error count)
-- After 2 consecutive failures → provider marked `offline`, next in chain takes over
-- When a call succeeds again → provider auto-recovers, heal event logged
-- 60-second background key-presence check (zero API calls)
-- All heal events broadcast to UI and audit log
+- **8-bar animated frequency visualizer** — bars pulse to audio state
+- **Provider badge** in call modal — live provider indicator
+- **Latency pill** — response time in ms
+- **Whisper STT** (Groq, free) — cyberdeck vocabulary prompt + temperature 0
+- **Microsoft Edge Neural TTS** (free, no key) — de-DE-KatjaNeural / en-US-AriaNeural
+- **ElevenLabs premium fallback** — only if configured
+- **Push-to-Talk (PTT)** — hold mic button for Whisper, release to transcribe
+- **Language switcher** — DE/EN auto-detect + manual override
 
-### Lucy — AI Operator
+### Authentication + Payments
 
-Playful, disciplined, language-aware (DE/EN auto-detect). Works as a **purple-team agent** at her core:
-
-- Chain-of-Thought rendered live: `🧠 THINK → 📋 PLAN → ⚡ CMD → 📊 ANALYSIS → ✅ DONE`
-- Autonomous mode: runs until done, self-corrects errors
-- Approval mode: every shell command needs operator confirmation
-- Context-aware: knows current team health, SOC alerts, active tasks
-
-### Voice v2
-
-- **8-bar animated frequency visualizer** — bars pulse to match voice activity state
-- **Provider badge** in call modal — shows which AI is responding live
-- **Latency pill** — response time in ms after each reply
-- **Continuous Web Speech** (free, works on desktop Chrome)
-- **Push-to-Talk / Whisper** — hold big mic button → Groq Whisper-large-v3-turbo → transcript sent. Tuned with cyberdeck vocab prompt + temperature 0 for accuracy
-- **Microsoft Edge TTS** (default, free, no API key) — neural voices: `de-DE-KatjaNeural`, `en-US-AriaNeural` and ~10 more. ElevenLabs fallback if configured. Web Speech as last resort
-- Language switcher (DE / EN), mute toggle, PTT mode toggle
+- **Registration & Login** — JWT tokens, email + password
+- **Stripe integration** — Settings modal → "UPGRADE TO PRO" button
+- **Persistent sessions** — localStorage token recall
+- **Protected endpoints** — `/api/*` requires valid JWT
 
 ### netrunner CLI (Tier 5)
 
 ```bash
-netrunner doctor       # full health check + auto-repair
-                       # checks: proot, Node.js, port 3000, DB, AI keys,
-                       #         server process, log dir, required tools
-netrunner deck         # cyberdeck dashboard — RAM bar, uptime, server
-                       # status, provider routing, active sessions, features
-netrunner team         # AI team health — per-provider dot + latency +
-                       # heal log + routing rules + discipline note
-netrunner overclock    # 90s boost countdown + glitch cooldown effect
-netrunner scan <target> [mode]   # recon via /api/cli (QUICK/STANDARD/FULL/STEALTH)
-netrunner quickhack              # interactive protocol menu
-netrunner quickhack <target>     # direct injection sequence
-netrunner start                  # launch tmux 3-pane layout
+netrunner doctor       # health check + auto-repair
+netrunner deck         # cyberdeck dashboard (RAM, uptime, status)
+netrunner team         # AI team health (per-provider dots, heal log)
+netrunner overclock    # 90s boost timer + glitch effect
+netrunner scan <target> [mode]   # recon (QUICK/STANDARD/FULL/STEALTH)
+netrunner start        # tmux 3-pane layout (server + logs + chat)
 ```
 
-### tmux 3-Pane Layout
-
-`netrunner start` creates a named `purplebruce` session:
+### tmux 3-Pane Auto-Layout
 
 ```
-┌─────────────────────────────────────────────────┐
-│  Pane 0 — npm start (Purple Bruce server)        │
-├──────────────────────┬──────────────────────────┤
-│  Pane 1 — audit.log  │  Pane 2 — Lucy chat CLI  │
-└──────────────────────┴──────────────────────────┘
+┌──────────────────────────────────────┐
+│  Pane 0 — npm start (server)         │
+├──────────────┬──────────────────────┤
+│  Pane 1      │  Pane 2              │
+│  audit.log   │  Lucy chat CLI       │
+└──────────────┴──────────────────────┘
 ```
 
-`Prefix + B` from any tmux session also triggers the layout.
+Launch with `netrunner start` or `Prefix + B` in tmux.
 
-### SOC Daemon — Blue Team
+### SOC Daemon — Blue Team Monitor
 
-- Watches listeners, outbound connections, `LD_PRELOAD`, crontabs, SUID changes, suspicious processes
-- Auto-quarantines hidden `/tmp` files, captures forensic snapshots
-- Alerts appear as `🛡 SOC [CRITICAL]` messages in chat
-- Toggle per-session via settings or `soc_toggle` WebSocket action
+- Watches listeners, outbound connections, `LD_PRELOAD`, crontabs, SUID changes
+- Auto-quarantines hidden `/tmp` files
+- Captures forensic snapshots
+- Alerts appear as `🛡 SOC [CRITICAL]` in chat
 
-### Black Ice — MITRE ATT&CK
+### Black Ice — MITRE ATT&CK Modules
 
-11 live execution modules mapped to the ATT&CK framework:
-
+11 live execution modules (selective execution):
 `cred-dump` · `lateral` · `c2-https` · `ransomware` · `fileless` · `sched-task` · `dns-exfil` · `persistence` · `recon` · `discovery` · `exfiltration`
-
-Each module shows detection difficulty, preview commands, and checkbox-based selective execution.
 
 ---
 
-## Install
+## Quick Start
 
 ### A. Termux + Ubuntu proot (Android)
 
 ```bash
-# In Termux
-pkg update -y
-pkg install -y proot-distro git
+pkg install -y proot-distro git nodejs npm
 proot-distro install ubuntu
 proot-distro login ubuntu
 
-# Inside the proot
-apt update && apt install -y nodejs npm git curl ca-certificates
+apt update && apt install -y build-essential ca-certificates
 cd /root
 git clone https://github.com/TAesthetics/purplebruce.git
 cd purplebruce
 npm install
-./purplebruce.sh          # server on 127.0.0.1:3000
+export JWT_SECRET="your-secret-here"
+node server.js &
+# Open http://127.0.0.1:3000 in Chrome
 ```
 
-Open `http://127.0.0.1:3000` in Android Chrome.
-
-### B. Native Linux / macOS / WSL
+### B. Linux / WSL / macOS
 
 ```bash
-# Requires Node.js ≥ 18
 git clone https://github.com/TAesthetics/purplebruce.git
 cd purplebruce
 npm install
-./purplebruce.sh
+export JWT_SECRET="your-secret-here"
+node server.js
+# http://localhost:3000
 ```
 
-### C. Netrunner cyberpunk shell (optional)
-
-Install Powerlevel10k, zsh plugins, tmux theme, and drop-in aliases inside the proot:
+### C. Shell Setup (optional)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install.sh | bash
 exec zsh
+# Now available: pb, start, stop, logs, chat, doctor, deck, team, scan
 ```
 
-Available after install:
+---
+
+## Configuration
+
+### Environment Variables
+
+```bash
+export JWT_SECRET="your-jwt-secret-key-change-this"
+export STRIPE_SECRET_KEY="sk_test_your_key_here"
+export STRIPE_PRICE_ID="price_1ABC123xyz"
+export SUPABASE_URL="https://your-project.supabase.co"  # optional
+export SUPABASE_KEY="your-anon-key"                     # optional
+```
+
+### API Keys (in UI Settings ⚙)
+
+| Provider | Purpose | Get it at |
+|----------|---------|-----------|
+| **Grok** (xAI) | Default reasoning | [console.x.ai](https://console.x.ai) |
+| **Venice.ai** | Redteam (auto-routed) | [venice.ai](https://venice.ai) |
+| **Gemini** (Google) | Free fallback chain | [aistudio.google.com](https://aistudio.google.com/app/apikey) |
+| **Groq** | Whisper STT (free) | [console.groq.com](https://console.groq.com) |
+| **ElevenLabs** (optional) | Premium TTS voice | [elevenlabs.io](https://elevenlabs.io) |
+
+> **TTS is FREE by default** — Microsoft Edge Neural voices need no API key.
+
+### netrunner Shell Aliases
 
 ```bash
 pb / purple        → netrunner (short form)
-start              → netrunner start (tmux 3-pane)
-stop               → pkill node server
-logs               → tail audit.log
-chat               → purplebruce.sh tui
+start              → netrunner start (tmux)
+stop               → pkill node
+logs               → tail -f ~/.purplebruce/audit.log
+chat               → ./purplebruce.sh tui
 doctor / deck / team / overclock / scan  → netrunner subcommands
 ```
 
 ---
 
-## API Key Setup
+## API Reference
 
-Settings → ⚙ in the UI, or via CLI:
-
-| Provider | Purpose | Config key | Get it at |
-|---|---|---|---|
-| Grok (xAI) | Default reasoning | `grok_api_key` | [console.x.ai](https://console.x.ai) |
-| Venice.ai | Redteam (auto-routed) | `venice_api_key` | [venice.ai](https://venice.ai) |
-| Gemini (Google) | Long-context fallback (free) | `gemini_api_key` | [aistudio.google.com](https://aistudio.google.com/app/apikey) |
-| Groq | Whisper STT (free tier) | `groq_api_key` | [console.groq.com](https://console.groq.com) |
-| ElevenLabs (optional) | Premium TTS — only if Edge TTS quality not enough | `elevenlabs_api_key` + `elevenlabs_voice_id` | [elevenlabs.io](https://elevenlabs.io) |
-
-> TTS is **free by default** via Microsoft Edge Neural Voices — no key needed.
+### Authentication
 
 ```bash
-purple> setkey grok     xai-xxxxxxxxxxxx
-purple> setkey venice   venice-xxxxxxxxxx
-purple> setkey gemini   AIza-xxxxxxxxxxx
-purple> setkey groq     gsk_xxxxxxxxxxxx
-purple> setvoice        <elevenlabs_voice_id>   # only if using ElevenLabs
+POST /api/auth/register
+{ "email": "user@example.com", "password": "secret" }
+→ { "user": {...}, "token": "eyJ..." }
+
+POST /api/auth/login
+{ "email": "user@example.com", "password": "secret" }
+→ { "user": {...}, "token": "eyJ..." }
+
+GET /api/auth/me (requires Authorization: Bearer <token>)
+→ { "user": { "id": "...", "email": "..." } }
 ```
 
-Or save keys in the browser UI → Settings. Keys persist in `purplebruce.db`.
+### Stripe Checkout
+
+```bash
+POST /api/stripe/checkout (requires Authorization: Bearer <token>)
+→ { "url": "https://checkout.stripe.com/...", "sessionId": "cs_..." }
+```
+
+### AI Team Status
+
+```bash
+GET /api/team
+→ { "providers": {...}, "healLog": [...], "primary": "grok" }
+
+GET /api/providers
+→ { "provider": "grok", "grokHasKey": true, ..., "routing": {...} }
+```
+
+### Chat + Commands
+
+```bash
+POST /api/chat { "message": "scan 192.168.1.1" }
+POST /api/exec { "cmd": "nmap -sV localhost" }
+POST /api/stt (raw audio binary, lang query param)
+POST /api/tts { "text": "Hello world" }
+```
 
 ---
 
@@ -207,58 +231,68 @@ Or save keys in the browser UI → Settings. Keys persist in `purplebruce.db`.
 
 ```
 purplebruce/
-├── server.js              # Express + WebSocket + AI team coordinator
-│                          # SOC daemon + agent loop + MITRE red modules
-├── public/index.html      # React UI — chat, voice v2, team panel, SOC, Black Ice
-├── purplebruce.sh         # Launcher (Termux + proot aware)
+├── server.js              # Express + WebSocket + AI team + auth + payments
+├── public/index.html      # React UI (chat, voice, settings, login)
+├── purplebruce.sh         # Launcher script
 ├── config/
-│   └── ai-providers.json  # Provider definitions + routing rules
+│   └── ai-providers.json  # Provider definitions + routing
 ├── netrunner/
-│   ├── bin/netrunner      # Tier 5 CLI — doctor / deck / team / overclock / scan
-│   ├── dotfiles/          # zshrc · p10k.zsh · tmux.conf
-│   └── install.sh         # Cyberpunk shell installer
-├── tools-install.sh       # Pentest toolkit (nmap, ffuf, sqlmap, …)
-├── install-service.sh     # 24/7 watchdog service
-└── purplebruce.db         # SQLite (chat, config, audit, SOC alerts, tasks)
+│   ├── bin/netrunner      # Tier 5 CLI
+│   ├── dotfiles/          # zshrc, tmux.conf, etc.
+│   └── install.sh         # Shell setup
+├── package.json           # Dependencies
+└── purplebruce.db         # SQLite (users, chat, config, tasks, SOC alerts)
 ```
 
 ---
 
-## 24/7 Service
+## Security & Discipline
 
+**Strict Discipline Model:**
+- Every offensive action requires explicit operator command
+- No autonomous security tasks
+- Only within authorized redteam / bug-bounty scope
+- Full audit log + SOC monitoring
+- Healing events + failover events logged
+
+**Use only on systems you own or are explicitly authorized to assess.**
+
+---
+
+## Troubleshooting
+
+**Syntax check:**
 ```bash
-./install-service.sh install        # supervised background service + auto-restart
-./install-service.sh status
-./install-service.sh logs
-./install-service.sh enable-cron    # nightly 03:30 harden + hunt + report
-./install-service.sh restart
-./install-service.sh uninstall
+node -c server.js
+npm run build  # if applicable
 ```
 
----
-
-## Security Scope
-
-`Unrestricted Access` means the agent executes real shell commands on the host. Inside a Termux proot-distro that is the proot rootfs (isolated from your Android system). On native Linux it is your actual machine.
-
-**Use only on systems you own or are explicitly authorized to assess.**  
-The AI team is a tool of order and discipline — not of arbitrary action.  
-No uninvited attacks. No autonomous offensive moves without an explicit operator command.
-
----
-
-## Smoke Test
-
+**Smoke Test:**
 ```bash
 ./purplebruce.sh &
 sleep 2
-curl -s http://127.0.0.1:3000/api/status   | python3 -m json.tool | head -8
-curl -s http://127.0.0.1:3000/api/team     | python3 -m json.tool
-curl -s http://127.0.0.1:3000/api/providers | python3 -m json.tool
+curl -s http://127.0.0.1:3000/api/status | jq .
 ```
 
-Expected: `"version": "6.0.0"` in status, three provider entries in team.
+**Register + Login:**
+```bash
+# In UI: click login modal, register first, then login
+# Token stored in localStorage, persists across sessions
+```
+
+**No audio on voice call?**
+- Check microphone permissions in browser
+- Ensure Groq API key is set (for Whisper STT)
+- Edge TTS requires network — should work offline after first call (cached)
 
 ---
 
-**Built by TAesthetics — TERTRATRONIC RIPPLER TIER 5 — Lucy v6.0**
+## Built by TAesthetics
+
+**TERTRATRONIC RIPPLER TIER 5**  
+Lucy v6.0 · Self-Healing AI Team · Gemini-Powered Fallback  
+Authentication · Stripe Payments · Discipline-First Design
+
+---
+
+*Updated: 2025 · Stufe 2 · Professional Purple Team Platform*
