@@ -150,12 +150,34 @@ exec zsh
 ### Environment Variables
 
 ```bash
-export JWT_SECRET="your-jwt-secret-key-change-this"
+# Required
+export JWT_SECRET="your-jwt-secret-key-CHANGE-THIS"
+
+# Stripe payments (optional)
 export STRIPE_SECRET_KEY="sk_test_your_key_here"
 export STRIPE_PRICE_ID="price_1ABC123xyz"
-export SUPABASE_URL="https://your-project.supabase.co"  # optional
-export SUPABASE_KEY="your-anon-key"                     # optional
+
+# Supabase (optional — falls back to local SQLite if not set)
+export SUPABASE_URL="https://your-project.supabase.co"
+export SUPABASE_ANON_KEY="your-anon-public-key"
 ```
+
+### Supabase Setup (optional, recommended for production)
+
+1. Create a project at [supabase.com](https://supabase.com) — free tier is enough
+2. Go to **Project Settings → API** → copy `URL` and `anon public` key
+3. Set env vars above
+4. Auth is handled by Supabase — no extra SQL needed (uses built-in `auth.users`)
+5. Restart server — login/register will now use Supabase instead of local SQLite
+
+> **Without Supabase:** users are stored locally in `purplebruce.db` with bcrypt-hashed passwords. Works on Android/proot with no external services.
+
+### Auth Modes
+
+| Mode | When | Storage | Password Hashing |
+|------|------|---------|-----------------|
+| **Local** (default) | No Supabase env vars | SQLite `users` table | bcrypt (cost 12) |
+| **Supabase** | `SUPABASE_URL` + `SUPABASE_ANON_KEY` set | Supabase `auth.users` | Supabase managed |
 
 ### API Keys (in UI Settings ⚙)
 
