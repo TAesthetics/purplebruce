@@ -4,6 +4,7 @@
 const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
+const WS = require('ws');
 const { spawn, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -114,20 +115,20 @@ function collectIntel() {
 // ═══ AI PROVIDERS ═══
 function getProviderStatus() {
   const p = getConfig('ai_provider') || 'grok';
-  const gk = getConfig('grok_api_key'), vk = getConfig('venice_api_key'), ok = getConfig('openai_api_key');
+  const gk = getConfig('grok_api_key'), vk = getConfig('venice_api_key'), gmk = getConfig('gemini_api_key');
   const ek = getConfig('elevenlabs_api_key'), vid = getConfig('elevenlabs_voice_id');
   return {
     provider: p,
-    grokHasKey: !!gk,   grokMask:   gk ? gk.slice(0, 8)   + '...' : null,
-    veniceHasKey: !!vk, veniceMask: vk ? vk.slice(0, 8)   + '...' : null,
-    openaiHasKey: !!ok, openaiMask: ok ? ok.slice(0, 8)   + '...' : null,
-    elevenHasKey: !!ek, elevenMask: ek ? ek.slice(0, 8)   + '...' : null,
+    grokHasKey: !!gk,    grokMask:   gk  ? gk.slice(0, 8)  + '...' : null,
+    veniceHasKey: !!vk,  veniceMask: vk  ? vk.slice(0, 8)  + '...' : null,
+    geminiHasKey: !!gmk, geminiMask: gmk ? gmk.slice(0, 8) + '...' : null,
+    elevenHasKey: !!ek,  elevenMask: ek  ? ek.slice(0, 8)  + '...' : null,
     elevenVoiceId: vid || null,
     routing: {
-      redteam:   vk ? 'venice' : (p === 'openai' ? 'openai' : 'grok'),
+      redteam:   vk ? 'venice' : (p === 'gemini' ? 'gemini' : 'grok'),
       reasoning: p === 'venice' ? 'grok' : p,
-      voice:     ok ? 'openai' : (gk ? 'grok' : p),
-      fallback:  gk ? 'grok'   : (ok ? 'openai' : 'venice')
+      voice:     gmk ? 'gemini' : (gk ? 'grok' : p),
+      fallback:  gk ? 'grok'   : (gmk ? 'gemini' : 'venice')
     }
   };
 }
@@ -139,10 +140,11 @@ const team = {
   providers: {
     grok:   { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
     venice: { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
-    openai: { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
+    gemini: { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
   },
   healLog: [],
 };
+const TEAM_PROVIDERS = ['grok', 'venice', 'gemini'];
 
 function teamProviderSummary(name) {
   const p = team.providers[name];
@@ -153,7 +155,7 @@ function teamProviderSummary(name) {
 
 function getTeamStatus() {
   return {
-    providers: Object.fromEntries(['grok','venice','openai'].map(n => [n, teamProviderSummary(n)])),
+    providers: Object.fromEntries(TEAM_PROVIDERS.map(n => [n, teamProviderSummary(n)])),
     healLog: team.healLog.slice(-8),
     primary: getConfig('ai_provider') || 'grok',
     ts: new Date().toISOString(),
@@ -191,7 +193,7 @@ function teamUpdateHealth(provider, ok, latencyMs) {
 // Lightweight background check — key presence only, ZERO api calls
 function teamStatusCheck() {
   let changed = false;
-  for (const name of ['grok','venice','openai']) {
+  for (const name of TEAM_PROVIDERS) {
     const hasKey = !!getConfig(`${name}_api_key`);
     if (!hasKey && team.providers[name].healthy !== null) {
       team.providers[name].healthy = null;
@@ -214,10 +216,9 @@ async function callAI(messages) {
   const type = detectTaskType(messages);
 
   // Build priority order: redteam always tries Venice first
-  const ALL = ['grok', 'venice', 'openai'];
   const order = type === 'redteam'
-    ? ['venice', 'grok', 'openai']
-    : [configured, ...ALL.filter(p => p !== configured)];
+    ? ['venice', 'grok', 'gemini']
+    : [configured, ...TEAM_PROVIDERS.filter(p => p !== configured)];
 
   // Only providers that have keys configured
   const available = order.filter(p => !!getConfig(`${p}_api_key`));
@@ -243,7 +244,7 @@ async function callAI(messages) {
     try {
       if      (provider === 'grok')   result = await callGrok(messages);
       else if (provider === 'venice') result = await callVenice(messages);
-      else if (provider === 'openai') result = await callOpenAI(messages);
+      else if (provider === 'gemini') result = await callGemini(messages);
     } catch {}
     const latency = Date.now() - t0;
 
@@ -267,9 +268,96 @@ async function callVenice(msgs) {
   const k = getConfig('venice_api_key'); if (!k) return null;
   try { const ac = new AbortController(), t = setTimeout(() => ac.abort(), 90000); const r = await fetch('https://api.venice.ai/api/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${k}` }, body: JSON.stringify({ model: 'llama-3.3-70b', messages: msgs, temperature: 0.9, max_tokens: 4000 }), signal: ac.signal }); clearTimeout(t); const d = await r.json(); return d?.choices?.[0]?.message?.content || null; } catch { return null; }
 }
-async function callOpenAI(msgs) {
-  const k = getConfig('openai_api_key'); if (!k) return null;
-  try { const ac = new AbortController(), t = setTimeout(() => ac.abort(), 90000); const r = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${k}` }, body: JSON.stringify({ model: 'gpt-4o-mini', messages: msgs, temperature: 0.7, max_tokens: 4000 }), signal: ac.signal }); clearTimeout(t); const d = await r.json(); return d?.choices?.[0]?.message?.content || null; } catch { return null; }
+async function callGemini(msgs) {
+  const k = getConfig('gemini_api_key'); if (!k) return null;
+  const model = getConfig('gemini_model') || 'gemini-2.0-flash';
+  // Gemini: role = 'user' | 'model'; system goes into systemInstruction
+  const sysMsg = msgs.find(m => m.role === 'system');
+  const contents = msgs
+    .filter(m => m.role !== 'system')
+    .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content || '' }] }))
+    .filter(c => c.parts[0].text);
+  const body = {
+    contents,
+    generationConfig: { temperature: 0.7, maxOutputTokens: 4000 },
+    safetySettings: [
+      { category: 'HARM_CATEGORY_HARASSMENT',        threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_HATE_SPEECH',       threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+    ],
+  };
+  if (sysMsg?.content) body.systemInstruction = { parts: [{ text: sysMsg.content }] };
+  try {
+    const ac = new AbortController(), t = setTimeout(() => ac.abort(), 90000);
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(k)}`;
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ac.signal });
+    clearTimeout(t);
+    const d = await r.json();
+    if (!r.ok) { console.error('[GEMINI]', r.status, JSON.stringify(d).slice(0, 300)); return null; }
+    return d?.candidates?.[0]?.content?.parts?.map(p => p.text).filter(Boolean).join('') || null;
+  } catch (e) { console.error('[GEMINI]', e.message || e); return null; }
+}
+
+// ═══ MICROSOFT EDGE TTS — free, neural, no API key ═══
+// Uses Microsoft's public Edge browser TTS service via WebSocket.
+// High-quality multilingual neural voices. Default: KatjaNeural (DE) / AriaNeural (EN).
+const EDGE_TTS_TRUSTED_TOKEN = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
+const EDGE_TTS_URL = `wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=${EDGE_TTS_TRUSTED_TOKEN}`;
+function edgeXmlEscape(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); }
+function edgeReqId() { return Array.from({length:32}, () => Math.floor(Math.random()*16).toString(16)).join(''); }
+function pickEdgeVoice(text, override) {
+  if (override) return override;
+  const isGerman = /[äöüßÄÖÜ]/.test(text) || /\b(ich|und|nicht|der|die|das|ein|mit|auf|wir|bitte|danke|ist|sind|hier|jetzt)\b/i.test(text);
+  return isGerman ? 'de-DE-KatjaNeural' : 'en-US-AriaNeural';
+}
+async function ttsEdge(text, opts = {}) {
+  if (getConfig('edge_tts_disabled') === '1') return null;
+  const voice = pickEdgeVoice(text, opts.voice || getConfig('edge_tts_voice'));
+  const rate  = opts.rate  || getConfig('edge_tts_rate')  || '+5%';
+  const pitch = opts.pitch || getConfig('edge_tts_pitch') || '+0Hz';
+  return new Promise((resolve) => {
+    let settled = false, chunks = [];
+    const finish = (val) => { if (settled) return; settled = true; try { ws.close(); } catch {} resolve(val); };
+    let ws;
+    try {
+      ws = new WS(EDGE_TTS_URL, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0',
+          'Origin': 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold',
+          'Pragma': 'no-cache',
+          'Cache-Control': 'no-cache',
+        },
+      });
+    } catch (e) { console.error('[EDGE-TTS] ws ctor:', e.message); return resolve(null); }
+    const timeout = setTimeout(() => { console.warn('[EDGE-TTS] timeout'); finish(null); }, 20000);
+    ws.on('open', () => {
+      const ts = new Date().toISOString().replace('Z', 'Z') + ' GMT+00:00 (Coordinated Universal Time)';
+      const cfg = `X-Timestamp:${ts}\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}`;
+      ws.send(cfg);
+      const lang = voice.slice(0, 5);
+      const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${lang}"><voice name="${voice}"><prosody rate="${rate}" pitch="${pitch}">${edgeXmlEscape(text)}</prosody></voice></speak>`;
+      const reqId = edgeReqId();
+      const msg = `X-RequestId:${reqId}\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:${ts}\r\nPath:ssml\r\n\r\n${ssml}`;
+      ws.send(msg);
+    });
+    ws.on('message', (data, isBinary) => {
+      if (isBinary) {
+        const buf = Buffer.from(data);
+        // Binary frame: 2-byte big-endian header length, then text headers, then audio bytes
+        const headerLen = buf.readUInt16BE(0);
+        if (buf.length > 2 + headerLen) chunks.push(buf.slice(2 + headerLen));
+      } else {
+        const text = data.toString();
+        if (text.includes('Path:turn.end')) {
+          clearTimeout(timeout);
+          finish(chunks.length ? Buffer.concat(chunks) : null);
+        }
+      }
+    });
+    ws.on('error', (e) => { console.error('[EDGE-TTS]', e.message || e); clearTimeout(timeout); finish(null); });
+    ws.on('close', () => { clearTimeout(timeout); if (!settled) finish(chunks.length ? Buffer.concat(chunks) : null); });
+  });
 }
 
 // ═══ ELEVENLABS TTS — cute playful anime-girl voice ═══
@@ -649,7 +737,7 @@ Operator wants you to keep working. Every ⚡ CMD: line runs immediately — no 
 ╚═════════════════════════════════════════╝
 ` : '';
 
-  const teamSummary = ['grok','venice','openai'].map(n => {
+  const teamSummary = TEAM_PROVIDERS.map(n => {
     const s = teamProviderSummary(n);
     return `${n.toUpperCase()}:${s.status}`;
   }).join(' | ');
@@ -674,7 +762,7 @@ ${socInfo} | Recent SOC Alerts: ${recentAlerts}
 
 AI TEAM (self-healing, disciplined — NEVER acts autonomously on security tasks):
 ${teamSummary}
-Routing: redteam→VENICE | reasoning→GROK | fallback chain: GROK→VENICE→GPT
+Routing: redteam→VENICE | reasoning→GROK | fallback chain: GROK→VENICE→GEMINI
 Auto-failover: ACTIVE | Recent heals: ${recentHeals}
 You act ONLY when Operator gives an explicit command. No uninvited attacks. Order and discipline.
 
@@ -890,7 +978,7 @@ async function handleWs(ws, msg) {
     case 'red_preview': { const p = await doRedPreview(msg.tactic); ws.send(JSON.stringify({ type: 'red_preview', data: p })); break; }
     case 'red_execute': { try { await doRedExecute(msg.tactic, msg.commandIndices); } catch (e) { broadcast('terminal', { type: 'error', text: `[ERR] ${e.message}`, channel: 'red' }, 'red'); broadcast('red_done', { tactic: msg.tactic }); } break; }
     case 'exec_cmd': { if (msg.cmd) { const r = rawExec(msg.cmd, 'web'); broadcast('cmd_result', { cmd: msg.cmd, output: r.output, ok: r.ok }); } break; }
-    case 'set_key': { if (msg.key && msg.provider) { const keyMap = { venice: 'venice_api_key', grok: 'grok_api_key', elevenlabs: 'elevenlabs_api_key', groq: 'groq_api_key', openai: 'openai_api_key' }; const cfg = keyMap[msg.provider]; if (cfg) { setConfig(cfg, msg.key); ws.send(JSON.stringify({ type: 'key_saved', data: { provider: msg.provider } })); broadcast('provider_status', getProviderStatus()); } } break; }
+    case 'set_key': { if (msg.key && msg.provider) { const keyMap = { venice: 'venice_api_key', grok: 'grok_api_key', elevenlabs: 'elevenlabs_api_key', groq: 'groq_api_key', gemini: 'gemini_api_key' }; const cfg = keyMap[msg.provider]; if (cfg) { setConfig(cfg, msg.key); ws.send(JSON.stringify({ type: 'key_saved', data: { provider: msg.provider } })); broadcast('provider_status', getProviderStatus()); } } break; }
     case 'set_voice_id': { if (msg.voiceId) { setConfig('elevenlabs_voice_id', msg.voiceId); ws.send(JSON.stringify({ type: 'voice_id_saved' })); broadcast('provider_status', getProviderStatus()); } break; }
     case 'set_provider': setConfig('ai_provider', msg.provider); broadcast('provider_status', getProviderStatus()); break;
     case 'get_provider': ws.send(JSON.stringify({ type: 'provider_status', data: getProviderStatus() })); break;
@@ -919,7 +1007,7 @@ app.post('/api/cli', async (req, res) => {
       case 'report': res.json({ lines: await doReport() }); break;
       case 'tasks': res.json(listTasks()); break;
       case 'kill': killTask(id); res.json({ message: `Killed ${id}` }); break;
-      case 'set_key': { const keyMap = { venice: 'venice_api_key', grok: 'grok_api_key', elevenlabs: 'elevenlabs_api_key', groq: 'groq_api_key', openai: 'openai_api_key' }; const cfg = keyMap[provider]; if (!cfg) { res.json({ error: `Unknown provider: ${provider}` }); break; } setConfig(cfg, key); broadcast('provider_status', getProviderStatus()); res.json({ message: `${provider} key saved.` }); break; }
+      case 'set_key': { const keyMap = { venice: 'venice_api_key', grok: 'grok_api_key', elevenlabs: 'elevenlabs_api_key', groq: 'groq_api_key', gemini: 'gemini_api_key' }; const cfg = keyMap[provider]; if (!cfg) { res.json({ error: `Unknown provider: ${provider}` }); break; } setConfig(cfg, key); broadcast('provider_status', getProviderStatus()); res.json({ message: `${provider} key saved.` }); break; }
       case 'set_voice_id': { if (!req.body.voiceId) { res.json({ error: 'voiceId required' }); break; } setConfig('elevenlabs_voice_id', req.body.voiceId); broadcast('provider_status', getProviderStatus()); res.json({ message: 'Voice ID saved.' }); break; }
       case 'set_provider': setConfig('ai_provider', provider); broadcast('provider_status', getProviderStatus()); res.json({ message: `Provider: ${provider}` }); break;
       case 'autonomous': { agent.autonomous = req.body.mode === 'on'; broadcast('agent_status', getAgentStatus()); res.json({ message: `Autonomous: ${agent.autonomous ? 'ON' : 'OFF'}` }); break; }
@@ -933,31 +1021,60 @@ app.post('/api/cli', async (req, res) => {
 app.post('/api/tts', async (req, res) => {
   const text = (req.body?.text || '').toString().slice(0, 2500);
   if (!text.trim()) return res.status(400).json({ error: 'text required' });
-  const audio = await ttsElevenLabs(text);
-  if (!audio) return res.status(503).json({ error: 'ElevenLabs TTS unavailable — check API key, voice ID and quota.' });
+
+  // Routing:
+  //   default   → Edge TTS (free, neural, no key)
+  //   eleven    → ElevenLabs (if key set)
+  //   When Edge fails → fall back to ElevenLabs if key configured.
+  const provider = (getConfig('tts_provider') || 'edge').toLowerCase();
+
+  let audio = null, used = null;
+  if (provider === 'eleven' || provider === 'elevenlabs') {
+    audio = await ttsElevenLabs(text); used = audio ? 'elevenlabs' : null;
+  } else {
+    audio = await ttsEdge(text); used = audio ? 'edge' : null;
+    if (!audio) { audio = await ttsElevenLabs(text); used = audio ? 'elevenlabs' : null; }
+  }
+
+  if (!audio) return res.status(503).json({ error: 'TTS unavailable — Edge TTS network failed and no ElevenLabs key configured.' });
   res.setHeader('Content-Type', 'audio/mpeg');
   res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-TTS-Provider', used || 'unknown');
   res.send(audio);
+});
+
+// Live voice picker for the UI
+app.get('/api/tts/voices', (req, res) => {
+  res.json({
+    de: [
+      { id: 'de-DE-KatjaNeural',     label: 'Katja (DE-F, default)' },
+      { id: 'de-DE-ConradNeural',    label: 'Conrad (DE-M)' },
+      { id: 'de-DE-AmalaNeural',     label: 'Amala (DE-F, warm)' },
+      { id: 'de-DE-ElkeNeural',      label: 'Elke (DE-F)' },
+      { id: 'de-DE-LouisaNeural',    label: 'Louisa (DE-F, young)' },
+    ],
+    en: [
+      { id: 'en-US-AriaNeural',      label: 'Aria (EN-F, default)' },
+      { id: 'en-US-JennyNeural',     label: 'Jenny (EN-F, warm)' },
+      { id: 'en-US-AvaNeural',       label: 'Ava (EN-F, neural HD)' },
+      { id: 'en-GB-SoniaNeural',     label: 'Sonia (EN-GB-F)' },
+      { id: 'en-US-AndrewNeural',    label: 'Andrew (EN-M)' },
+    ],
+  });
 });
 
 // ═══ STT — server-side fallback via Groq or OpenAI Whisper ═══
 // Client sends raw audio bytes (webm/ogg/mp4/wav) as the request body with
 // Content-Type set to the audio MIME. We forward to a Whisper-compatible API.
+// STT — Groq Whisper (free, fast) with accuracy boost via prompt + lang hint
+const STT_PROMPT = 'Lucy, NetGhost, Purple Bruce, scan, recon, harden, hunt, exploit, pentest, redteam, target, IP, domain, payload, exfil, MITRE, bypass, overclock, deck, doctor, team, status, agent, autonomous, approve, reject, stop, abort, weiter, jetzt, bitte.';
 app.post('/api/stt', express.raw({ type: 'audio/*', limit: '25mb' }), async (req, res) => {
   const groqKey = getConfig('groq_api_key');
-  const openaiKey = getConfig('openai_api_key');
-  if (!groqKey && !openaiKey) return res.status(503).json({ error: 'No STT key configured. Save groq_api_key (preferred, free tier) or openai_api_key.' });
+  if (!groqKey) return res.status(503).json({ error: 'No STT key configured. Save groq_api_key (free at console.groq.com).' });
   if (!req.body || !req.body.length) return res.status(400).json({ error: 'empty audio body' });
 
-  const useGroq = !!groqKey;
-  const url = useGroq
-    ? 'https://api.groq.com/openai/v1/audio/transcriptions'
-    : 'https://api.openai.com/v1/audio/transcriptions';
-  const model = useGroq
-    ? (getConfig('groq_stt_model') || 'whisper-large-v3-turbo')
-    : 'whisper-1';
-  const key = useGroq ? groqKey : openaiKey;
-
+  // whisper-large-v3 = highest accuracy. -turbo = ~3x faster, slightly less accurate.
+  const model = getConfig('groq_stt_model') || 'whisper-large-v3-turbo';
   const lang = (req.query.lang || '').toString().slice(0, 5);
   const mime = (req.headers['content-type'] || 'audio/webm').split(';')[0].trim();
   const ext =
@@ -971,13 +1088,17 @@ app.post('/api/stt', express.raw({ type: 'audio/*', limit: '25mb' }), async (req
     fd.append('file', new Blob([req.body], { type: mime }), `audio.${ext}`);
     fd.append('model', model);
     if (lang && lang.toLowerCase() !== 'auto') fd.append('language', lang.slice(0, 2).toLowerCase());
+    fd.append('prompt', STT_PROMPT);
+    fd.append('temperature', '0');
     fd.append('response_format', 'json');
     const ac = new AbortController(), t = setTimeout(() => ac.abort(), 45000);
-    const r = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: fd, signal: ac.signal });
+    const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST', headers: { Authorization: `Bearer ${groqKey}` }, body: fd, signal: ac.signal,
+    });
     clearTimeout(t);
     if (!r.ok) { const err = (await r.text()).slice(0, 400); console.error('[STT]', r.status, err); return res.status(502).json({ error: err }); }
     const d = await r.json();
-    res.json({ text: (d.text || '').trim(), provider: useGroq ? 'groq' : 'openai', model });
+    res.json({ text: (d.text || '').trim(), provider: 'groq', model });
   } catch (e) {
     console.error('[STT]', e.message || e);
     res.status(500).json({ error: e.message || String(e) });
@@ -1001,7 +1122,7 @@ server.listen(PORT, '0.0.0.0', () => {
 ╔══════════════════════════════════════════════════════════════╗
 ║  PURPLE BRUCE v6.0 — TERTRATRONIC RIPPLER TIER 5             ║
 ║  Port: ${PORT} | Multi-Provider AI Router | SOC: ACTIVE         ║
-║  Routing: Grok(reason) › Venice(redteam) › GPT-4o(fallback)  ║
+║  Routing: Grok(reason) › Venice(redteam) › Gemini(fallback)  ║
 ║  Scope: UNRESTRICTED | Audit: ON | /api/providers: LIVE       ║
 ╚══════════════════════════════════════════════════════════════╝
   `);
