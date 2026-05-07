@@ -131,6 +131,31 @@ node server.js &
 
 > For ARM64 Kali where `apt install npm` fails: run `corepack enable` first (bundled with Node.js ≥16).
 
+### Termux X11 + GNOME Desktop (optional)
+
+Run Purple Bruce in a full GNOME desktop environment via Termux X11 — no root required.
+
+**Requirements:** [Termux:X11 APK](https://github.com/termux/termux-x11/releases) installed on Android.
+
+```bash
+# In Termux (not inside proot):
+curl -fsSL https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install-x11-gnome.sh | bash
+
+# Start desktop:
+bash ~/start-desktop.sh
+# or: desktop  (alias)
+```
+
+Then in GNOME Terminal: `cd ~/purplebruce && node server.js` → open Firefox → `http://127.0.0.1:3000`
+
+```bash
+# Stop desktop:
+bash ~/stop-desktop.sh
+# or: stopdesktop  (alias)
+```
+
+Works with both **Kali proot** and **Arch/BlackArch proot** — auto-detected.
+
 ---
 
 ## Features
@@ -345,6 +370,7 @@ purplebruce/
 │   ├── bin/netrunner          # Tier 5 CLI
 │   ├── install-nethunter.sh   # Kali NetHunter Full Rootless installer
 │   ├── install-arch.sh        # Arch Linux + BlackArch proot installer
+│   ├── install-x11-gnome.sh   # Termux X11 + GNOME desktop installer
 │   ├── dotfiles/              # zshrc, tmux.conf, etc.
 │   └── install.sh             # Generic shell setup
 ├── package.json               # Dependencies
