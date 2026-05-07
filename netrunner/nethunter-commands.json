@@ -1,0 +1,54 @@
+{
+  "commands": [
+    {
+      "title": "Purple Bruce — Start",
+      "cmd": "cd ~/purplebruce && export JWT_SECRET=\"${JWT_SECRET:-changeme}\" && node server.js",
+      "description": "Start the Purple Bruce cyberdeck server on :3000"
+    },
+    {
+      "title": "Purple Bruce — tmux deck",
+      "cmd": "netrunner start",
+      "description": "Launch full 3-pane tmux layout: server + audit log + Lucy chat"
+    },
+    {
+      "title": "Purple Bruce — Doctor",
+      "cmd": "netrunner doctor",
+      "description": "Full health check + auto-repair (Node, server, DB, AI keys, tools)"
+    },
+    {
+      "title": "Purple Bruce — Deck",
+      "cmd": "netrunner deck",
+      "description": "Cyberdeck status dashboard: RAM, uptime, provider, SOC status"
+    },
+    {
+      "title": "Purple Bruce — AI Team",
+      "cmd": "netrunner team",
+      "description": "Show self-healing AI team status: Grok / Venice / Gemini"
+    },
+    {
+      "title": "Purple Bruce — Overclock",
+      "cmd": "netrunner overclock",
+      "description": "90-second neural overclock timer with glitch effect"
+    },
+    {
+      "title": "Purple Bruce — Scan (QUICK)",
+      "cmd": "netrunner scan $1 QUICK",
+      "description": "Quick recon scan — usage: <target>"
+    },
+    {
+      "title": "Purple Bruce — Scan (FULL)",
+      "cmd": "netrunner scan $1 FULL",
+      "description": "Full recon scan — usage: <target>"
+    },
+    {
+      "title": "Purple Bruce — Logs",
+      "cmd": "tail -f ~/.purplebruce/audit.log",
+      "description": "Follow the real-time audit log"
+    },
+    {
+      "title": "Purple Bruce — Stop",
+      "cmd": "pkill -f 'node server.js' && echo 'Purple Bruce stopped.' || echo 'Not running.'",
+      "description": "Stop the Purple Bruce server"
+    }
+  ]
+}

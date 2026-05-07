@@ -91,6 +91,21 @@ if ! echo "$PATH" | grep -q "${HOME}/.local/bin"; then
 fi
 ok "netrunner CLI installed"
 
+# ─── NetHunter Custom Commands integration ───────────────────────────────────
+NH_CMDS_SRC="${PB_DIR}/netrunner/nethunter-commands.json"
+# NetHunter stores custom commands on the shared storage; try both locations
+NH_CMDS_DST1="/sdcard/nh_custom_commands.json"
+NH_CMDS_DST2="${HOME}/.config/nethunter/custom_commands.json"
+
+if [ -f "$NH_CMDS_SRC" ]; then
+  mkdir -p "${HOME}/.config/nethunter" 2>/dev/null || true
+  cp "$NH_CMDS_SRC" "$NH_CMDS_DST2" 2>/dev/null && ok "NetHunter commands → ${NH_CMDS_DST2}" || true
+  if [ -w "/sdcard" ] 2>/dev/null; then
+    cp "$NH_CMDS_SRC" "$NH_CMDS_DST1" 2>/dev/null && ok "NetHunter commands → ${NH_CMDS_DST1}" || true
+  fi
+  info "NetHunter App → Custom Commands → import: ${NH_CMDS_DST2}"
+fi
+
 # ─── Zsh / aliases ───────────────────────────────────────────────────────────
 if command -v zsh >/dev/null 2>&1; then
   SHELL_RC="${HOME}/.zshrc"
@@ -125,13 +140,19 @@ echo -e "${M}╚═════════════════════�
 echo
 echo -e "${C}  1. Set your JWT secret (required):${RS}"
 echo -e "     ${W}export JWT_SECRET=\"$(head -c 24 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 32)\"${RS}"
-echo -e "${C}  2. Start the cyberdeck:${RS}"
+echo -e "${C}  2. Get a FREE AI key (Gemini — no credit card):${RS}"
+echo -e "     ${W}https://aistudio.google.com/app/apikey${RS}"
+echo -e "     ${W}→ paste it in Settings ⚙ after opening the UI${RS}"
+echo -e "${C}  3. Start the cyberdeck:${RS}"
 echo -e "     ${W}cd ~/purplebruce && node server.js &${RS}"
-echo -e "     ${W}# or: netrunner start   (tmux layout)${RS}"
-echo -e "${C}  3. Open in browser:${RS}"
+echo -e "     ${W}# or: netrunner start   (tmux 3-pane layout)${RS}"
+echo -e "${C}  4. Open in browser:${RS}"
 echo -e "     ${W}http://127.0.0.1:3000${RS}"
-echo -e "${C}  4. Run health check:${RS}"
+echo -e "${C}  5. Run health check:${RS}"
 echo -e "     ${W}netrunner doctor${RS}"
 echo
+echo -e "${Y}  AI providers: ⚡ Grok  🔮 Venice  ✨ Gemini (free)${RS}"
+echo -e "${Y}  TTS: Microsoft Edge Neural — FREE, no key needed${RS}"
+echo -e "${Y}  STT: Groq Whisper — free at console.groq.com${RS}"
 echo -e "${Y}  NetHunter tip: use 'source ~/.bashrc' or restart terminal first${RS}"
 echo

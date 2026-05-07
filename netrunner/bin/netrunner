@@ -238,9 +238,9 @@ cmd_deck() {
   fi
 
   section "TIER 5 FEATURES"
-  echo -e "  ${BG}✔${RS}  ${C}Multi-provider AI router${RS}    ${DM}Grok / Venice / GPT-4o${RS}"
-  echo -e "  ${BG}✔${RS}  ${C}Smart task routing${RS}          ${DM}redteam→Venice, reasoning→Grok${RS}"
-  echo -e "  ${BG}✔${RS}  ${C}Voice v2${RS}                    ${DM}PTT + Whisper STT + ElevenLabs TTS${RS}"
+  echo -e "  ${BG}✔${RS}  ${C}Multi-provider AI router${RS}    ${DM}Grok / Venice / Gemini${RS}"
+  echo -e "  ${BG}✔${RS}  ${C}Smart task routing${RS}          ${DM}redteam→Venice, reasoning→Grok, fallback→Gemini${RS}"
+  echo -e "  ${BG}✔${RS}  ${C}Voice v2${RS}                    ${DM}PTT + Groq Whisper STT + Edge Neural TTS (free)${RS}"
   echo -e "  ${BG}✔${RS}  ${C}SOC analyst${RS}                 ${DM}blue team auto-respond + forensics${RS}"
   echo -e "  ${BG}✔${RS}  ${C}Black Ice${RS}                   ${DM}MITRE ATT&CK real execution${RS}"
   echo -e "  ${BG}✔${RS}  ${C}Autonomous agent${RS}            ${DM}no approval, runs until done${RS}"
@@ -402,12 +402,12 @@ cmd_team() {
   # Provider status
   echo -e "  ${BM}PROVIDERS${RS}"
   hr
-  for provider in grok venice openai; do
+  for provider in grok venice gemini; do
     local label badge
     case "$provider" in
       grok)   label="⚡ GROK-3   "; badge="${BM}" ;;
       venice) label="🔮 VENICE   "; badge="${BR}" ;;
-      openai) label="🤖 GPT-4o   "; badge="${BC}" ;;
+      gemini) label="✨ GEMINI   "; badge="${BC}" ;;
     esac
 
     if command -v jq >/dev/null 2>&1; then
@@ -447,10 +447,10 @@ cmd_team() {
   # Routing rules
   echo; echo -e "  ${BM}ROUTING RULES${RS}"
   hr
-  echo -e "  ${C}redteam     ${BM}→ VENICE${RS}  ${DM}(exploit, pentest, offensive)${RS}"
-  echo -e "  ${C}reasoning   ${BM}→ GROK${RS}    ${DM}(code, analysis, chat)${RS}"
-  echo -e "  ${C}voice       ${BM}→ GPT-4o${RS}  ${DM}(STT, TTS, long-context)${RS}"
-  echo -e "  ${C}failover    ${BM}→ AUTO${RS}     ${DM}(next healthy provider in chain)${RS}"
+  echo -e "  ${C}redteam     ${BM}→ VENICE${RS}   ${DM}(exploit, pentest, offensive)${RS}"
+  echo -e "  ${C}reasoning   ${BM}→ GROK${RS}     ${DM}(code, analysis, chat)${RS}"
+  echo -e "  ${C}fallback    ${BM}→ GEMINI${RS}   ${DM}(free tier, long-context, multimodal)${RS}"
+  echo -e "  ${C}failover    ${BM}→ AUTO${RS}      ${DM}(next healthy provider in chain)${RS}"
   echo
   echo -e "  ${DM}${Y}Constraint: team acts ONLY on explicit user command.${RS}"
   echo -e "  ${DM}${Y}No uninvited attacks. Authorized redteam scope only.${RS}"
