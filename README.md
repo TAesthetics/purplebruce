@@ -89,20 +89,47 @@ node server.js
 # http://localhost:3000
 ```
 
-### Termux + proot (Ubuntu/Debian, non-NetHunter)
+### Arch Linux + BlackArch (proot-distro)
 
 ```bash
-pkg install -y proot-distro git nodejs npm
-proot-distro install ubuntu
-proot-distro login ubuntu
-apt update && apt install -y build-essential
+# In Termux:
+pkg install proot-distro
+proot-distro install archlinux
+proot-distro login archlinux
+
+# Inside Arch proot — one-liner:
+curl -fsSL https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install-arch.sh | bash
+```
+
+Or step by step inside Arch proot:
+
+```bash
+pacman -Sy --noconfirm nodejs npm git curl tmux
+
+# Add BlackArch repos (full pentesting toolset):
+curl -fsSL https://blackarch.org/strap.sh | bash
+pacman -Sy --noconfirm nmap nikto sqlmap ffuf gobuster hydra masscan
+
 git clone https://github.com/TAesthetics/purplebruce.git ~/purplebruce
 cd ~/purplebruce && npm install
 export JWT_SECRET="your-secret-here"
 node server.js &
 ```
 
-> For full Kali toolset on non-rooted Android, use **Kali NetHunter Full Rootless** (above) instead of Ubuntu proot.
+### Termux + proot (Kali, non-NetHunter)
+
+```bash
+pkg install -y proot-distro
+proot-distro install kali
+proot-distro login kali
+apt update && apt install -y nodejs npm git
+git clone https://github.com/TAesthetics/purplebruce.git ~/purplebruce
+cd ~/purplebruce && npm install
+export JWT_SECRET="your-secret-here"
+node server.js &
+```
+
+> For ARM64 Kali where `apt install npm` fails: run `corepack enable` first (bundled with Node.js ≥16).
 
 ---
 
@@ -316,7 +343,8 @@ purplebruce/
 │   └── ai-providers.json      # Provider definitions + routing
 ├── netrunner/
 │   ├── bin/netrunner          # Tier 5 CLI
-│   ├── install-nethunter.sh   # NetHunter Full Rootless installer
+│   ├── install-nethunter.sh   # Kali NetHunter Full Rootless installer
+│   ├── install-arch.sh        # Arch Linux + BlackArch proot installer
 │   ├── dotfiles/              # zshrc, tmux.conf, etc.
 │   └── install.sh             # Generic shell setup
 ├── package.json               # Dependencies
