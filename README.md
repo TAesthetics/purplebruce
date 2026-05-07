@@ -350,6 +350,23 @@ source ~/.bashrc   # or source ~/.zshrc
 # then: netrunner doctor
 ```
 
+**`npm: command not found` on Kali (Node.js installed but no npm):**
+```bash
+# Option A — corepack (fastest, no download, built into Node.js ≥16)
+corepack enable
+
+# Option B — NodeSource (installs nodejs + npm together)
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -
+sudo apt-get install -y nodejs
+```
+
+**Wrong directory — `cd purplebruce` twice by mistake:**
+```bash
+# Repo lives at ~/purplebruce — not ~/purplebruce/purplebruce
+cd ~/purplebruce
+npm install
+```
+
 **Node.js missing on NetHunter:**
 ```bash
 apt update && apt install -y nodejs npm
