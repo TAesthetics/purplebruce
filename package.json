@@ -1,7 +1,7 @@
 {
-  "name": "purplebruce-v4",
-  "version": "4.0.0",
-  "description": "Purple Bruce Cyberdeck v4.0 — Real Purple Team Platform",
+  "name": "purplebruce",
+  "version": "6.0.0",
+  "description": "Purple Bruce Cyberdeck v6.0 — TERTRATRONIC RIPPLER TIER 5 — Kali NetHunter Full Rootless",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

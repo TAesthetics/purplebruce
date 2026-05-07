@@ -45,16 +45,29 @@ cmd_doctor() {
   local issues=0
 
   section "ENVIRONMENT"
-  if [ -n "${TERMUX_VERSION:-}" ] || [ -d /data/data/com.termux ]; then
+  # Detect platform: Kali NetHunter Rootless / Termux / Native Linux
+  local platform="linux"
+  if [ -f /etc/kali-release ] || grep -qi "kali" /etc/os-release 2>/dev/null; then
+    platform="kali"
+    ok "Kali Linux detected ($(grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d'"' -f2 || echo Kali))"
+    if [ -f /proc/self/root/.version ] || [ "${NETHUNTER:-}" = "1" ]; then
+      ok "NetHunter Full Rootless environment"
+    elif [ -n "${TERMUX_VERSION:-}" ] || [ -d /data/data/com.termux ]; then
+      ok "NetHunter via Termux proot"
+    fi
+  elif [ -n "${TERMUX_VERSION:-}" ] || [ -d /data/data/com.termux ]; then
+    platform="termux"
     ok "Termux detected"
     if command -v proot-distro >/dev/null 2>&1; then
       ok "proot-distro installed"
-      if proot-distro list 2>/dev/null | grep -qi "ubuntu.*installed"; then
+      if proot-distro list 2>/dev/null | grep -qi "kali.*installed"; then
+        ok "Kali proot: installed"
+      elif proot-distro list 2>/dev/null | grep -qi "ubuntu.*installed"; then
         ok "Ubuntu proot: installed"
       else
-        fail "Ubuntu proot not installed"
-        fix "Running: proot-distro install ubuntu"
-        proot-distro install ubuntu 2>&1 | tail -2 && ok "Ubuntu installed" || { warn "Install failed — run manually"; issues=$(( issues + 1 )); }
+        fail "No proot distro installed"
+        fix "Running: proot-distro install kali"
+        proot-distro install kali 2>&1 | tail -2 && ok "Kali installed" || { warn "Install failed"; issues=$(( issues + 1 )); }
       fi
     else
       fail "proot-distro missing"
@@ -62,14 +75,19 @@ cmd_doctor() {
       pkg install proot-distro -y 2>&1 | tail -2 && ok "proot-distro installed" || { warn "Install failed"; issues=$(( issues + 1 )); }
     fi
   else
-    ok "Linux environment"
+    ok "Linux environment ($(uname -s) $(uname -r | cut -d- -f1))"
   fi
 
   section "RUNTIME"
   if command -v node >/dev/null 2>&1; then
     ok "node $(node --version 2>/dev/null || echo '?')"
   else
-    fail "Node.js not found"; info "pkg install nodejs  OR  apt install nodejs"
+    fail "Node.js not found"
+    if [ "$platform" = "kali" ]; then
+      info "apt install -y nodejs npm  OR  use nvm"
+    else
+      info "pkg install nodejs  OR  apt install nodejs"
+    fi
     issues=$(( issues + 1 ))
   fi
   if command -v npm >/dev/null 2>&1; then
@@ -128,20 +146,29 @@ cmd_doctor() {
   section "AI PROVIDERS"
   local providers_json; providers_json=$(api "/api/providers")
   if [ -n "$providers_json" ]; then
-    local grok_ok; grok_ok=$(echo "$providers_json" | grep -c '"grokHasKey":true' 2>/dev/null || echo "0")
+    local grok_ok;   grok_ok=$(echo "$providers_json"   | grep -c '"grokHasKey":true'   2>/dev/null || echo "0")
     local venice_ok; venice_ok=$(echo "$providers_json" | grep -c '"veniceHasKey":true' 2>/dev/null || echo "0")
-    local openai_ok; openai_ok=$(echo "$providers_json" | grep -c '"openaiHasKey":true' 2>/dev/null || echo "0")
-    [ "$grok_ok" -gt 0 ] && ok "⚡ Grok API key: configured" || { warn "⚡ Grok key missing  — setkey grok xai-..."; issues=$(( issues + 1 )); }
-    [ "$venice_ok" -gt 0 ] && ok "🔮 Venice key: configured" || info "🔮 Venice key: not set (optional — redteam routing)"
-    [ "$openai_ok" -gt 0 ] && ok "🤖 OpenAI key: configured" || info "🤖 OpenAI key: not set (optional — voice/fallback)"
+    local gemini_ok; gemini_ok=$(echo "$providers_json" | grep -c '"geminiHasKey":true' 2>/dev/null || echo "0")
+    local groq_ok;   groq_ok=$(echo "$providers_json"   | grep -c '"groqHasKey":true'   2>/dev/null || echo "0")
+    [ "$grok_ok"   -gt 0 ] && ok   "⚡ Grok    key: configured"                    || { warn "⚡ Grok key missing  — Settings → xai-..."; issues=$(( issues + 1 )); }
+    [ "$venice_ok" -gt 0 ] && ok   "🔮 Venice  key: configured"                    || info "🔮 Venice: not set (optional — redteam auto-routing)"
+    [ "$gemini_ok" -gt 0 ] && ok   "✨ Gemini  key: configured"                    || info "✨ Gemini: not set (free at aistudio.google.com)"
+    [ "$groq_ok"   -gt 0 ] && ok   "🎤 Groq    key: configured (Whisper STT)"     || info "🎤 Groq: not set (optional — free STT at console.groq.com)"
   else
     warn "Server offline — cannot verify AI keys"
     info "Set keys at: http://localhost:${PB_PORT}"
   fi
 
   section "TOOLS"
-  for t in curl jq tmux git bash zsh; do
+  local essential="curl jq tmux git bash"
+  local kali_tools="nmap nikto sqlmap ffuf gobuster hydra whatweb netcat-openbsd masscan"
+  for t in $essential; do
     command -v "$t" >/dev/null 2>&1 && ok "$t" || { fail "$t missing"; issues=$(( issues + 1 )); }
+  done
+  echo
+  info "Kali tools:"
+  for t in $kali_tools; do
+    command -v "$t" >/dev/null 2>&1 && ok "  $t" || warn "  $t not found  (apt install $t)"
   done
 
   echo; hr
@@ -211,9 +238,9 @@ cmd_deck() {
   fi
 
   section "TIER 5 FEATURES"
-  echo -e "  ${BG}✔${RS}  ${C}Multi-provider AI router${RS}    ${DM}Grok / Venice / GPT-4o${RS}"
-  echo -e "  ${BG}✔${RS}  ${C}Smart task routing${RS}          ${DM}redteam→Venice, reasoning→Grok${RS}"
-  echo -e "  ${BG}✔${RS}  ${C}Voice v2${RS}                    ${DM}PTT + Whisper STT + ElevenLabs TTS${RS}"
+  echo -e "  ${BG}✔${RS}  ${C}Multi-provider AI router${RS}    ${DM}Grok / Venice / Gemini${RS}"
+  echo -e "  ${BG}✔${RS}  ${C}Smart task routing${RS}          ${DM}redteam→Venice, reasoning→Grok, fallback→Gemini${RS}"
+  echo -e "  ${BG}✔${RS}  ${C}Voice v2${RS}                    ${DM}PTT + Groq Whisper STT + Edge Neural TTS (free)${RS}"
   echo -e "  ${BG}✔${RS}  ${C}SOC analyst${RS}                 ${DM}blue team auto-respond + forensics${RS}"
   echo -e "  ${BG}✔${RS}  ${C}Black Ice${RS}                   ${DM}MITRE ATT&CK real execution${RS}"
   echo -e "  ${BG}✔${RS}  ${C}Autonomous agent${RS}            ${DM}no approval, runs until done${RS}"
@@ -375,12 +402,12 @@ cmd_team() {
   # Provider status
   echo -e "  ${BM}PROVIDERS${RS}"
   hr
-  for provider in grok venice openai; do
+  for provider in grok venice gemini; do
     local label badge
     case "$provider" in
       grok)   label="⚡ GROK-3   "; badge="${BM}" ;;
       venice) label="🔮 VENICE   "; badge="${BR}" ;;
-      openai) label="🤖 GPT-4o   "; badge="${BC}" ;;
+      gemini) label="✨ GEMINI   "; badge="${BC}" ;;
     esac
 
     if command -v jq >/dev/null 2>&1; then
@@ -420,10 +447,10 @@ cmd_team() {
   # Routing rules
   echo; echo -e "  ${BM}ROUTING RULES${RS}"
   hr
-  echo -e "  ${C}redteam     ${BM}→ VENICE${RS}  ${DM}(exploit, pentest, offensive)${RS}"
-  echo -e "  ${C}reasoning   ${BM}→ GROK${RS}    ${DM}(code, analysis, chat)${RS}"
-  echo -e "  ${C}voice       ${BM}→ GPT-4o${RS}  ${DM}(STT, TTS, long-context)${RS}"
-  echo -e "  ${C}failover    ${BM}→ AUTO${RS}     ${DM}(next healthy provider in chain)${RS}"
+  echo -e "  ${C}redteam     ${BM}→ VENICE${RS}   ${DM}(exploit, pentest, offensive)${RS}"
+  echo -e "  ${C}reasoning   ${BM}→ GROK${RS}     ${DM}(code, analysis, chat)${RS}"
+  echo -e "  ${C}fallback    ${BM}→ GEMINI${RS}   ${DM}(free tier, long-context, multimodal)${RS}"
+  echo -e "  ${C}failover    ${BM}→ AUTO${RS}      ${DM}(next healthy provider in chain)${RS}"
   echo
   echo -e "  ${DM}${Y}Constraint: team acts ONLY on explicit user command.${RS}"
   echo -e "  ${DM}${Y}No uninvited attacks. Authorized redteam scope only.${RS}"
