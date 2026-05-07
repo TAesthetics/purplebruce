@@ -44,31 +44,64 @@ command -v pacman >/dev/null 2>&1 || die "pacman not found — are you inside th
 
 # ─── System update ────────────────────────────────────────────────────────────
 info "Updating package database..."
-pacman -Sy --noconfirm 2>/dev/null && ok "Package database updated" || warn "pacman -Sy failed — continuing with cached db"
+pacman -Sy --noconfirm 2>/dev/null && ok "Package database updated" || warn "pacman -Sy failed — continuing"
+
+# ─── Fix ngtcp2/curl symbol error (common in ARM64 proot) ─────────────────────
+# Arch packages roll fast; ngtcp2 mismatch breaks curl + git on Android proot
+info "Fixing ngtcp2/curl compatibility (ARM64 proot fix)..."
+pacman -S --noconfirm --needed ngtcp2 2>/dev/null && ok "ngtcp2 updated" || warn "ngtcp2 update skipped"
 
 # ─── Base packages ────────────────────────────────────────────────────────────
 info "Installing base packages..."
 pacman -S --noconfirm --needed \
-  nodejs npm git curl wget tmux jq zsh \
+  git wget curl tmux jq zsh \
   base-devel python python-pip \
-  2>/dev/null && ok "Base packages installed" || warn "Some base packages failed — npm install may still work"
+  2>/dev/null && ok "Base packages installed" || warn "Some base packages failed"
 
-# ─── Node.js check ────────────────────────────────────────────────────────────
-info "Checking Node.js..."
-command -v node >/dev/null 2>&1 && ok "node $(node --version)" || die "Node.js install failed"
-command -v npm  >/dev/null 2>&1 && ok "npm $(npm --version)"   || die "npm not found"
+# ─── Node.js: pacman installs latest (may need GLIBC 2.43+), use nvm fallback ─
+info "Installing Node.js..."
+pacman -S --noconfirm --needed nodejs npm 2>/dev/null || true
+
+# Test if pacman nodejs actually works (Arch rolls fast, may need newer GLIBC)
+if node --version >/dev/null 2>&1 && npm --version >/dev/null 2>&1; then
+  ok "node $(node --version)  npm $(npm --version)"
+else
+  warn "System Node.js incompatible with proot GLIBC — falling back to nvm (Node 20 LTS)..."
+  # Use wget (doesn't depend on libcurl) to install nvm
+  wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash 2>/dev/null \
+    || { warn "wget nvm failed — trying curl..."; curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash; }
+  export NVM_DIR="$HOME/.nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+  nvm install 20 && nvm use 20 && nvm alias default 20
+  # Persist nvm in shell rc files
+  for rc in "${HOME}/.bashrc" "${HOME}/.zshrc"; do
+    [ -f "$rc" ] || continue
+    grep -q "NVM_DIR" "$rc" 2>/dev/null || cat >> "$rc" <<'NVM_BLOCK'
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+NVM_BLOCK
+  done
+  node --version >/dev/null 2>&1 && ok "node $(node --version) via nvm" || die "Node.js install failed"
+  npm --version  >/dev/null 2>&1 && ok "npm $(npm --version)" || die "npm not found"
+fi
 
 # ─── BlackArch repos ──────────────────────────────────────────────────────────
 if [ "$BLACKARCH" -eq 0 ]; then
   info "Adding BlackArch repository..."
-  curl -fsSL https://blackarch.org/strap.sh -o /tmp/strap.sh \
-    && chmod +x /tmp/strap.sh \
-    && /tmp/strap.sh 2>&1 | tail -5 \
-    && ok "BlackArch repository added" \
-    || warn "BlackArch strap failed — install manually: https://blackarch.org/downloads.html"
-  rm -f /tmp/strap.sh
-  pacman -Sy --noconfirm 2>/dev/null || true
-  BLACKARCH=1
+  # Use wget fallback in case curl still has issues
+  wget -qO /tmp/strap.sh https://blackarch.org/strap.sh 2>/dev/null \
+    || curl -fsSL https://blackarch.org/strap.sh -o /tmp/strap.sh 2>/dev/null \
+    || { warn "Cannot download BlackArch strap — skipping"; BLACKARCH=0; }
+  if [ -f /tmp/strap.sh ]; then
+    chmod +x /tmp/strap.sh
+    /tmp/strap.sh 2>&1 | tail -5 \
+      && ok "BlackArch repository added" \
+      || warn "BlackArch strap failed — run manually after install"
+    rm -f /tmp/strap.sh
+    pacman -Sy --noconfirm 2>/dev/null || true
+    BLACKARCH=1
+  fi
 fi
 
 # ─── Pentesting tools (best-effort) ───────────────────────────────────────────
@@ -99,9 +132,18 @@ else
     mv "$PB_DIR" "${PB_DIR}.bak"
   fi
   info "Cloning Purple Bruce..."
-  git clone https://github.com/TAesthetics/purplebruce.git "$PB_DIR" \
+  git clone https://github.com/TAesthetics/purplebruce.git "$PB_DIR" 2>/dev/null \
     && ok "Cloned to ${PB_DIR}" \
-    || die "git clone failed — check internet connection"
+    || {
+      # curl/git may still have ngtcp2 issues — try wget tarball fallback
+      warn "git clone failed — trying wget tarball fallback..."
+      wget -qO /tmp/pb.tar.gz https://github.com/TAesthetics/purplebruce/archive/refs/heads/main.tar.gz \
+        && mkdir -p "$PB_DIR" \
+        && tar -xzf /tmp/pb.tar.gz -C "$PB_DIR" --strip-components=1 \
+        && rm -f /tmp/pb.tar.gz \
+        && ok "Downloaded via tarball to ${PB_DIR}" \
+        || die "Both git clone and wget tarball failed — check internet connection"
+    }
 fi
 
 # ─── npm install ──────────────────────────────────────────────────────────────
