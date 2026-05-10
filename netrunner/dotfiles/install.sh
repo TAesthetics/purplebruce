@@ -164,6 +164,7 @@ echo -e "    ${Y}rune${RS}     ${D}← Elder Futhark rune cast${RS}"
 echo -e "    ${Y}ritual${RS}   ${D}← ritual protocol builder${RS}"
 echo
 echo -e "  ${V}Purple Bruce:${RS}"
-echo -e "    ${Y}start${RS}    ${D}← launch server (tmux)${RS}"
+echo -e "    ${Y}pbstart${RS}  ${D}← launch server (tmux)${RS}"
+echo -e "    ${Y}go${RS}       ${D}← same, short form${RS}"
 echo -e "    ${Y}lucy${RS}     ${D}← netrunner menu${RS}"
 echo
