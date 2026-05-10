@@ -87,7 +87,34 @@ alias myip='curl -s ifconfig.me 2>/dev/null || wget -qO- ifconfig.me 2>/dev/null
 alias ports='ss -tlnp'
 alias listening='ss -tlnp'
 alias pyhttp='python3 -m http.server'
-alias toolcheck='echo "\n  [Arsenal Check]"; for t in nmap masscan ffuf gobuster sqlmap hydra hashcat john ncat nikto amass theharvester wireshark tshark binwalk proxychains socat chisel aircrack-ng impacket; do command -v $t >/dev/null 2>&1 && printf "  \e[32m✔\e[0m %-20s\n" $t || printf "  \e[31m✘\e[0m %-20s\n" $t; done; echo'
+alias toolcheck='
+echo "\n  \e[38;5;135m[BlackArch Arsenal Check]\e[0m\n"
+_tools=(
+  "nmap:recon" "masscan:recon" "zmap:recon" "hping3:recon" "arp-scan:recon"
+  "ffuf:web" "gobuster:web" "feroxbuster:web" "nikto:web" "whatweb:web"
+  "nuclei:vuln" "subfinder:osint" "httpx:web" "katana:web"
+  "sqlmap:exploit" "commix:exploit" "dalfox:exploit" "xsstrike:exploit"
+  "theharvester:osint" "amass:osint" "recon-ng:osint" "sherlock:osint"
+  "hydra:password" "hashcat:password" "john:password" "medusa:password"
+  "msfconsole:exploit" "msfvenom:exploit" "searchsploit:exploit"
+  "crackmapexec:windows" "evil-winrm:windows" "impacket-smbclient:windows" "kerbrute:windows"
+  "bloodhound:windows" "smbmap:windows" "enum4linux:windows"
+  "pwncat:post-ex" "chisel:post-ex" "ligolo-ng:post-ex" "socat:post-ex"
+  "radare2:rev-eng" "gdb:rev-eng" "ropper:rev-eng"
+  "wireshark:forensics" "tshark:forensics" "binwalk:forensics" "exiftool:forensics"
+  "steghide:stego" "zsteg:stego" "aircrack-ng:wireless" "wifite:wireless"
+)
+declare -A cats
+for entry in "${_tools[@]}"; do
+  t="${entry%%:*}"; c="${entry##*:}"
+  if command -v "$t" >/dev/null 2>&1; then
+    printf "  \e[32m✔\e[0m \e[38;5;51m%-22s\e[0m \e[38;5;240m%s\e[0m\n" "$t" "$c"
+  else
+    printf "  \e[31m✘\e[0m \e[38;5;240m%-22s %s\e[0m\n" "$t" "$c"
+  fi
+done
+echo "\n  \e[38;5;240mpacman -S blackarch-<category>  or  pacman -S <toolname>\e[0m\n"
+'
 alias ba='pacman -Ss blackarch'
 alias pac='pacman -S --noconfirm --needed'
 
