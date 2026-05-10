@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,interactive-widget=resizes-content,viewport-fit=cover">
-<title>Purple Bruce v5.0 — Lucy</title>
+<title>PURPLE BRUCE v6.0 — CHAOS MAGIC SERVITOR</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
-:root{--void:#050312;--bg:#0a0618;--surface:rgba(18,11,32,.72);--card:rgba(24,16,42,.65);--border:rgba(127,0,255,.22);--violet:#7F00FF;--violet-deep:#6B00B0;--violet-soft:#9a4dff;--vg:#7f00ff66;--vg-strong:#7f00ffcc;--red:#ff2d55;--rg:#ff2d5588;--cyan:#00f0ff;--cg:#00f0ff55;--mag:#ff2d95;--gold:#ffb347;--green:#39ff14;--purple:#a78bfa;--text:#e4dff5;--tb:#f6f1ff;--td:#8a82a8;--tm:#46405f;--f:'Share Tech Mono','Courier New',monospace;--fd:'Orbitron','Share Tech Mono',monospace;--rad-pill:999px;--rad-lg:18px;--rad-md:14px;--rad-sm:10px}
+:root{--void:#000;--bg:#0d0d0d;--surface:#111;--card:#161616;--border:#2c2c2c;--border-accent:#4a1a7a;--violet:#7700cc;--violet-deep:#550099;--violet-soft:#9933dd;--vg:#7700cc44;--vg-strong:#7700cc99;--red:#cc2200;--rg:#cc220066;--cyan:#0099bb;--cg:#0099bb44;--mag:#880055;--gold:#887700;--green:#226622;--purple:#7755aa;--text:#cccccc;--tb:#eeeeee;--td:#777777;--tm:#444444;--f:'Share Tech Mono','Courier New',monospace;--fd:'Share Tech Mono','Courier New',monospace;--rad-pill:2px;--rad-lg:2px;--rad-md:2px;--rad-sm:0px}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{min-height:100%}
-body{background:radial-gradient(1200px 600px at 80% -10%,rgba(127,0,255,.18),transparent 60%),radial-gradient(900px 500px at -10% 110%,rgba(0,240,255,.10),transparent 60%),radial-gradient(700px 400px at 50% 120%,rgba(255,45,149,.08),transparent 65%),var(--bg);color:var(--text);font-family:var(--f);overflow-x:hidden;min-height:100vh}
+body{background:var(--bg);color:var(--text);font-family:var(--f);overflow-x:hidden;min-height:100vh;background-image:repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(44,44,44,.3) 39px,rgba(44,44,44,.3) 40px),repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(44,44,44,.15) 39px,rgba(44,44,44,.15) 40px)}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:linear-gradient(180deg,var(--violet),var(--violet-deep));border-radius:var(--rad-pill)}
 input,textarea,select{font-family:var(--f)}input::placeholder{color:var(--tm)}
 .crt{position:fixed;inset:0;pointer-events:none;z-index:9999;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.025) 2px,rgba(0,0,0,.025) 4px)}
@@ -16,47 +16,48 @@ input,textarea,select{font-family:var(--f)}input::placeholder{color:var(--tm)}
 @keyframes cmdPulse{0%,100%{border-color:var(--gold);box-shadow:0 0 12px rgba(255,179,71,.2)}50%{border-color:var(--violet);box-shadow:0 0 20px var(--vg)}}
 @keyframes socBlink{0%,100%{opacity:1}50%{opacity:.4}}
 .pulse{animation:pulse 2s infinite}.glow{animation:glow 3s ease-in-out infinite}
-.topbar{position:sticky;top:0;z-index:100;backdrop-filter:blur(18px) saturate(1.2);background:linear-gradient(180deg,rgba(10,6,24,.85),rgba(10,6,24,.55));border-bottom:1px solid var(--border);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
-.logo{font-family:var(--fd);font-weight:900;letter-spacing:2px;font-size:18px;background:linear-gradient(90deg,var(--violet-soft),var(--violet),var(--mag));-webkit-background-clip:text;background-clip:text;color:transparent}
-.logo .at{color:var(--cyan);-webkit-text-fill-color:var(--cyan);font-weight:700}
+.topbar{position:sticky;top:0;z-index:100;background:var(--surface);border-bottom:1px solid var(--border-accent);padding:8px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:8px;font-family:var(--fd);font-weight:900;letter-spacing:2px;font-size:15px;color:var(--violet-soft)}
+.logo .at{color:var(--cyan);font-weight:700}
+.sigil-svg{width:28px;height:28px;opacity:.85;flex-shrink:0}
 .pill-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
-.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:var(--rad-pill);border:1px solid var(--border);background:rgba(20,14,34,.55);font-size:10px;font-family:var(--fd);letter-spacing:1.5px;color:var(--text);font-weight:700;cursor:default;white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:var(--rad-pill);border:1px solid var(--border);background:var(--card);font-size:10px;font-family:var(--fd);letter-spacing:1.5px;color:var(--text);font-weight:700;cursor:default;white-space:nowrap}
 .pill.click{cursor:pointer;transition:.2s}.pill.click:hover{border-color:var(--violet);transform:translateY(-1px)}
 .pill .dot{width:7px;height:7px;border-radius:50%;display:inline-block;box-shadow:0 0 8px currentColor}
 .pill.on{color:var(--green);border-color:rgba(57,255,20,.35)}.pill.off{color:var(--red);border-color:rgba(255,45,85,.4)}
 .pill.vio{color:var(--violet-soft);border-color:rgba(127,0,255,.45)}.pill.cy{color:var(--cyan);border-color:rgba(0,240,255,.35)}.pill.mg{color:var(--mag);border-color:rgba(255,45,149,.35)}
 .pill.soc-on{color:var(--cyan);border-color:rgba(0,240,255,.4);animation:socBlink 3s infinite}.pill.soc-off{color:var(--tm);border-color:var(--border)}
 .pill.clock{color:var(--tb);font-variant-numeric:tabular-nums;font-size:11px;letter-spacing:2px}
-.tbar{position:fixed;bottom:calc(12px + env(safe-area-inset-bottom,0px));left:12px;right:12px;z-index:100;background:rgba(10,6,24,.75);backdrop-filter:blur(22px) saturate(1.3);border:1px solid var(--border);border-radius:var(--rad-pill);display:flex;padding:8px;gap:4px;box-shadow:0 8px 40px rgba(127,0,255,.18)}
+.tbar{position:fixed;bottom:calc(12px + env(safe-area-inset-bottom,0px));left:12px;right:12px;z-index:100;background:var(--surface);border:1px solid var(--border-accent);border-radius:var(--rad-pill);display:flex;padding:8px;gap:4px}
 .chat-input-row{display:flex;gap:8px;align-items:stretch}
 .chat-input-row .inp{flex:1;min-height:42px;padding:10px 14px;font-size:12px}
-.chat-input-row .mic-btn{width:42px;height:42px;border-radius:50%;background:linear-gradient(180deg,rgba(0,240,255,.18),rgba(0,240,255,.05));border:1px solid var(--cyan);color:var(--cyan);font-size:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 12px rgba(0,240,255,.25);flex:0 0 42px;cursor:pointer;padding:0}
-.chat-input-row .send-btn{height:42px;padding:0 16px;border-radius:var(--rad-pill);border:1px solid var(--mag);color:var(--mag);background:linear-gradient(180deg,rgba(255,45,149,.16),rgba(255,45,149,.04));font-family:var(--fd);font-size:14px;letter-spacing:2px;font-weight:700;cursor:pointer;flex:0 0 auto;display:flex;align-items:center;justify-content:center;min-width:48px}
+.chat-input-row .mic-btn{width:42px;height:42px;border-radius:50%;background:#0d1f22;border:1px solid var(--cyan);color:var(--cyan);font-size:16px;display:flex;align-items:center;justify-content:center;flex:0 0 42px;cursor:pointer;padding:0}
+.chat-input-row .send-btn{height:42px;padding:0 16px;border-radius:var(--rad-pill);border:1px solid var(--mag);color:var(--mag);background:#1a0d16;font-family:var(--fd);font-size:14px;letter-spacing:2px;font-weight:700;cursor:pointer;flex:0 0 auto;display:flex;align-items:center;justify-content:center;min-width:48px}
 .chat-input-row .send-btn:disabled{border-color:var(--tm);color:var(--tm);background:transparent;cursor:default}
-.chat-input-bar{padding:8px 12px;flex-shrink:0;border-top:1px solid var(--border);background:rgba(10,6,24,.75);backdrop-filter:blur(14px);padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+.chat-input-bar{padding:8px 12px;flex-shrink:0;border-top:1px solid var(--border);background:var(--surface);padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
 .agent-tab{display:flex;flex-direction:column;height:calc(100dvh - 56px)}
 .tbtn{flex:1;background:0;border:0;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:8px 2px;border-radius:var(--rad-pill);transition:.2s}
 .tbtn .i{font-size:15px;transition:.2s}.tbtn .l{font-size:7.5px;font-family:var(--fd);letter-spacing:1.5px;font-weight:700}
-.tbtn.a{background:linear-gradient(180deg,rgba(127,0,255,.25),rgba(107,0,176,.12));box-shadow:0 0 18px var(--vg)}.tbtn.a .i{color:var(--violet-soft)}.tbtn.a .l{color:var(--violet-soft)}
+.tbtn.a{background:rgba(119,0,204,.15);border:1px solid var(--border-accent)}.tbtn.a .i{color:var(--violet-soft)}.tbtn.a .l{color:var(--violet-soft)}
 .tbtn:not(.a) .i,.tbtn:not(.a) .l{color:var(--tm)}.tbtn:not(.a):hover{background:rgba(127,0,255,.08)}
-.btn{background:linear-gradient(180deg,rgba(127,0,255,.18),rgba(107,0,176,.08));border:1px solid var(--violet);border-radius:var(--rad-pill);padding:10px 18px;color:var(--violet-soft);font-size:10px;font-weight:700;font-family:var(--fd);letter-spacing:2px;text-transform:uppercase;cursor:pointer;box-shadow:0 0 16px var(--vg);transition:transform .15s,box-shadow .2s}
+.btn{background:#1a1a1a;border:1px solid var(--border-accent);border-radius:var(--rad-pill);padding:10px 18px;color:var(--violet-soft);font-size:10px;font-weight:700;font-family:var(--fd);letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:background .15s,border-color .15s}
 .btn:hover{transform:translateY(-1px);box-shadow:0 0 26px var(--vg-strong)}.btn:active{transform:translateY(0)}.btn:disabled{border-color:var(--tm);color:var(--tm);box-shadow:none;cursor:default;transform:none}
 .btn.s{padding:7px 12px;font-size:8.5px;letter-spacing:1.5px}
-.btn.cy{border-color:var(--cyan);color:var(--cyan);background:linear-gradient(180deg,rgba(0,240,255,.15),rgba(0,240,255,.04))}.btn.mg{border-color:var(--mag);color:var(--mag);background:linear-gradient(180deg,rgba(255,45,149,.16),rgba(255,45,149,.04))}.btn.gn{border-color:var(--green);color:var(--green);background:linear-gradient(180deg,rgba(57,255,20,.14),rgba(57,255,20,.04))}.btn.rd{border-color:var(--red);color:var(--red);background:linear-gradient(180deg,rgba(255,45,85,.16),rgba(255,45,85,.04))}
+.btn.cy{border-color:var(--cyan);color:var(--cyan)}.btn.mg{border-color:var(--mag);color:var(--mag)}.btn.gn{border-color:var(--green);color:var(--green)}.btn.rd{border-color:var(--red);color:var(--red)}
 .inp{width:100%;background:rgba(5,3,18,.7);border:1px solid var(--border);border-radius:var(--rad-md);padding:11px 14px;color:var(--text);font-size:12px;outline:0;transition:border-color .2s,box-shadow .2s}.inp:focus{border-color:var(--violet);box-shadow:0 0 0 3px rgba(127,0,255,.18)}
 .tout{background:rgba(5,3,18,.75);border:1px solid var(--border);border-radius:var(--rad-lg);padding:12px 14px;max-height:500px;overflow-y:auto;font-size:11px;line-height:1.7;box-shadow:inset 0 0 24px rgba(127,0,255,.06)}
 .tl{white-space:pre-wrap;word-break:break-word}.tl.stdout{color:var(--td)}.tl.stderr,.tl.warn{color:var(--gold)}.tl.error{color:var(--red)}.tl.info{color:var(--cyan)}.tl.cmd{color:var(--tb);font-weight:700}.tl.next{color:var(--mag)}
 .cb{max-width:90%;border-radius:var(--rad-lg);padding:10px 14px;backdrop-filter:blur(6px);margin-bottom:4px}
-.cb.user{align-self:flex-end;background:linear-gradient(135deg,rgba(127,0,255,.22),rgba(107,0,176,.12));border:1px solid rgba(127,0,255,.45)}
+.cb.user{align-self:flex-end;background:#1a0d33;border:1px solid var(--border-accent)}
 .cb.assistant{align-self:flex-start;background:var(--card);border:1px solid var(--border)}
 .cb.tool{align-self:flex-start;background:rgba(0,240,255,.03);border:1px solid rgba(0,240,255,.18);max-width:95%;font-size:10px}
 .cb.soc{align-self:flex-start;background:rgba(255,45,85,.04);border:1px solid rgba(255,45,85,.2);max-width:95%}
 .cb.exec{align-self:flex-start;background:rgba(57,255,20,.03);border:1px solid rgba(57,255,20,.12);max-width:95%;font-size:10px}
 .approval{animation:cmdPulse 2s infinite;border-radius:var(--rad-md);padding:14px;margin:8px 0;background:linear-gradient(135deg,rgba(255,179,71,.06),rgba(127,0,255,.04))}
-.md{flex:1;background:rgba(20,14,34,.5);border:1px solid var(--border);border-radius:var(--rad-pill);padding:8px;color:var(--td);font-size:9px;font-family:var(--fd);letter-spacing:1.5px;cursor:pointer;font-weight:700;transition:.2s}.md.a{background:linear-gradient(180deg,rgba(127,0,255,.28),rgba(107,0,176,.12));border-color:var(--violet);color:var(--violet-soft)}
+.md{flex:1;background:var(--card);border:1px solid var(--border);border-radius:var(--rad-pill);padding:8px;color:var(--td);font-size:9px;font-family:var(--fd);letter-spacing:1.5px;cursor:pointer;font-weight:700;transition:.2s}.md.a{background:#1a0d33;border-color:var(--violet);color:var(--violet-soft)}
 .tc{background:var(--card);border:1px solid var(--border);border-radius:var(--rad-md);padding:10px 12px;cursor:pointer;text-align:left;width:100%;transition:.2s;backdrop-filter:blur(6px)}.tc:hover{border-color:rgba(127,0,255,.5)}.tc.a{background:linear-gradient(135deg,rgba(127,0,255,.22),rgba(255,45,149,.08));border-color:var(--violet)}
-.modal-overlay{position:fixed;inset:0;background:rgba(2,1,8,.72);backdrop-filter:blur(10px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px}
-.modal{background:var(--surface);backdrop-filter:blur(24px) saturate(1.3);border:1px solid var(--border);border-radius:var(--rad-lg);padding:24px;width:100%;max-width:520px;max-height:82vh;overflow-y:auto;box-shadow:0 20px 80px rgba(127,0,255,.22)}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:var(--surface);border:1px solid var(--border-accent);border-radius:var(--rad-lg);padding:24px;width:100%;max-width:520px;max-height:82vh;overflow-y:auto}
 .chk{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--card);border:1px solid var(--border);border-radius:var(--rad-md);margin-bottom:5px;cursor:pointer;font-size:11px;transition:.2s}.chk:hover{border-color:var(--violet)}.chk input{accent-color:var(--violet);width:15px;height:15px}
 .panel{background:var(--card);border:1px solid var(--border);border-radius:var(--rad-lg);padding:14px 16px;backdrop-filter:blur(8px)}
 /* CoT styling */
@@ -110,7 +111,7 @@ input,textarea,select{font-family:var(--f)}input::placeholder{color:var(--tm)}
 <div id="voiceCallModal" class="call-modal">
   <div class="call-header">
     <div style="display:flex;align-items:center;gap:8px">
-      <span style="font-family:var(--fd);font-size:12px;letter-spacing:3px;color:var(--violet-soft)">⬡ VOICE CALL — LUCY</span>
+      <span style="font-family:var(--fd);font-size:12px;letter-spacing:3px;color:var(--violet-soft)">⬡ VOICE CALL — PURPLEBRUCE</span>
       <span id="callProviderBadge" class="provider-badge grok">⚡ GROK-3</span>
       <span id="callLatencyPill" class="latency-pill" style="display:none"></span>
     </div>
@@ -123,7 +124,7 @@ input,textarea,select{font-family:var(--f)}input::placeholder{color:var(--tm)}
       <div class="vbar"></div><div class="vbar"></div><div class="vbar"></div><div class="vbar"></div>
     </div>
     <div class="call-mic-btn" id="bigMicBtn">🎤</div>
-    <div class="call-status" id="callStatus">LUCY IS LISTENING</div>
+    <div class="call-status" id="callStatus">PURPLEBRUCE IS LISTENING</div>
     <div id="callLangSwitch" style="display:flex;gap:6px;margin-top:6px;font-family:var(--fd);font-size:9px;letter-spacing:2px;flex-wrap:wrap;justify-content:center">
       <button data-lang="de-DE" class="call-lang-btn" style="padding:3px 10px;border-radius:999px;cursor:pointer;background:transparent;color:var(--violet-soft);border:1px solid var(--violet)">DE</button>
       <button data-lang="en-US" class="call-lang-btn" style="padding:3px 10px;border-radius:999px;cursor:pointer;background:transparent;color:var(--td);border:1px solid var(--border)">EN</button>
@@ -339,7 +340,7 @@ function useStableMic() {
       r.interimResults = true;
       r.continuous = true;
       console.log('[MIC] starting recognition — lang=', r.lang);
-      r.onstart = () => { console.log('[MIC] onstart'); onStatusRef.current?.(`LUCY IS LISTENING (${r.lang})`); };
+      r.onstart = () => { console.log('[MIC] onstart'); onStatusRef.current?.(`PURPLEBRUCE IS LISTENING (${r.lang})`); };
       // Quality filters to stop the recognizer from firing on every ambient blip:
       // - minimum length  (>= 3 chars)
       // - minimum confidence on the final alternative (>= 0.35)
@@ -607,7 +608,7 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
       addCallChatMsg('user', text);
       send('chat',{message:text});
       setCallStatus('PROCESSING...');
-      setTimeout(()=>setCallStatus(`LUCY IS LISTENING (${mic.lang})`),2000);
+      setTimeout(()=>setCallStatus(`PURPLEBRUCE IS LISTENING (${mic.lang})`),2000);
     };
     mic.onInterimRef.current=(text)=>setCallInterim(text);
     mic.onStatusRef.current=(msg)=>setCallStatus(msg);
@@ -679,7 +680,7 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
         try{if(typeof pttStop==='function')pttStop(()=>{},()=>{});}catch{}
         setCallStatus('MUTED — click mic to unmute');
       }else{
-        setCallStatus(`LUCY IS LISTENING (${mic.lang})`);
+        setCallStatus(`PURPLEBRUCE IS LISTENING (${mic.lang})`);
         // Only resume continuous Web Speech if PTT mode is OFF; otherwise PTT owns the mic.
         const pttBtn=document.getElementById('pttModeBtn');
         const pttOn=pttBtn&&/PTT ON/.test(pttBtn.textContent||'');
@@ -724,7 +725,7 @@ const AgentTab=({send,hasKey,setShowSettings,agentStatus,providerInfo,setShowTas
         },
         (msg)=>setCallStatus(msg)
       );
-      setTimeout(()=>setCallStatus(pttOn?'PTT mode — hold mic to talk':`LUCY IS LISTENING (${mic.lang})`),1800);
+      setTimeout(()=>setCallStatus(pttOn?'PTT mode — hold mic to talk':`PURPLEBRUCE IS LISTENING (${mic.lang})`),1800);
     };
     const begin=async(e)=>{
       if(!pttOn)return;
@@ -886,7 +887,7 @@ function App(){
     on('chat_thinking',d=>{
       window.__latencyStart=Date.now();
       setThinking(true);
-      if(voiceModeRef.current){const r=d?.round;addCallChatMsg('system',r?`\u{1F9E0} Lucy is thinking... (round ${r})`:'\u{1F9E0} Lucy is thinking...');setCallStatus(r?`LUCY IS THINKING — round ${r}`:'LUCY IS THINKING');}
+      if(voiceModeRef.current){const r=d?.round;addCallChatMsg('system',r?`\u{1F9E0} PurpleBruce is thinking... (round ${r})`:'\u{1F9E0} PurpleBruce is thinking...');setCallStatus(r?`PURPLEBRUCE IS THINKING — round ${r}`:'PURPLEBRUCE IS THINKING');}
     });
     on('cmd_pending',d=>{setPending(d);setThinking(false)});
     on('cmd_executing',()=>setPending(null));
@@ -909,7 +910,28 @@ function App(){
     {showSettings&&<SettingsModal {...providerInfo} setShowSettings={setShowSettings} send={send} socRunning={socStatus.running} socAutoRespond={socStatus.autoRespond}/>}
     {showTasks&&<TaskModal setShowTasks={setShowTasks} tasks={tasks} send={send}/>}
     <div className="topbar">
-      <span className="logo">pb<span className="at">@</span>v5</span>
+      <span className="logo">
+        <svg className="sigil-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-label="Ouroboros Caduceus Sigil">
+          {/* Ouroboros — serpent eating its tail */}
+          <circle cx="50" cy="50" r="43" fill="none" stroke="#7700cc" strokeWidth="3.5" strokeDasharray="none"/>
+          <path d="M50 7 C58 10,72 20,72 50 C72 80,58 90,50 93" fill="none" stroke="#9933dd" strokeWidth="2.5" strokeLinecap="round"/>
+          <path d="M50 7 C42 10,28 20,28 50 C28 80,42 90,50 93" fill="none" stroke="#0099bb" strokeWidth="2.5" strokeLinecap="round"/>
+          {/* World-tree axis */}
+          <line x1="50" y1="7" x2="50" y2="93" stroke="#cccccc" strokeWidth="1.5" strokeOpacity=".5"/>
+          {/* Branches — top cross */}
+          <line x1="50" y1="30" x2="35" y2="20" stroke="#cccccc" strokeWidth="1.2" strokeOpacity=".5"/>
+          <line x1="50" y1="30" x2="65" y2="20" stroke="#cccccc" strokeWidth="1.2" strokeOpacity=".5"/>
+          <line x1="50" y1="42" x2="38" y2="34" stroke="#cccccc" strokeWidth="1" strokeOpacity=".4"/>
+          <line x1="50" y1="42" x2="62" y2="34" stroke="#cccccc" strokeWidth="1" strokeOpacity=".4"/>
+          {/* Serpent head — ouroboros bite */}
+          <circle cx="50" cy="7" r="4" fill="#7700cc"/>
+          <circle cx="50" cy="93" r="3.5" fill="#550099"/>
+          {/* Center sigil point */}
+          <circle cx="50" cy="50" r="3" fill="#9933dd" opacity=".9"/>
+          <circle cx="50" cy="50" r="6" fill="none" stroke="#7700cc" strokeWidth="1" opacity=".6"/>
+        </svg>
+        pb<span className="at">@</span>purplebruce
+      </span>
       <div className="pill-row">
         {agentStatus.running&&<span className="pill mg pulse"><span className="dot" style={{background:'var(--mag)'}}></span>R{agentStatus.round}</span>}
         {voiceSupported&&<span className={`pill ${voiceMode?'cy':''} click`} onClick={()=>{const n=!voiceMode;setVoiceMode(n);send('voice_mode_toggle',{enabled:n});if(!n){stopSpeaking()}}} title="Voice mode (STT + TTS)"><span className="dot" style={{background:voiceMode?'var(--cyan)':'var(--tm)'}}></span>🎙 {voiceMode?'ON':'OFF'}</span>}
