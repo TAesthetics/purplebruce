@@ -90,31 +90,93 @@ node server.js
 # http://localhost:3000
 ```
 
-### Arch Linux + BlackArch (proot-distro)
+### Arch Linux + BlackArch (proot-distro) — Two-Layer Setup
 
-```bash
-# In Termux:
-pkg install proot-distro
-proot-distro install archlinux
-proot-distro login archlinux
-
-# Inside Arch proot — one-liner:
-curl -fsSL https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install-arch.sh | bash
+```
+Layer 1: Termux          — outer shell, aliases, proot manager
+Layer 2: Arch proot      — Purple Bruce Lucy + full BlackArch arsenal
 ```
 
-Or step by step inside Arch proot:
+**Step 1 — Layer 1: Termux setup**
 
 ```bash
-pacman -Sy --noconfirm nodejs npm git curl tmux
+# Install proot-distro and Arch
+pkg update && pkg install -y proot-distro
+proot-distro install archlinux
+```
 
-# Add BlackArch repos (full pentesting toolset):
-curl -fsSL https://blackarch.org/strap.sh | bash
-pacman -Sy --noconfirm nmap nikto sqlmap ffuf gobuster hydra masscan
+**Step 2 — Layer 2: Inside Arch proot — one-liner install**
 
-git clone https://github.com/TAesthetics/purplebruce.git ~/purplebruce
-cd ~/purplebruce && npm install
-export JWT_SECRET="your-secret-here"
-node server.js &
+```bash
+proot-distro login archlinux -- bash -c \
+  "curl -fsSL https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install-arch.sh | bash"
+```
+
+This installs:
+- Node.js (pacman or nvm fallback), git, tmux, zsh
+- **BlackArch repos** + full pentesting toolchain:
+  `nmap masscan ffuf gobuster sqlmap hydra hashcat john metasploit impacket crackmapexec nikto whatweb amass theharvester wireshark binwalk proxychains socat chisel ...`
+- Purple Bruce Lucy + npm deps
+- `netrunner` CLI symlinked to `~/.local/bin/`
+- Layer 2 aliases: `lucy` `pb` `purple` `bruce` `scan` `deck` `team` `logs` `toolcheck`
+
+**Step 3 — Layer 1: Termux aliases**
+
+After the install completes, run this from Termux (outside proot):
+
+```bash
+proot-distro login archlinux -- bash ~/setup-termux-layer1.sh
+source ~/.zshrc   # or source ~/.bashrc
+```
+
+Now from Termux you can use:
+
+```bash
+lucy          # → netrunner (opens cyberdeck dashboard)
+pb            # → same
+pbstart       # → starts server inside proot tmux session
+pbstop        # → kills server
+pblogs        # → streams audit.log from inside proot
+doctor        # → netrunner doctor (health check)
+deck          # → netrunner deck
+team          # → netrunner team
+scan <target> # → netrunner scan
+arch          # → drop into Arch proot shell
+```
+
+**Layer 2 aliases** (inside Arch proot):
+
+```bash
+lucy / pb / purple / bruce  → netrunner
+start        → netrunner start  (tmux 3-pane)
+stop         → kill server
+restart      → stop + start
+logs         → tail audit.log
+doctor / deck / team / overclock / scan → netrunner subcommands
+toolcheck    → verify all BlackArch tools are installed
+ba <keyword> → search BlackArch: pacman -Ss blackarch <keyword>
+```
+
+**Step 4 — Start and open**
+
+```bash
+# Inside Arch proot:
+netrunner start          # tmux 3-pane: server + logs + shell
+# or: cd ~/purplebruce && node server.js &
+
+# Open in browser:
+http://127.0.0.1:3000
+```
+
+**BlackArch full arsenal** (optional, ~5GB):
+
+```bash
+# Inside Arch proot — installs all 2800+ BlackArch tools:
+pacman -S blackarch
+# or targeted category:
+pacman -S blackarch-recon    # recon tools
+pacman -S blackarch-webapp   # web attack tools
+pacman -S blackarch-exploitation
 ```
 
 ### Termux + proot (Kali, non-NetHunter)
@@ -126,7 +188,6 @@ proot-distro login kali
 apt update && apt install -y nodejs npm git
 git clone https://github.com/TAesthetics/purplebruce.git ~/purplebruce
 cd ~/purplebruce && npm install
-export JWT_SECRET="your-secret-here"
 node server.js &
 ```
 
