@@ -2,13 +2,16 @@
 # Purple Bruce Lucy v6.0 — Arch Linux + BlackArch proot Install Script
 # LAYER 2: Runs INSIDE the Arch proot (proot-distro login archlinux)
 #
-# From Termux — one-liner:
-#   proot-distro install archlinux
-#   proot-distro login archlinux -- bash -c "curl -fsSL https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install-arch.sh | bash"
+# IMPORTANT: curl is broken on ARM64 proot (ngtcp2 symbol error).
+# Use WGET to download this script:
 #
-# Sets up:
-#   Layer 2 (Arch proot): Purple Bruce Lucy + BlackArch toolchain + netrunner CLI
-#   Layer 1 (Termux):     pb/lucy/netrunner wrapper aliases → proot
+#   proot-distro login archlinux -- bash -c \
+#     "wget -qO- https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install-arch.sh | bash"
+#
+# If wget also fails, fix ngtcp2 first (pacman uses its own downloader):
+#   proot-distro login archlinux
+#   pacman -Sy --noconfirm ngtcp2
+#   wget -qO- https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install-arch.sh | bash
 
 set -uo pipefail
 

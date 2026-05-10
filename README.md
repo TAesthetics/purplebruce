@@ -107,9 +107,19 @@ proot-distro install archlinux
 
 **Step 2 — Layer 2: Inside Arch proot — one-liner install**
 
+> **ARM64 proot (Android/iPhone):** curl is broken by default (`ngtcp2` symbol error). Use `wget`:
+
 ```bash
 proot-distro login archlinux -- bash -c \
-  "curl -fsSL https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install-arch.sh | bash"
+  "wget -qO- https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install-arch.sh | bash"
+```
+
+If wget fails too (rare), fix ngtcp2 first — pacman uses its own downloader, not libcurl:
+
+```bash
+proot-distro login archlinux
+pacman -Sy --noconfirm ngtcp2
+wget -qO- https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install-arch.sh | bash
 ```
 
 This installs:
