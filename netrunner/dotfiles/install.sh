@@ -23,40 +23,60 @@ echo -e "  ╚══════════════════════
 [ -d "$PB_DIR" ] || die "Purple Bruce not found at $PB_DIR — run install-arch.sh first"
 [ -d "$DOT_DIR" ] || die "Dotfiles dir not found: $DOT_DIR"
 
-# ── 1. Zsh + plugins ──────────────────────────────────────────────
-info "Installing zsh + plugins..."
-pacman -S --noconfirm --needed zsh zsh-syntax-highlighting zsh-autosuggestions 2>/dev/null \
-  && ok "zsh + plugins" || warn "zsh packages — check manually"
+# ── 1. CA certs + Zsh + plugins (pacman — always works offline) ───
+info "Installing ca-certificates + zsh + plugins..."
+pacman -S --noconfirm --needed ca-certificates zsh zsh-syntax-highlighting zsh-autosuggestions 2>/dev/null \
+  && ok "ca-certs + zsh + plugins (pacman)" || warn "Some zsh packages failed — continuing"
+
+# Update trust store so HTTPS git clones work
+update-ca-trust 2>/dev/null || trust extract-compat 2>/dev/null || true
 
 # ── 2. Oh-My-Zsh ──────────────────────────────────────────────────
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
   info "Installing Oh-My-Zsh..."
-  RUNZSH=no CHSH=no \
-    sh -c "$(wget -qO- https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" \
-    2>/dev/null && ok "Oh-My-Zsh installed" || warn "Oh-My-Zsh failed — using fallback prompt"
+  RUNZSH=no CHSH=no GIT_SSL_NO_VERIFY=true \
+    sh -c "$(wget --no-check-certificate -qO- \
+      https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh 2>/dev/null)" \
+    2>/dev/null && ok "Oh-My-Zsh installed" || warn "Oh-My-Zsh failed — using built-in fallback prompt"
 else
   ok "Oh-My-Zsh already installed"
 fi
 
-# ── 3. Powerlevel10k theme ────────────────────────────────────────
+# ── 3. Powerlevel10k ──────────────────────────────────────────────
 P10K_DIR="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
 if [ ! -d "$P10K_DIR" ]; then
   info "Installing Powerlevel10k..."
-  git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$P10K_DIR" 2>/dev/null \
-    && ok "Powerlevel10k installed" || warn "p10k failed — fallback prompt active"
+  # Try pacman first (no network needed if already cached)
+  pacman -S --noconfirm --needed zsh-theme-powerlevel10k 2>/dev/null && {
+    mkdir -p "$(dirname "$P10K_DIR")"
+    ln -sf /usr/share/zsh-theme-powerlevel10k "$P10K_DIR" 2>/dev/null
+    ok "Powerlevel10k (pacman)"
+  } || {
+    GIT_SSL_NO_VERIFY=true git clone --depth=1 \
+      https://github.com/romkatv/powerlevel10k.git "$P10K_DIR" 2>/dev/null \
+      && ok "Powerlevel10k (git)" || warn "p10k failed — fallback prompt active (built into zshrc)"
+  }
 else
   ok "Powerlevel10k already installed"
 fi
 
-# ── 4. zsh plugins (OMZ custom) ───────────────────────────────────
+# ── 4. zsh plugins via git (fallback — pacman already installed them) ─
 ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
 for plug in zsh-autosuggestions zsh-syntax-highlighting; do
   PLUG_DIR="${ZSH_CUSTOM}/plugins/${plug}"
-  if [ ! -d "$PLUG_DIR" ]; then
-    info "Installing ${plug}..."
-    git clone --depth=1 "https://github.com/zsh-users/${plug}.git" "$PLUG_DIR" 2>/dev/null \
-      && ok "${plug}" || warn "${plug} skipped"
-  else
+  if [ ! -d "$PLUG_DIR" ] && [ -d "$HOME/.oh-my-zsh" ]; then
+    info "Linking ${plug} plugin..."
+    # Prefer system-installed pacman version
+    SYS_PLUG="/usr/share/zsh/plugins/${plug}"
+    if [ -d "$SYS_PLUG" ]; then
+      mkdir -p "$(dirname "$PLUG_DIR")"
+      ln -sf "$SYS_PLUG" "$PLUG_DIR" && ok "${plug} (linked from pacman)"
+    else
+      GIT_SSL_NO_VERIFY=true git clone --depth=1 \
+        "https://github.com/zsh-users/${plug}.git" "$PLUG_DIR" 2>/dev/null \
+        && ok "${plug} (git)" || warn "${plug} skipped — system plugin will be used from zshrc"
+    fi
+  elif [ -d "$PLUG_DIR" ]; then
     ok "${plug} already present"
   fi
 done
@@ -75,17 +95,26 @@ ok ".tmux.conf deployed"
 # p10k config (if exists)
 [ -f "${DOT_DIR}/p10k.zsh" ] && cp "${DOT_DIR}/p10k.zsh" "${HOME}/.p10k.zsh" && ok ".p10k.zsh deployed"
 
-# ── 6. Occult tools ───────────────────────────────────────────────
-info "Setting up occult tools..."
+# ── 6. Occult tools + netrunner CLI ──────────────────────────────
+info "Setting up occult tools + netrunner CLI..."
+mkdir -p "${HOME}/.local/bin"
 chmod +x "${PB_DIR}/netrunner/occult/"*.py 2>/dev/null || true
 
-# Create direct symlinks so they work as commands
-mkdir -p "${HOME}/.local/bin"
+# Occult tool symlinks
 for tool in sigil moon tarot rune ritual; do
   ln -sf "${PB_DIR}/netrunner/occult/${tool}.py" "${HOME}/.local/bin/${tool}"
-  chmod +x "${HOME}/.local/bin/${tool}" 2>/dev/null || true
 done
 ok "Occult tools linked: sigil moon tarot rune ritual"
+
+# netrunner CLI symlink — required for start/lucy/pb/scan aliases
+NETRUNNER_BIN="${PB_DIR}/netrunner/bin/netrunner"
+if [ -f "$NETRUNNER_BIN" ]; then
+  chmod +x "$NETRUNNER_BIN"
+  ln -sf "$NETRUNNER_BIN" "${HOME}/.local/bin/netrunner"
+  ok "netrunner CLI linked → ~/.local/bin/netrunner"
+else
+  warn "netrunner bin not found at $NETRUNNER_BIN — start/lucy aliases use direct node fallback"
+fi
 
 # ── 7. Additional hacking tools ───────────────────────────────────
 info "Installing additional tools..."
