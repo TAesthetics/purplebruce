@@ -94,10 +94,13 @@ _pb_start() {
     echo "[✔] Server started → http://127.0.0.1:3000"
   fi
 }
+alias pbstart='_pb_start'
 alias start='_pb_start'
+alias go='_pb_start'
+alias pbstop='pkill -f "node server.js" 2>/dev/null && echo "[✔] Server stopped." || echo "[⚠] Not running."'
 alias stop='pkill -f "node server.js" 2>/dev/null && echo "[✔] Server stopped." || echo "[⚠] Not running."'
-alias restart='pkill -f "node server.js" 2>/dev/null; sleep 1; _pb_start'
-alias logs='tail -f ~/.purplebruce/audit.log 2>/dev/null || tail -f ~/purplebruce/server.log 2>/dev/null || echo "[⚠] No log yet — run: start"'
+alias pbrestart='pkill -f "node server.js" 2>/dev/null; sleep 1; _pb_start'
+alias logs='tail -f ~/.purplebruce/audit.log 2>/dev/null || tail -f ~/purplebruce/server.log 2>/dev/null || echo "[⚠] No log yet — run: pbstart"'
 
 # ── Occult Arsenal ───────────────────────────────────────────────
 alias sigil='python3 ~/purplebruce/netrunner/occult/sigil.py'
@@ -246,7 +249,8 @@ _pb_banner() {
   # Moon phase — inline
   python3 ~/purplebruce/netrunner/occult/moon.py 2>/dev/null | sed "s/^/  /"
   echo ""
-  echo "  ${G}⚡${RS} ${W}start${RS}     ${D}→ launch server (tmux)${RS}"
+  echo "  ${G}⚡${RS} ${W}pbstart${RS}   ${D}→ launch server (tmux)${RS}"
+  echo "  ${G}⚡${RS} ${W}go${RS}        ${D}→ same (short form)${RS}"
   echo "  ${G}⚡${RS} ${W}lucy${RS}      ${D}→ netrunner menu${RS}"
   echo "  ${Y}⬡${RS} ${W}sigil${RS}     ${D}→ sigil generator${RS}"
   echo "  ${Y}⬡${RS} ${W}tarot${RS}     ${D}→ tarot draw${RS}"
