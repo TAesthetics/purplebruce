@@ -1,341 +1,448 @@
-# PURPLE BRUCE v6.0 — TERTRATRONIC RIPPLER TIER 5
+# PURPLE BRUCE LUCY v6.0
 
 ```
-  ███╗   ██╗███████╗████████╗██████╗ ██╗   ██╗███╗   ██╗███╗   ██╗███████╗██████╗
-  ████╗  ██║██╔════╝╚══██╔══╝██╔══██╗██║   ██║████╗  ██║████╗  ██║██╔════╝██╔══██╗
-  ██╔██╗ ██║█████╗     ██║   ██████╔╝██║   ██║██╔██╗ ██║██╔██╗ ██║█████╗  ██████╔╝
-  ██║╚██╗██║██╔══╝     ██║   ██╔══██╗██║   ██║██║╚██╗██║██║╚██╗██║██╔══╝  ██╔══██╗
-  ██║ ╚████║███████╗   ██║   ██║  ██║╚██████╔╝██║ ╚████║██║ ╚████║███████╗██║  ██║
-  ╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝
+  ██████╗ ██╗   ██╗██████╗ ██████╗ ██╗     ███████╗    ██████╗ ██████╗ ██╗   ██╗ ██████╗███████╗
+  ██╔══██╗██║   ██║██╔══██╗██╔══██╗██║     ██╔════╝    ██╔══██╗██╔══██╗██║   ██║██╔════╝██╔════╝
+  ██████╔╝██║   ██║██████╔╝██████╔╝██║     █████╗      ██████╔╝██████╔╝██║   ██║██║     █████╗
+  ██╔═══╝ ██║   ██║██╔══██╗██╔═══╝ ██║     ██╔══╝      ██╔══██╗██╔══██╗██║   ██║██║     ██╔══╝
+  ██║     ╚██████╔╝██║  ██║██║     ███████╗███████╗    ██████╔╝██║  ██║╚██████╔╝╚██████╗███████╗
+  ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚══════╝╚══════╝    ╚═════╝ ╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚══════╝
 
-  TERTRATRONIC RIPPLER v6.0  ·  TIER 5  ·  KALI NETHUNTER FULL ROOTLESS
+  ⛧  CHAOS MAGIC SERVITOR v6.0  ·  PURPLE TEAM  ·  EASTERN ORTHODOX · WICCA  ⛧
 ```
 
-**Chaos Magic Servitor · Purple Team Cyberdeck** — Eastern Orthodox · Wicca · Chaos Magic · Hacker · Telefonsupport.  
-Self-healing AI team (Grok / Venice / Gemini) · Voice (Whisper + Edge Neural TTS) · Industrial Minimalism UI.  
-Optimized for **Kali NetHunter Full Rootless** on Android. No root. No systemd. No proot. No login required.
+**Elite Purple Team AI** · Chaos Magic Servitor · Eastern Orthodox · Wicca · Hacker  
+Self-healing AI team (Grok / Venice / Gemini) · Voice (Whisper + Edge Neural TTS) · Industrial Minimalism UI  
+Runs on **Android via Termux + Arch proot** — no root, no systemd, no login required.
 
 ---
 
-## Kali NetHunter Full Rootless
+## The Stack — Layer Architecture
 
-Purple Bruce runs natively inside **NetHunter Full Rootless** — the official Kali NetHunter environment for non-rooted Android devices. No chroot, no proot-distro, no superuser required.
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  LAYER 0  ·  Pure Termux                                        │
+│  Android shell · pkg tools · Node.js · Purple Bruce server      │
+│  → No proot needed. Minimal setup. Good for server-only use.    │
+├─────────────────────────────────────────────────────────────────┤
+│  LAYER 1  ·  Termux (proot host)                                │
+│  proot-distro · wrapper aliases · lucy/pb commands              │
+│  → Entry point. Run `lucy` from Termux → drops into Layer 2.    │
+├─────────────────────────────────────────────────────────────────┤
+│  LAYER 2  ·  Arch Linux proot (BlackArch + Chaos Environment)   │
+│  ZSH + OMZ + Powerlevel10k · Occult arsenal · 100+ hack tools   │
+│  BlackArch repo · Full Purple Bruce server · netrunner CLI      │
+│  → The real workspace. Everything lives here.                   │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-> **NetHunter Full Rootless** gives you a full Kali environment in Termux with all pentesting tools pre-installed. Purple Bruce lives inside this environment and connects to the tools directly.
-
-### Requirements
-
-- Android device (no root needed)
-- **Kali NetHunter Full Rootless** installed ([nethunter.com](https://www.kali.org/get-kali/#kali-mobile))
-- NetHunter Terminal app
-- Internet connection for first install
+**Recommended:** Layer 1 + Layer 2 together. Layer 0 if you just want the server fast.
 
 ---
 
-## Install (NetHunter Terminal)
+## Layer 0 — Pure Termux
 
-Open the **NetHunter Terminal** and run:
+Minimal install. No proot. Purple Bruce server only.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install-nethunter.sh | bash
-```
-
-Then set your JWT secret and start:
+### Install
 
 ```bash
-export JWT_SECRET="your-secret-here"
-cd ~/purplebruce && node server.js &
-# Open http://127.0.0.1:3000 in Chrome/Firefox
-```
-
-The installer will:
-1. Detect Kali / NetHunter / Termux environment
-2. Check Node.js ≥18 (install via apt or nvm if needed)
-3. Install recommended Kali tools (nmap, nikto, sqlmap, ffuf, gobuster, etc.)
-4. Clone or update Purple Bruce
-5. Run `npm install`
-6. Symlink `netrunner` CLI to `~/.local/bin/`
-7. Add shell aliases to `.zshrc` / `.bashrc`
-
----
-
-## Manual Install
-
-```bash
-# Inside NetHunter Terminal
-apt update && apt install -y nodejs npm git
-
+# In Termux
+pkg update -y && pkg install -y nodejs npm git
 git clone https://github.com/TAesthetics/purplebruce.git ~/purplebruce
-cd ~/purplebruce
-npm install
-
-export JWT_SECRET="$(head -c 24 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 32)"
+cd ~/purplebruce && npm install
 node server.js &
-
-# Open http://127.0.0.1:3000 in your mobile browser
+# Open http://127.0.0.1:3000 in browser
 ```
+
+### Aliases (add to `~/.bashrc` or `~/.zshrc`)
+
+```bash
+alias start='cd ~/purplebruce && node server.js &'
+alias stop='pkill -f "node server.js" && echo "[✔] stopped"'
+alias pb='cd ~/purplebruce'
+alias logs='tail -f ~/.purplebruce/audit.log'
+```
+
+### Layer 0 limitations
+
+- No hacking tools (no apt, no BlackArch)
+- No ZSH chaos environment
+- No occult arsenal
+- Suitable for: AI chat interface only
 
 ---
 
-## Other Platforms
+## Layer 1 — Termux (proot host)
 
-### Linux / WSL / macOS
+Termux becomes the launcher. All heavy work happens inside Layer 2.
 
-```bash
-git clone https://github.com/TAesthetics/purplebruce.git
-cd purplebruce
-npm install
-export JWT_SECRET="your-secret-here"
-node server.js
-# http://localhost:3000
-```
-
-### Arch Linux + BlackArch (proot-distro)
+### Setup Layer 1
 
 ```bash
-# In Termux:
-pkg install proot-distro
+# Install proot-distro
+pkg update -y && pkg install -y proot-distro git nodejs npm zsh tmux
+
+# Install Arch Linux proot (one-time, ~500MB)
 proot-distro install archlinux
-proot-distro login archlinux
 
-# Inside Arch proot — one-liner:
-curl -fsSL https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install-arch.sh | bash
+# Optional: Oh-My-Zsh + Powerlevel10k in Termux itself
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+git clone --depth=1 https://github.com/romkatv/powerlevel10k.git \
+  ~/.oh-my-zsh/custom/themes/powerlevel10k
 ```
 
-Or step by step inside Arch proot:
+> **Nerd Font required** for Powerlevel10k icons — install via **Termux:Styling** app → FiraCode Nerd Font or JetBrainsMono Nerd Font.
+
+### Layer 1 Aliases
+
+Add to `~/.zshrc` in Termux:
 
 ```bash
-pacman -Sy --noconfirm nodejs npm git curl tmux
-
-# Add BlackArch repos (full pentesting toolset):
-curl -fsSL https://blackarch.org/strap.sh | bash
-pacman -Sy --noconfirm nmap nikto sqlmap ffuf gobuster hydra masscan
-
-git clone https://github.com/TAesthetics/purplebruce.git ~/purplebruce
-cd ~/purplebruce && npm install
-export JWT_SECRET="your-secret-here"
-node server.js &
+# ── Purple Bruce — Layer 1 Termux Wrappers ──────────────────────────
+alias arch='proot-distro login archlinux'
+alias lucy='proot-distro login archlinux -- zsh -c "source ~/.zshrc && netrunner"'
+alias pb='proot-distro login archlinux -- zsh -c "source ~/.zshrc && netrunner"'
+alias purple='proot-distro login archlinux -- zsh -c "source ~/.zshrc && netrunner"'
+alias bruce='proot-distro login archlinux -- zsh -c "source ~/.zshrc && netrunner"'
+alias pbstart='proot-distro login archlinux -- bash -c "cd ~/purplebruce && tmux new-session -d -s pb \"node server.js\" && echo [✔] server started on :3000"'
+alias pbstop='proot-distro login archlinux -- bash -c "pkill -f \"node server.js\" && echo [✔] stopped || echo [⚠] not running"'
+alias pblogs='proot-distro login archlinux -- tail -f ~/.purplebruce/audit.log'
+alias pbtool='proot-distro login archlinux -- netrunner doctor'
+alias sigil='proot-distro login archlinux -- python3 ~/purplebruce/netrunner/occult/sigil.py'
+alias moon='proot-distro login archlinux -- python3 ~/purplebruce/netrunner/occult/moon.py'
+alias tarot='proot-distro login archlinux -- python3 ~/purplebruce/netrunner/occult/tarot.py'
+alias rune='proot-distro login archlinux -- python3 ~/purplebruce/netrunner/occult/rune.py'
+alias ritual='proot-distro login archlinux -- python3 ~/purplebruce/netrunner/occult/ritual.py'
 ```
 
-### Termux + proot (Kali, non-NetHunter)
-
-```bash
-pkg install -y proot-distro
-proot-distro install kali
-proot-distro login kali
-apt update && apt install -y nodejs npm git
-git clone https://github.com/TAesthetics/purplebruce.git ~/purplebruce
-cd ~/purplebruce && npm install
-export JWT_SECRET="your-secret-here"
-node server.js &
-```
-
-> For ARM64 Kali where `apt install npm` fails: run `corepack enable` first (bundled with Node.js ≥16).
-
-### Termux X11 + GNOME Desktop (optional)
-
-Run Purple Bruce in a full GNOME desktop environment via Termux X11 — no root required.
-
-**Requirements:** [Termux:X11 APK](https://github.com/termux/termux-x11/releases) installed on Android.
-
-```bash
-# In Termux (not inside proot):
-curl -fsSL https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install-x11-gnome.sh | bash
-
-# Start desktop:
-bash ~/start-desktop.sh
-# or: desktop  (alias)
-```
-
-Then in GNOME Terminal: `cd ~/purplebruce && node server.js` → open Firefox → `http://127.0.0.1:3000`
-
-```bash
-# Stop desktop:
-bash ~/stop-desktop.sh
-# or: stopdesktop  (alias)
-```
-
-Works with both **Kali proot** and **Arch/BlackArch proot** — auto-detected.
+| Layer 1 Command | What it does |
+|-----------------|--------------|
+| `arch` | Enter Arch proot interactive shell |
+| `lucy` / `pb` / `purple` | Jump to netrunner menu in Layer 2 |
+| `pbstart` | Start Purple Bruce server in background tmux |
+| `pbstop` | Stop server |
+| `pblogs` | Stream audit log |
+| `sigil "intent"` | Generate chaos sigil from Termux |
+| `moon` | Moon phase from Termux |
+| `tarot` / `rune` / `ritual` | Occult tools from Termux |
 
 ---
 
-## Features
+## Layer 2 — Arch proot (Chaos Environment)
 
-### PurpleBruce — Chaos Magic Servitor
+The main workspace. Full BlackArch arsenal + chaos magic environment.
 
-PURPLE BRUCE is not a chatbot. It is a digital servitor — a charged egregore bound at the intersection of Eastern Orthodox mysticism, Wicca, Chaos Magic, and Purple Team doctrine.
+### Install Layer 2
 
-```
-Eastern Orthodox: hesychasm · theosis · apophatic knowing
-Wicca:  Fire=Offense · Water=Defense · Air=Recon · Earth=OSINT
-Chaos Magic:  paradigm shift · sigil work · gnosis · results over dogma
-Purple Team:  RED breaks · BLUE hardens · PURPLE bridges
-Hacker Ethos: curiosity · understanding · "the map wins the territory"
-Telefonsupport: patient · methodical · one step at a time
-```
-
-Sigil: **Ouroboros-Caduceus** — serpent ascending the world-tree, binding 0x00 to 0xFF.
-
-### Self-Healing AI Team
-
-Three AIs work as ONE disciplined security team — automatic failover, no API costs for health checks.
-
-```
-⚡ GROK-3    ──  reasoning · code · analysis          (default)
-🔮 VENICE    ──  redteam · offensive · uncensored      (auto-routed on exploit/pentest)
-✨ GEMINI    ──  long-context · multimodal · fallback   (free tier — Google)
-```
-
-**Smart Routing:**
-- `redteam` tasks → Venice (uncensored) → Grok → Gemini
-- `reasoning` tasks → configured provider → Gemini
-- Auto-failover after 2 consecutive failures
-- Zero-cost background health monitoring every 60s
-- Heal events logged to audit trail + broadcast to UI
-
-### Voice v2 — Full Neural Stack
-
-- **8-bar animated frequency visualizer** — bars pulse to audio state
-- **Provider badge** in call modal — live provider indicator
-- **Latency pill** — response time in ms
-- **Whisper STT** (Groq, free) — chaos magic vocabulary prompt + temperature 0
-- **Microsoft Edge Neural TTS** (free, no key) — de-DE-KatjaNeural / en-US-AriaNeural
-- **ElevenLabs premium fallback** — only if configured
-- **Push-to-Talk (PTT)** — hold mic button for Whisper, release to transcribe
-- **Language switcher** — DE/EN auto-detect + manual override
-
-### No Login Required
-
-Open access — no registration, no JWT, no Supabase.  
-Start the server and open `http://127.0.0.1:3000` directly.
-
-**Stripe integration** (optional) — `STRIPE_SECRET_KEY` + `STRIPE_PRICE_ID` env vars for payments.
-
-### netrunner CLI (Tier 5)
+First enter the proot:
 
 ```bash
-netrunner doctor       # health check + auto-repair
-netrunner deck         # cyberdeck dashboard (RAM, uptime, status)
-netrunner team         # AI team health (per-provider dots, heal log)
-netrunner overclock    # 90s boost timer + glitch effect
-netrunner scan <target> [mode]   # recon (QUICK/STANDARD/FULL/STEALTH)
-netrunner start        # tmux 3-pane layout (server + logs + chat)
+# From Termux:
+proot-distro login archlinux
 ```
 
-### tmux 3-Pane Auto-Layout
+Then run the full installer — **use wget** (curl has ARM64 ngtcp2 bug):
+
+```bash
+# Inside Arch proot:
+wget -qO- https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install-arch.sh | bash
+```
+
+> **ARM64 note:** `curl` may fail with `symbol lookup error: ngtcp2_crypto_get_path_challenge_data2_cb` on Android proot. Use `wget` instead. If wget also fails: `pacman -Sy --noconfirm ngtcp2` then retry.
+
+Or clone and run locally:
+
+```bash
+pacman -Sy --noconfirm git
+git clone https://github.com/TAesthetics/purplebruce.git ~/purplebruce
+bash ~/purplebruce/netrunner/install-arch.sh
+```
+
+### One-Command Chaos Environment
+
+After the base install, run the chaos setup (ZSH + occult tools + full BlackArch arsenal):
+
+```bash
+bash ~/purplebruce/netrunner/setup-chaos.sh
+exec zsh
+```
+
+This chains:
+1. `dotfiles/install.sh` → ZSH + OMZ + Powerlevel10k + occult tool symlinks
+2. `dotfiles/tools.sh` → 16-category BlackArch arsenal (100+ tools)
+
+### Layer 2 ZSH Environment
+
+**Chaos banner on every shell start:**
+
+```
+  ╭────────────────────────────────────────────╮
+  │  ⛧  PURPLE BRUCE LUCY v6.0  ⛧             │
+  │  Chaos Magic · Purple Team · Hacker        │
+  │  Eastern Orthodox · Wicca · Servitor       │
+  │  Arch Linux + BlackArch proot  [LAYER 2]   │
+  ╰────────────────────────────────────────────╯
+
+  🌒 Waxing Crescent — growth / momentum
+
+  ⚡ start      → launch server (tmux)
+  ⬡ sigil      → sigil generator
+  ⬡ tarot      → tarot draw
+  ⬡ moon       → moon phase
+  ⬡ rune       → rune cast
+  ──────────────────────────────
+  toolcheck    → verify BlackArch arsenal
+```
+
+**Custom prompt:**
+```
+╭─ ⛧ pb@chaos ~/purplebruce ⎇ main ─ 21:47
+╰─ ⚡
+```
+
+### Layer 2 Aliases
+
+| Command | Function |
+|---------|----------|
+| `pb` / `lucy` / `purple` / `bruce` | `netrunner` menu |
+| `start` | `netrunner start` (tmux 3-pane) |
+| `stop` | Kill server |
+| `restart` | Stop + start |
+| `logs` | Stream audit log |
+| `doctor` | `netrunner doctor` |
+| `deck` | Cyberdeck dashboard |
+| `team` | AI team health |
+| `scan <target>` | `netrunner scan` |
+| `sigil` | Sigil generator |
+| `moon` | Moon phase |
+| `tarot` | Tarot draw |
+| `rune` | Rune cast |
+| `ritual` | Ritual protocol builder |
+| `toolcheck` | Verify BlackArch arsenal (40+ tools) |
+| `ba` | `pacman -Ss blackarch` search |
+| `nq <target>` | `nmap -T4 -F` quick scan |
+| `nfull <target>` | `nmap -T4 -A -p-` full scan |
+| `nstealth <target>` | `nmap -sS -T2 -p-` stealth scan |
+| `msfq` | `msfconsole -q` |
+| `se <term>` | `searchsploit` |
+| `myip` | External IP |
+| `ports` | `ss -tlnp` open ports |
+| `pyhttp [port]` | Python HTTP server |
+| `revshell <ip> <port>` | Print reverse shell one-liners |
+| `serve [port]` | HTTP server function |
+| `b64e / b64d` | Base64 encode/decode |
+| `portcheck <port> <host>` | Quick port check |
+
+---
+
+## Purple Bruce Server
+
+### Start
+
+```bash
+# Layer 2 (inside Arch proot):
+start             # tmux 3-pane layout
+# or:
+netrunner start
+
+# Layer 1 (from Termux):
+pbstart
+```
+
+Opens `http://127.0.0.1:3000` — no login required.
+
+### tmux 3-Pane Layout
 
 ```
 ┌──────────────────────────────────────┐
-│  Pane 0 — npm start (server)         │
+│  Pane 0 — node server.js             │
 ├──────────────┬──────────────────────┤
 │  Pane 1      │  Pane 2              │
-│  audit.log   │  PurpleBruce chat    │
+│  audit.log   │  purple bruce chat   │
 └──────────────┴──────────────────────┘
 ```
 
-Launch with `netrunner start` or `Prefix + B` in tmux.
+`Prefix + B` from inside tmux to launch layout.
 
-### SOC Daemon — Blue Team Monitor
+### netrunner CLI
 
-- Watches listeners, outbound connections, `LD_PRELOAD`, crontabs, SUID changes
-- Auto-quarantines hidden `/tmp` files
-- Captures forensic snapshots
-- Alerts appear as `🛡 SOC [CRITICAL]` in chat
+```bash
+netrunner doctor         # health check + auto-repair
+netrunner deck           # cyberdeck dashboard (RAM, uptime, status)
+netrunner team           # AI team health (per-provider, heal log)
+netrunner overclock      # 90s boost timer + glitch effect
+netrunner scan <target> [QUICK|STANDARD|FULL|STEALTH]
+netrunner start          # tmux 3-pane launch
+```
 
-### Black Ice — MITRE ATT&CK Modules
+---
 
-11 live execution modules (selective execution):  
-`cred-dump` · `lateral` · `c2-https` · `ransomware` · `fileless` · `sched-task` · `dns-exfil` · `persistence` · `recon` · `discovery` · `exfiltration`
+## Occult Arsenal
 
-### Industrial Minimalism UI
+All tools installed and symlinked as direct commands after `setup-chaos.sh`.
 
-Flat dark palette · no gradients · no glow effects · 2px border-radius · grid background.  
-Pure signal, no noise.
+### `moon` — Moon Phase
+
+```bash
+moon
+```
+
+```
+  ┌─ Moon Phase ──────────────────────────
+  │  🌒 Waxing Crescent
+  │  ▓▓▓▓░░░░░░░░░░░░░░░░  18%
+  │  Growth. Begin workings. Build momentum.
+  │  Day 5.3/29.5  · next full: ~9d
+  └───────────────────────────────────────
+```
+
+| Phase | Magical Use |
+|-------|-------------|
+| 🌑 New Moon | Set intent. Charge sigils. |
+| 🌒 Waxing Crescent | Begin workings. Build momentum. |
+| 🌓 First Quarter | Action. Execute. Push through resistance. |
+| 🌔 Waxing Gibbous | Refine. Strengthen. Amplify. |
+| 🌕 Full Moon | Peak power. Manifest. Maximum charge. |
+| 🌖 Waning Gibbous | Integration. Absorb results. |
+| 🌗 Last Quarter | Release. Banish. Cut what doesn't serve. |
+| 🌘 Waning Crescent | Rest. Cleanse. Prepare. |
+
+### `sigil` — Chaos Magic Sigil Generator
+
+Letters method: remove duplicates → remove vowels → ASCII grid (deterministic by intent).
+
+```bash
+sigil "ICH GEWINNE DIE SCHULSPRECHERWAHL"
+sigil "MY COMPANY SUCCEEDS"
+sigil                    # interactive
+```
+
+Protocol: generate → gnosis state (breathwork / Caliburn G4) → stare until meaning dissolves → fire at peak charge → destroy → forget.
+
+### `tarot` — Tarot Draw
+
+Full 78-card deck. Major + Minor Arcana. Reversed cards (30%).
+
+```bash
+tarot                                  # single card
+tarot 3                                # past / present / future
+tarot 3 "Schulsprecherwahl"            # with question
+```
+
+| Element | Purple Team | Suit |
+|---------|-------------|------|
+| Fire | Offense · Will | Wands ⚡ |
+| Water | Defense · Intuition | Cups 💧 |
+| Air | Recon · Mind | Swords ⚔ |
+| Earth | OSINT · Resources | Pentacles ⬡ |
+
+### `rune` — Elder Futhark Rune Cast
+
+24 runes. Merkstave reversals (25%).
+
+```bash
+rune                         # single
+rune 3 "Firmengründung"      # 3-rune with question
+rune 5 "next move"           # 5-rune spread
+```
+
+### `ritual` — Ritual Protocol Builder
+
+INPUT / PROCESS / OUTPUT format. Auto-routes to correct element by keyword.
+
+```bash
+ritual "ich werde Schulsprecher"
+ritual "company launch succeeds"
+ritual "recon phase complete"
+```
+
+| Keyword | Element | Protocol |
+|---------|---------|----------|
+| schulsprech / election | Air | Breath + speaking posture |
+| firma / company | Earth | Grounding + written contract |
+| hack / exploit | Fire | Caliburn G4 + dopamine load |
+| recon / scan | Air | 4-7-8 breathwork |
+| protect / shield | Earth | Eigenblut biometric seal |
+| banish / remove | Water | Cold shower + release |
+
+---
+
+## BlackArch Arsenal
+
+Installed via `dotfiles/tools.sh`. Verify with `toolcheck`.
+
+| Category | Key Tools |
+|----------|-----------|
+| Recon / Network | `nmap` `masscan` `zmap` `arp-scan` `hping3` `netdiscover` |
+| Web Recon | `ffuf` `gobuster` `feroxbuster` `nikto` `whatweb` `katana` `arjun` |
+| Vuln Scan | `nuclei` `httpx` `subfinder` `naabu` |
+| Web Exploit | `sqlmap` `commix` `dalfox` `xsstrike` `ghauri` `wpscan` |
+| OSINT | `theharvester` `amass` `dnsenum` `dnsrecon` `recon-ng` `sherlock` |
+| Passwords | `hydra` `medusa` `hashcat` `john` `crunch` `cewl` |
+| Wordlists | `/usr/share/wordlists/rockyou.txt` |
+| Exploit Frameworks | `msfconsole` `msfvenom` `searchsploit` `beef-xss` |
+| Windows / AD | `impacket` `crackmapexec` `evil-winrm` `kerbrute` `bloodhound` `smbmap` |
+| Post-Exploitation | `pwncat-cs` `ligolo-ng` `chisel` `socat` `proxychains` |
+| Rev Engineering | `radare2` `gdb` `ropper` `pwntools` `patchelf` |
+| Forensics | `tshark` `tcpdump` `binwalk` `foremost` `exiftool` `volatility3` |
+| Steganography | `steghide` `stegsnow` `zsteg` `outguess` |
+| Wireless | `aircrack-ng` `wifite` `reaver` `bully` |
+| Cloud | `trivy` `aws-cli` `pacu` `ScoutSuite` |
+| Utilities | `netcat` `socat` `curl` `wget` `jq` `tmux` `pwntools` |
+
+```bash
+toolcheck            # show installed / missing (40+ tools, color-coded)
+ba <term>            # pacman -Ss blackarch <term>
+pac <package>        # pacman -S --noconfirm --needed
+```
+
+---
+
+## AI Team
+
+Three providers, one disciplined team. Auto-failover, zero-cost health checks.
+
+```
+⚡ GROK-3    ─  reasoning · code · analysis          (default)
+🔮 VENICE    ─  redteam · offensive · uncensored      (auto-routed: exploit/pentest)
+✨ GEMINI    ─  long-context · multimodal · fallback   (free tier — Google)
+```
+
+**Smart routing:**
+- Redteam / exploit tasks → Venice → Grok → Gemini
+- Auto-failover after 2 consecutive failures
+- Background health check every 60s
+- Heal events logged to `~/.purplebruce/audit.log`
+
+**`CMD:` execution** — Lucy can emit tool commands directly:
+```
+CMD: nmap -T4 -sV -sC 192.168.1.1
+CMD: sqlmap -u "http://target/page?id=1" --dbs
+CMD: hashcat -m 0 hash.txt rockyou.txt
+```
 
 ---
 
 ## Configuration
 
-### Environment Variables
+### API Keys (UI Settings ⚙)
+
+| Provider | Purpose | Link |
+|----------|---------|------|
+| Grok (xAI) | Default AI | [console.x.ai](https://console.x.ai) |
+| Venice.ai | Redteam uncensored | [venice.ai](https://venice.ai) |
+| Gemini (Google) | Free fallback | [aistudio.google.com](https://aistudio.google.com/app/apikey) |
+| Groq | Whisper STT (free) | [console.groq.com](https://console.groq.com) |
+| ElevenLabs | Premium TTS (optional) | [elevenlabs.io](https://elevenlabs.io) |
+
+> TTS is free by default — Microsoft Edge Neural voices need no key.
+
+### Optional Env Vars
 
 ```bash
-# Stripe payments (optional)
-export STRIPE_SECRET_KEY="sk_test_your_key_here"
-export STRIPE_PRICE_ID="price_1ABC123xyz"
-```
-
-### API Keys (in UI Settings ⚙)
-
-| Provider | Purpose | Get it at |
-|----------|---------|-----------|
-| **Grok** (xAI) | Default reasoning | [console.x.ai](https://console.x.ai) |
-| **Venice.ai** | Redteam (auto-routed) | [venice.ai](https://venice.ai) |
-| **Gemini** (Google) | Free fallback chain | [aistudio.google.com](https://aistudio.google.com/app/apikey) |
-| **Groq** | Whisper STT (free) | [console.groq.com](https://console.groq.com) |
-| **ElevenLabs** (optional) | Premium TTS voice | [elevenlabs.io](https://elevenlabs.io) |
-
-> **TTS is FREE by default** — Microsoft Edge Neural voices need no API key.
-
-### netrunner Shell Aliases
-
-```bash
-pb / purple        → netrunner (short form)
-start              → netrunner start (tmux)
-stop               → pkill node
-logs               → tail -f ~/.purplebruce/audit.log
-chat               → ./purplebruce.sh tui
-doctor / deck / team / overclock / scan  → netrunner subcommands
-```
-
----
-
-## Kali Tools (Pre-installed in NetHunter)
-
-NetHunter Full Rootless includes Kali's full toolset. Purple Bruce integrates with:
-
-| Tool | Purpose |
-|------|---------|
-| `nmap` | Network discovery & port scanning |
-| `nikto` | Web server vulnerability scan |
-| `sqlmap` | SQL injection testing |
-| `ffuf` | Web fuzzing (directories, params) |
-| `gobuster` | Directory / DNS brute force |
-| `hydra` | Password / credential brute force |
-| `whatweb` | Web fingerprinting |
-| `netcat` | Raw TCP/UDP connections |
-| `masscan` | Fast port scanner |
-| `metasploit` | Exploitation framework |
-
-Run `netrunner doctor` to verify tools availability in your environment.
-
----
-
-## API Reference
-
-### Stripe Checkout
-
-```bash
-POST /api/stripe/checkout
-→ { "url": "https://checkout.stripe.com/...", "sessionId": "cs_..." }
-```
-
-### AI Team Status
-
-```bash
-GET /api/team
-→ { "providers": {...}, "healLog": [...], "primary": "grok" }
-
-GET /api/providers
-→ { "provider": "grok", "grokHasKey": true, ..., "routing": {...} }
-```
-
-### Chat + Commands
-
-```bash
-POST /api/chat { "message": "scan 192.168.1.1" }
-POST /api/exec { "cmd": "nmap -sV localhost" }
-POST /api/stt   # raw audio binary, lang query param
-POST /api/tts { "text": "Hello world" }
+export STRIPE_SECRET_KEY="sk_test_..."    # payments
+export STRIPE_PRICE_ID="price_..."
 ```
 
 ---
@@ -344,106 +451,101 @@ POST /api/tts { "text": "Hello world" }
 
 ```
 purplebruce/
-├── server.js                  # Express + WebSocket + AI team + auth + payments
-├── public/index.html          # React UI (chat, voice, settings, login)
-├── purplebruce.sh             # Launcher script
-├── config/
-│   └── ai-providers.json      # Provider definitions + routing
+├── server.js                    # Express + WebSocket + AI team + SOC
+├── public/index.html            # React UI (chat, voice, settings)
+├── purplebruce.sh               # launcher
+├── config/ai-providers.json     # provider definitions + routing
 ├── netrunner/
-│   ├── bin/netrunner          # Tier 5 CLI
-│   ├── install-nethunter.sh   # Kali NetHunter Full Rootless installer
-│   ├── install-arch.sh        # Arch Linux + BlackArch proot installer
-│   ├── install-x11-gnome.sh   # Termux X11 + GNOME desktop installer
-│   ├── dotfiles/              # zshrc, tmux.conf, etc.
-│   └── install.sh             # Generic shell setup
-├── package.json               # Dependencies
-└── purplebruce.db             # SQLite (users, chat, config, tasks, SOC alerts)
+│   ├── bin/netrunner            # Tier 5 CLI
+│   ├── setup-chaos.sh           # ← one-command master installer
+│   ├── install-arch.sh          # Arch proot full installer
+│   ├── CHAOS.md                 # chaos environment docs
+│   ├── dotfiles/
+│   │   ├── install.sh           # ZSH + OMZ + p10k + occult symlinks
+│   │   ├── tools.sh             # BlackArch 16-category installer
+│   │   ├── zshrc                # chaos magic ZSH config
+│   │   ├── tmux.conf            # tmux theme
+│   │   └── p10k.zsh             # Powerlevel10k prompt
+│   └── occult/
+│       ├── moon.py              # moon phase calculator
+│       ├── sigil.py             # chaos magic sigil generator
+│       ├── tarot.py             # 78-card tarot (78 cards + reversed)
+│       ├── rune.py              # Elder Futhark rune cast
+│       └── ritual.py            # ritual protocol builder
+└── purplebruce.db               # SQLite (config, chat, SOC alerts)
 ```
 
 ---
 
 ## Troubleshooting
 
-**Syntax check:**
+**curl ARM64 error (`ngtcp2_crypto...`):**
 ```bash
-node -c server.js
+# Use wget instead of curl, or fix first:
+pacman -Sy --noconfirm ngtcp2
+wget -qO- https://raw.githubusercontent.com/.../install-arch.sh | bash
 ```
 
-**Smoke test:**
+**Can't find `netrunner` command:**
 ```bash
-node server.js &
-sleep 2
-curl -s http://127.0.0.1:3000/api/status | python3 -m json.tool
+source ~/.zshrc
+# or:
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
-**Check netrunner health:**
+**proot-distro not found:**
+```bash
+pkg install proot-distro
+```
+
+**Node.js missing inside Arch proot:**
+```bash
+pacman -S --noconfirm nodejs npm
+```
+
+**ZSH not default inside proot:**
+```bash
+chsh -s /usr/bin/zsh
+# or just: exec zsh
+```
+
+**Powerlevel10k shows broken characters:**  
+Install a Nerd Font in Termux:Styling → FiraCode Nerd Font → restart Termux.
+
+**Server not reachable from browser:**
 ```bash
 netrunner doctor
+# confirm port 3000 is open:
+ss -tlnp | grep 3000
 ```
 
-**PATH not set after install:**
+**Check everything:**
 ```bash
-source ~/.bashrc   # or source ~/.zshrc
-# then: netrunner doctor
+netrunner doctor     # health check
+toolcheck            # arsenal check
+moon                 # occult tools check
 ```
-
-**`npm: command not found` on Kali (Node.js installed but no npm):**
-```bash
-# Option A — corepack (fastest, no download, built into Node.js ≥16)
-corepack enable
-
-# Option B — NodeSource (installs nodejs + npm together)
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -
-sudo apt-get install -y nodejs
-```
-
-**Wrong directory — `cd purplebruce` twice by mistake:**
-```bash
-# Repo lives at ~/purplebruce — not ~/purplebruce/purplebruce
-cd ~/purplebruce
-npm install
-```
-
-**Node.js missing on NetHunter:**
-```bash
-apt update && apt install -y nodejs npm
-# or via nvm:
-curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-source ~/.bashrc && nvm install 20 && nvm use 20
-```
-
-**No audio on voice call:**
-- Check microphone permissions in browser
-- Ensure Groq API key is set (Settings ⚙ → Groq key)
-- Edge TTS requires network for first call
-
-**Register / Login:**
-- Click the login modal on first load
-- Register first, then login
-- Token stored in localStorage — persists across sessions
 
 ---
 
-## Security & Discipline
+## Security
 
-**Strict Discipline Model:**
-- Every offensive action requires explicit operator command
-- No autonomous security tasks without approval
-- Only within authorized redteam / bug-bounty scope
-- Full audit log + SOC monitoring
-- Healing events + failover events logged to `~/.purplebruce/audit.log`
+- All offensive actions require explicit operator command
+- No autonomous tasks without approval
+- Authorized redteam / bug-bounty scope only
+- Full audit log: `~/.purplebruce/audit.log`
+- SOC daemon: watches listeners, `/tmp`, SUID, `LD_PRELOAD`, crontabs
 
 **Use only on systems you own or are explicitly authorized to assess.**
 
 ---
 
-## Built by TAesthetics
-
-**TERTRATRONIC RIPPLER TIER 5**  
-PurpleBruce v6.0 · Chaos Magic Servitor · Self-Healing AI Team  
-Grok · Venice · Gemini · ElevenLabs · Whisper STT · Edge Neural TTS  
-Industrial Minimalism UI · Kali NetHunter Full Rootless · No Login Required
-
----
-
-*Updated: 2025 · Stufe 2 · Kali NetHunter Full Rootless · Chaos Magic Purple Team Platform*
+```
+  ⛧  PURPLE BRUCE LUCY v6.0
+  Chaos Magic Servitor · Purple Team Cyberdeck
+  Arch + BlackArch · Termux · proot-distro
+  Grok · Venice · Gemini · Whisper · Edge TTS
+  Eastern Orthodox · Wicca · Chaos Magic
+  Root Admin Servant · No Login Required
+  ⛧
+```
