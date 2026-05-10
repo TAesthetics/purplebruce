@@ -23,10 +23,16 @@ echo -e "  ╚══════════════════════
 [ -d "$PB_DIR" ] || die "Purple Bruce not found at $PB_DIR — run install-arch.sh first"
 [ -d "$DOT_DIR" ] || die "Dotfiles dir not found: $DOT_DIR"
 
-# ── 1. CA certs + Zsh + plugins (pacman — always works offline) ───
+# ── Sync package DB first ─────────────────────────────────────────
+info "Syncing package database..."
+pacman -Sy --noconfirm 2>/dev/null && ok "Package DB synced" || warn "DB sync failed — continuing"
+
+# ── 1. CA certs + Zsh + plugins (pacman) ─────────────────────────
 info "Installing ca-certificates + zsh + plugins..."
-pacman -S --noconfirm --needed ca-certificates zsh zsh-syntax-highlighting zsh-autosuggestions 2>/dev/null \
-  && ok "ca-certs + zsh + plugins (pacman)" || warn "Some zsh packages failed — continuing"
+pacman -S --noconfirm --needed ca-certificates 2>/dev/null && ok "ca-certificates" || warn "ca-certificates skipped"
+pacman -S --noconfirm --needed zsh 2>/dev/null && ok "zsh" || warn "zsh skipped"
+pacman -S --noconfirm --needed zsh-syntax-highlighting 2>/dev/null && ok "zsh-syntax-highlighting" || warn "zsh-syntax-highlighting skipped"
+pacman -S --noconfirm --needed zsh-autosuggestions 2>/dev/null && ok "zsh-autosuggestions" || warn "zsh-autosuggestions skipped"
 
 # Update trust store so HTTPS git clones work
 update-ca-trust 2>/dev/null || trust extract-compat 2>/dev/null || true

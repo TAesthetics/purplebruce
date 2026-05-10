@@ -108,9 +108,7 @@ alias ritual='python3 ~/purplebruce/netrunner/occult/ritual.py'
 alias intent='python3 ~/purplebruce/netrunner/occult/sigil.py'
 
 # ── Hacking Shortcuts ────────────────────────────────────────────
-alias nq='nmap -T4 -F'
-alias nfull='nmap -T4 -A -p-'
-alias nstealth='nmap -sS -T2 -p-'
+# nq / nfull / nstealth defined as functions below (accept target arg)
 alias nse='ls /usr/share/nmap/scripts/ | grep'
 alias msfq='msfconsole -q'
 alias se='searchsploit'
