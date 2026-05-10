@@ -18,8 +18,19 @@ plugins=(
   zsh-syntax-highlighting
 )
 
-[[ -f "$ZSH/oh-my-zsh.sh" ]] && source "$ZSH/oh-my-zsh.sh"
-[[ -f "$HOME/.p10k.zsh" ]]   && source "$HOME/.p10k.zsh"
+if [[ -f "$ZSH/oh-my-zsh.sh" ]]; then
+  source "$ZSH/oh-my-zsh.sh"
+  [[ -f "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
+else
+  # Fallback prompt — no OMZ needed
+  autoload -U colors && colors
+  PROMPT=$'\n%F{135}⛧%f %F{51}%n@%m%f %F{240}%~%f\n%F{201}❯%f '
+  # Load system zsh plugins if installed via pacman
+  [[ -f /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]] && \
+    source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+  [[ -f /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && \
+    source /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
+fi
 
 # ── NVM ──────────────────────────────────────────────────────────
 export NVM_DIR="$HOME/.nvm"
@@ -43,6 +54,7 @@ HISTSIZE=10000; SAVEHIST=10000; HISTFILE=~/.zsh_history
 
 # ── SYNTAX HIGHLIGHTING COLORS ───────────────────────────────────
 ZSH_HIGHLIGHT_HIGHLIGHTERS=(main)
+typeset -A ZSH_HIGHLIGHT_STYLES 2>/dev/null || true
 ZSH_HIGHLIGHT_STYLES[command]='fg=51'
 ZSH_HIGHLIGHT_STYLES[alias]='fg=201'
 ZSH_HIGHLIGHT_STYLES[builtin]='fg=220'
@@ -54,19 +66,38 @@ ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=240"
 # ╚══════════════════════════════════════════════════════════════╝
 
 # ── Purple Bruce ─────────────────────────────────────────────────
-alias pb='netrunner'
-alias lucy='netrunner'
-alias purple='netrunner'
-alias bruce='netrunner'
-alias start='netrunner start'
+_nr() { command netrunner "$@" 2>/dev/null || echo "[⚠] netrunner not found — run install-arch.sh first"; }
+alias pb='_nr'
+alias lucy='_nr'
+alias purple='_nr'
+alias bruce='_nr'
+alias doctor='_nr doctor'
+alias deck='_nr deck'
+alias team='_nr team'
+alias overclock='_nr overclock'
+alias scan='_nr scan'
+
+# start — works with or without netrunner
+_pb_start() {
+  local dir="${HOME}/purplebruce"
+  [[ -d "$dir" ]] || { echo "[✘] ~/purplebruce not found"; return 1; }
+  mkdir -p "${HOME}/.purplebruce"
+  if command -v netrunner >/dev/null 2>&1; then
+    netrunner start
+  elif command -v tmux >/dev/null 2>&1; then
+    tmux new-session -d -s purplebruce -x 220 -y 50 2>/dev/null || true
+    tmux send-keys -t purplebruce "cd ${dir} && node server.js 2>&1 | tee ~/.purplebruce/server.log" Enter
+    echo "[✔] Server started in tmux → http://127.0.0.1:3000"
+    echo "    tmux attach -t purplebruce"
+  else
+    cd "$dir" && node server.js &
+    echo "[✔] Server started → http://127.0.0.1:3000"
+  fi
+}
+alias start='_pb_start'
 alias stop='pkill -f "node server.js" 2>/dev/null && echo "[✔] Server stopped." || echo "[⚠] Not running."'
-alias restart='stop; sleep 1; start'
-alias logs='tail -f ~/.purplebruce/audit.log'
-alias doctor='netrunner doctor'
-alias deck='netrunner deck'
-alias team='netrunner team'
-alias overclock='netrunner overclock'
-alias scan='netrunner scan'
+alias restart='pkill -f "node server.js" 2>/dev/null; sleep 1; _pb_start'
+alias logs='tail -f ~/.purplebruce/audit.log 2>/dev/null || tail -f ~/purplebruce/server.log 2>/dev/null || echo "[⚠] No log yet — run: start"'
 
 # ── Occult Arsenal ───────────────────────────────────────────────
 alias sigil='python3 ~/purplebruce/netrunner/occult/sigil.py'
