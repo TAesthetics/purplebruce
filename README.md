@@ -90,20 +90,72 @@ node server.js
 # http://localhost:3000
 ```
 
-### Termux + proot (Ubuntu/Debian, non-NetHunter)
+### Arch Linux + BlackArch (proot-distro)
 
 ```bash
-pkg install -y proot-distro git nodejs npm
-proot-distro install ubuntu
-proot-distro login ubuntu
-apt update && apt install -y build-essential
+# In Termux:
+pkg install proot-distro
+proot-distro install archlinux
+proot-distro login archlinux
+
+# Inside Arch proot — one-liner:
+curl -fsSL https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install-arch.sh | bash
+```
+
+Or step by step inside Arch proot:
+
+```bash
+pacman -Sy --noconfirm nodejs npm git curl tmux
+
+# Add BlackArch repos (full pentesting toolset):
+curl -fsSL https://blackarch.org/strap.sh | bash
+pacman -Sy --noconfirm nmap nikto sqlmap ffuf gobuster hydra masscan
+
 git clone https://github.com/TAesthetics/purplebruce.git ~/purplebruce
 cd ~/purplebruce && npm install
 export JWT_SECRET="your-secret-here"
 node server.js &
 ```
 
-> For full Kali toolset on non-rooted Android, use **Kali NetHunter Full Rootless** (above) instead of Ubuntu proot.
+### Termux + proot (Kali, non-NetHunter)
+
+```bash
+pkg install -y proot-distro
+proot-distro install kali
+proot-distro login kali
+apt update && apt install -y nodejs npm git
+git clone https://github.com/TAesthetics/purplebruce.git ~/purplebruce
+cd ~/purplebruce && npm install
+export JWT_SECRET="your-secret-here"
+node server.js &
+```
+
+> For ARM64 Kali where `apt install npm` fails: run `corepack enable` first (bundled with Node.js ≥16).
+
+### Termux X11 + GNOME Desktop (optional)
+
+Run Purple Bruce in a full GNOME desktop environment via Termux X11 — no root required.
+
+**Requirements:** [Termux:X11 APK](https://github.com/termux/termux-x11/releases) installed on Android.
+
+```bash
+# In Termux (not inside proot):
+curl -fsSL https://raw.githubusercontent.com/TAesthetics/purplebruce/main/netrunner/install-x11-gnome.sh | bash
+
+# Start desktop:
+bash ~/start-desktop.sh
+# or: desktop  (alias)
+```
+
+Then in GNOME Terminal: `cd ~/purplebruce && node server.js` → open Firefox → `http://127.0.0.1:3000`
+
+```bash
+# Stop desktop:
+bash ~/stop-desktop.sh
+# or: stopdesktop  (alias)
+```
+
+Works with both **Kali proot** and **Arch/BlackArch proot** — auto-detected.
 
 ---
 
@@ -299,7 +351,9 @@ purplebruce/
 │   └── ai-providers.json      # Provider definitions + routing
 ├── netrunner/
 │   ├── bin/netrunner          # Tier 5 CLI
-│   ├── install-nethunter.sh   # NetHunter Full Rootless installer
+│   ├── install-nethunter.sh   # Kali NetHunter Full Rootless installer
+│   ├── install-arch.sh        # Arch Linux + BlackArch proot installer
+│   ├── install-x11-gnome.sh   # Termux X11 + GNOME desktop installer
 │   ├── dotfiles/              # zshrc, tmux.conf, etc.
 │   └── install.sh             # Generic shell setup
 ├── package.json               # Dependencies
@@ -331,6 +385,23 @@ netrunner doctor
 ```bash
 source ~/.bashrc   # or source ~/.zshrc
 # then: netrunner doctor
+```
+
+**`npm: command not found` on Kali (Node.js installed but no npm):**
+```bash
+# Option A — corepack (fastest, no download, built into Node.js ≥16)
+corepack enable
+
+# Option B — NodeSource (installs nodejs + npm together)
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -
+sudo apt-get install -y nodejs
+```
+
+**Wrong directory — `cd purplebruce` twice by mistake:**
+```bash
+# Repo lives at ~/purplebruce — not ~/purplebruce/purplebruce
+cd ~/purplebruce
+npm install
 ```
 
 **Node.js missing on NetHunter:**

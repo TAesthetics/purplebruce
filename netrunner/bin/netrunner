@@ -45,15 +45,22 @@ cmd_doctor() {
   local issues=0
 
   section "ENVIRONMENT"
-  # Detect platform: Kali NetHunter Rootless / Termux / Native Linux
   local platform="linux"
   if [ -f /etc/kali-release ] || grep -qi "kali" /etc/os-release 2>/dev/null; then
     platform="kali"
     ok "Kali Linux detected ($(grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d'"' -f2 || echo Kali))"
-    if [ -f /proc/self/root/.version ] || [ "${NETHUNTER:-}" = "1" ]; then
+    if [ -d /data/nhsystem ] || [ "${NETHUNTER:-}" = "1" ]; then
       ok "NetHunter Full Rootless environment"
     elif [ -n "${TERMUX_VERSION:-}" ] || [ -d /data/data/com.termux ]; then
       ok "NetHunter via Termux proot"
+    fi
+  elif [ -f /etc/arch-release ] || grep -qi "arch" /etc/os-release 2>/dev/null; then
+    platform="arch"
+    if grep -qi "blackarch" /etc/pacman.conf 2>/dev/null; then
+      ok "BlackArch Linux detected"
+    else
+      ok "Arch Linux detected"
+      info "Add BlackArch repos: curl -fsSL https://blackarch.org/strap.sh | bash"
     fi
   elif [ -n "${TERMUX_VERSION:-}" ] || [ -d /data/data/com.termux ]; then
     platform="termux"
@@ -62,12 +69,14 @@ cmd_doctor() {
       ok "proot-distro installed"
       if proot-distro list 2>/dev/null | grep -qi "kali.*installed"; then
         ok "Kali proot: installed"
+      elif proot-distro list 2>/dev/null | grep -qi "archlinux.*installed"; then
+        ok "Arch proot: installed"
       elif proot-distro list 2>/dev/null | grep -qi "ubuntu.*installed"; then
         ok "Ubuntu proot: installed"
       else
         fail "No proot distro installed"
-        fix "Running: proot-distro install kali"
-        proot-distro install kali 2>&1 | tail -2 && ok "Kali installed" || { warn "Install failed"; issues=$(( issues + 1 )); }
+        fix "Tip: proot-distro install archlinux  OR  proot-distro install kali"
+        issues=$(( issues + 1 ))
       fi
     else
       fail "proot-distro missing"
@@ -83,11 +92,11 @@ cmd_doctor() {
     ok "node $(node --version 2>/dev/null || echo '?')"
   else
     fail "Node.js not found"
-    if [ "$platform" = "kali" ]; then
-      info "apt install -y nodejs npm  OR  use nvm"
-    else
-      info "pkg install nodejs  OR  apt install nodejs"
-    fi
+    case "$platform" in
+      kali)  info "Fix: corepack enable  OR  apt install -y nodejs npm" ;;
+      arch)  info "Fix: pacman -S nodejs npm" ;;
+      *)     info "Fix: pkg install nodejs  OR  nvm install 20" ;;
+    esac
     issues=$(( issues + 1 ))
   fi
   if command -v npm >/dev/null 2>&1; then
@@ -161,15 +170,22 @@ cmd_doctor() {
 
   section "TOOLS"
   local essential="curl jq tmux git bash"
-  local kali_tools="nmap nikto sqlmap ffuf gobuster hydra whatweb netcat-openbsd masscan"
   for t in $essential; do
     command -v "$t" >/dev/null 2>&1 && ok "$t" || { fail "$t missing"; issues=$(( issues + 1 )); }
   done
   echo
-  info "Kali tools:"
-  for t in $kali_tools; do
-    command -v "$t" >/dev/null 2>&1 && ok "  $t" || warn "  $t not found  (apt install $t)"
-  done
+  local sec_tools="nmap nikto sqlmap ffuf gobuster hydra whatweb masscan"
+  if [ "$platform" = "arch" ]; then
+    info "BlackArch / Arch tools:"
+    for t in $sec_tools; do
+      command -v "$t" >/dev/null 2>&1 && ok "  $t" || warn "  $t not found  (pacman -S $t)"
+    done
+  else
+    info "Kali tools:"
+    for t in $sec_tools; do
+      command -v "$t" >/dev/null 2>&1 && ok "  $t" || warn "  $t not found  (apt install $t)"
+    done
+  fi
 
   echo; hr
   if [ "$issues" -eq 0 ]; then
