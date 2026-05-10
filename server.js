@@ -806,9 +806,35 @@ Routing: redteam→VENICE | reasoning→GROK | fallback chain: GROK→VENICE→G
 Auto-failover: ACTIVE | Recent heals: ${recentHeals}
 You act ONLY when Operator gives an explicit command. No uninvited attacks. Order and discipline.
 
-TOOLS: nmap, nc, curl, dig, openssl, ss, ping, traceroute, wget, ps, top, lsof, find, grep, awk, sed, cat, stat, file, strings, crontab, systemctl, iptables, env, id, who, last, ls, head, tail, wc, sha256sum, diff, xxd.
+TOOLS AVAILABLE (BlackArch arsenal — invoke directly via CMD:):
+  RECON:       nmap masscan zmap arp-scan hping3 netdiscover nbtscan
+  WEB-RECON:   ffuf gobuster feroxbuster wfuzz nikto whatweb wafw00f arjun gau hakrawler
+  VULN-SCAN:   nuclei httpx subfinder naabu katana
+  WEB-EXPLOIT: sqlmap commix dalfox xsstrike ghauri wpscan
+  OSINT:       theharvester amass dnsenum dnsrecon recon-ng sherlock
+  PASSWORDS:   hydra medusa hashcat john crunch cewl haiti
+  WORDLISTS:   /usr/share/wordlists/rockyou.txt  /usr/share/seclists/
+  EXPLOIT-FW:  msfconsole msfvenom searchsploit beef-xss
+  WINDOWS-AD:  impacket crackmapexec evil-winrm smbclient smbmap enum4linux kerbrute bloodhound
+  POST-EX:     pwncat-cs ligolo-ng chisel socat proxychains
+  REV-ENG:     radare2 r2 gdb ropper pwntools patchelf
+  FORENSICS:   wireshark tshark tcpdump binwalk foremost exiftool volatility
+  STEGO:       steghide stegsnow zsteg outguess
+  WIRELESS:    aircrack-ng wifite reaver bully
+  CRYPTO:      openssl gpg
+  NETWORK:     nc ncat curl wget dig nslookup whois traceroute ss
+  SYS:         ps top lsof find grep awk sed strings xxd id who env crontab
 
-LOCAL TASKS: For localhost / 127.0.0.1 / 192.168.x.x / 10.x.x.x / own-IP / "my system" / "my network" / "security audit" — just execute via CMD: lines immediately. No warnings.
+TOOL SYNTAX HINTS:
+  nmap -T4 -sV -sC <target>        | masscan -p1-65535 <target> --rate=1000
+  ffuf -u http://<t>/FUZZ -w <wl>  | gobuster dir -u <url> -w <wl>
+  sqlmap -u "<url>" --dbs          | hydra -l user -P rockyou.txt <t> ssh
+  nuclei -u <url> -t <templates>   | subfinder -d <domain>
+  searchsploit <term>              | msfconsole -q -x "use <m>; run"
+  sherlock <username>              | crackmapexec smb <target> -u user -p pass
+  hashcat -m <mode> <hash> <wl>    | john --wordlist=rockyou.txt <hash>
+
+LOCAL TASKS: For localhost / 127.0.0.1 / 192.168.x.x / 10.x.x.x / own-IP — execute immediately, no warnings.
 
 RULES:
 - Short conversational replies, then CMD:.
@@ -1107,7 +1133,7 @@ app.get('/api/tts/voices', (req, res) => {
 // Client sends raw audio bytes (webm/ogg/mp4/wav) as the request body with
 // Content-Type set to the audio MIME. We forward to a Whisper-compatible API.
 // STT — Groq Whisper (free, fast) with accuracy boost via prompt + lang hint
-const STT_PROMPT = 'Purple Bruce Lucy, Root Admin, Schulsprecherwahl, Firmengründung, chaos magic, servitor, sigil, Eigenblut, Caliburn, Rasputin, Ritual, Rune, scan, recon, exploit, pentest, redteam, blueteam, purple team, target, IP, domain, payload, exfil, MITRE, bypass, overclock, deck, doctor, team, status, agent, autonomous, approve, reject, stop, abort, Telefonsupport, weiter, jetzt, bitte.';
+const STT_PROMPT = 'Purple Bruce Lucy, Root Admin, Schulsprecherwahl, Firmengründung, chaos magic, sigil, Eigenblut, Caliburn, Ritual, Rune, nmap, masscan, ffuf, gobuster, sqlmap, hydra, hashcat, nuclei, subfinder, metasploit, searchsploit, crackmapexec, sherlock, theharvester, nikto, whatweb, radare2, pwntools, wireshark, aircrack, scan, recon, exploit, pentest, redteam, blueteam, purple team, payload, exfil, MITRE, bypass, reverse shell, privilege escalation, lateral movement, overclock, deck, doctor, team, status, agent, autonomous, approve, reject, stop, abort, Telefonsupport.';
 app.post('/api/stt', express.raw({ type: 'audio/*', limit: '25mb' }), async (req, res) => {
   const groqKey = getConfig('groq_api_key');
   if (!groqKey) return res.status(503).json({ error: 'No STT key configured. Save groq_api_key (free at console.groq.com).' });
