@@ -6,19 +6,23 @@
 
 ## 1. Executive Summary
 
-Sovereign Youth ist ein im Aufbau befindlicher Verein mit Sitz in Salzburg, der sich an Schülerinnen und Schüler, Auszubildende, Studierende und junge Berufstätige richtet. Der Verein verbindet Bildungsförderung, Leistungsorientierung und sachorientierte Interessenvertretung – nicht im Sinne politischen Aktivismus, sondern durch konkrete Projekte und gemeinsame Arbeit auf Augenhöhe.
+**Sovereign Youth ist ein gemeinnütziger Verein** (ZVR-Eintragung in Vorbereitung) mit Sitz in Salzburg. Alle Aktivitäten erfolgen ehrenamtlich. Kein Vorstandsmitglied erhält Gehalt oder Aufwandsentschädigung. Überschüsse werden ausschließlich zweckgebunden für Vereinsprojekte verwendet. Der Verein ist nicht gewinnorientiert, nicht parteipolitisch und nicht institutionell gebunden.
 
-Im Zentrum unserer Tätigkeit steht die Erweiterung dessen, was Schule und formale Bildung bieten: praxisnahe Inhalte zu Finanzbildung, Cybersicherheit, IT, Programmierung, künstlicher Intelligenz sowie wirtschaftlichen und gesellschaftlichen Grundlagen. Diese Inhalte werden im Verein selbst, im offenen Format „The Digital Coil" und im in Entstehung befindlichen Thinktank vermittelt und gemeinsam erarbeitet.
+Der Verein richtet sich an Schülerinnen und Schüler, Auszubildende, Studierende und junge Berufstätige. Er verbindet Bildungsförderung, Leistungsorientierung und sachorientierte Interessenvertretung durch konkrete Projekte und gemeinsame Arbeit auf Augenhöhe.
 
-**Finanzierungsbedarf gesamt:** 25.300 € über drei Jahre (2026–2028)
+Im Zentrum der Vereinsarbeit steht die Erweiterung dessen, was Schule und formale Bildung bieten: praxisnahe Inhalte zu Cybersicherheit, IT, Programmierung, künstlicher Intelligenz, Finanzbildung sowie wirtschaftlichen Grundlagen. Diese Inhalte werden im Verein selbst, im offenen Format „The Digital Coil" und im entstehenden Thinktank vermittelt und erarbeitet.
 
-Davon entfallen rund **8.500 €** auf das Leuchtturmprojekt „Digital Coil Security Lab" (Erstausstattung und Betrieb Jahr 1) und **16.800 €** auf laufende Vereinskosten.
+**Finanzierungsbedarf gesamt:** 25.000 € über drei Jahre (2026–2028)
+
+Davon entfallen rund **7.700 €** auf das Leuchtturmprojekt „Digital Coil Security Lab" (Erstausstattung + Betrieb Jahr 1) und **17.300 €** auf laufende Vereinskosten (Workshops, Referenten, Infrastruktur). Keine Position enthält Gehälter oder persönliche Aufwandsentschädigungen für Vorstandsmitglieder.
 
 ---
 
 ## 2. Angebot & Programm
 
 ### 2.1 Vereinszweck
+
+**Sovereign Youth ist ein Verein im Rechtssinne** – keine GmbH, kein StartUp, kein Verband. Der Zweck ist gemeinnützig und auf Dauer angelegt: Jugend- und Bildungsarbeit im außerschulischen Bereich, ehrenamtlich organisiert, ohne kommerzielle Interessen.
 
 Der Verein verfolgt das Ziel, pro-europäische Jugend- und Bildungsarbeit zu fördern. Im Mittelpunkt steht die Entwicklung und Umsetzung von Projekten, die junge Menschen dazu befähigen, Verantwortung zu übernehmen und die Gesellschaft aktiv mitzugestalten. Der Verein ist nicht gewinnorientiert, nicht parteipolitisch gebunden und nicht institutionell überdacht.
 
@@ -124,7 +128,9 @@ Das Lab wird mit praxistauglichem, refurbished Equipment ausgestattet – kein S
 
 ---
 
-## 5. Zielgruppe & Umfeld
+## 5. Zielgruppe, Markt & Wettbewerb
+
+### 5.1 Zielgruppe
 
 | Zielgruppe | Charakteristika | Primärformat |
 |---|---|---|
@@ -132,6 +138,36 @@ Das Lab wird mit praxistauglichem, refurbished Equipment ausgestattet – kein S
 | Studierende/Azubis | Praxisbezug, Netzwerk | Projektarbeit, Thinktank |
 | Junge Berufstätige | Verantwortung im nicht-politischen Rahmen | Vorstand, Mentoring |
 | Bildungs- und IT-affine Eltern | Sinnvolle Ergänzung zur Schulbildung | Fördermitgliedschaft |
+
+### 5.2 Marktumfeld & Konkurrenz
+
+Sovereign Youth ist kein kommerzieller Anbieter – aber auch als Verein agiert er in einem Umfeld mit bestehenden Akteuren. Eine ehrliche Einschätzung ist Voraussetzung für glaubwürdige Förderanträge.
+
+**Bestehende Angebote im DACH-Raum (Ausschnitt):**
+
+| Anbieter / Organisation | Angebot | Abgrenzung zu Sovereign Youth |
+|---|---|---|
+| Chaos Computer Club (CCC) | Hacker-Community, Technik-Events, politisch engagiert | Politischer Fokus, keine Bildungsstruktur für Jugendliche, kein Schulungsbetrieb |
+| Bundesjugendring / Landesjugendringe | Jugendvertretung, Projektförderung | Breites Angebot, aber kaum IT/Cybersecurity-Schwerpunkt |
+| HackSpace / Makerspace Salzburg | Offene Werkstatt, Technik-Community | Kein strukturiertes Bildungsangebot, keine Mitgliedschaft mit Lernpfad |
+| FH Salzburg / HTL Salzburg | Formale IT-Ausbildung | Institutionell, Zugangsvoraussetzungen, keine Peer-to-Peer-Kultur |
+| Young Rewired State / CoderDojo | Programmierkurse für Kinder/Jugendliche | Programmier-Fokus, kein Cybersecurity-Schwerpunkt, kein politisches Bewusstsein |
+
+**Unser Vorteil:** Sovereign Youth × DigitalCoil kombiniert technische Tiefe (Cybersecurity, KI, Programmierung) mit leistungsorientierter Gemeinschaft und konkreter Projektarbeit – ohne institutionellen Überbau, ohne Parteibindung, ohne Altersbarriere. Es gibt im Raum Salzburg kein vergleichbares Format mit dieser spezifischen Kombination.
+
+### 5.3 Preisgestaltung & Zugangsbedingungen
+
+Sovereign Youth ist nicht gewinnorientiert. Zugangsbedingungen sind bewusst niedrig gehalten – niemand soll wegen Geld ausgeschlossen werden.
+
+| Format | Preis | Begründung |
+|---|---|---|
+| Vereinsmitgliedschaft | 5 €/Monat (60 €/Jahr) | Kostendeckend für Verwaltung; keine Hürde |
+| Fördermitgliedschaft | 50 €/Jahr | Für Berufstätige und Eltern, die den Verein stärken wollen |
+| The Digital Coil (offenes Format) | kostenlos | Kein Mitglied nötig, Einstiegspunkt für Neugierige |
+| Workshops (intern, für Mitglieder) | kostenlos bis max. 10 € Materialbeitrag | Barrierefrei; Materialkosten werden über Förderung gedeckt |
+| Veranstaltungen (öffentlich, mit Ticketing) | 10–20 € | Kostendeckung Referenten + Raum; kein Gewinnziel |
+
+> _Alle Einnahmen verbleiben im Verein und werden ausschließlich für Vereinszwecke verwendet – kein Gehalt für Vorstand, keine Ausschüttung._
 
 ---
 
@@ -184,7 +220,7 @@ Pierre Scholdow (Auditor), Rollente (Cybersecurity), Cesario Kufner (Cybersecuri
 
 ## 8. Finanzen
 
-> **Hinweis (Coach-Feedback):** Die Finanzplanung ist so aufgestellt, dass jede ausgewiesene Kostenposition einer konkreten Leistung entspricht und gegenüber Förderstellen und Investoren nachweisbar ist. Alle Ausgaben sind Arbeitsgrundlage und direkte Fördervoraussetzung – nach dem Grundsatz: Was als Kosten ausgewiesen ist, entspricht dem beantragten Investment.
+> **Grundsatz:** Sovereign Youth ist ein Nonprofit-Verein. Es gibt keine Gewinnabsicht, keine Dividenden, keine Managementgehälter. Jeder Euro Förderung geht direkt in Sachkosten, Referentenhonorare und Projektausstattung. Die nachfolgende Finanzplanung weist ausschließlich tatsächlich anfallende Kosten aus – alle Positionen sind konkret benennbar und gegenüber Förderstellen nachweisbar.
 
 ### 8.1 Laufende Vereinskosten (Betriebskosten ohne Projekt)
 

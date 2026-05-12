@@ -26,14 +26,16 @@ Purple Bruce ist eine proprietäre, AI-gestützte Cyberdeck-Plattform für Purpl
 
 ### 2.1 Produktbeschreibung
 
-Purple Bruce verbindet offensive Red-Team-Fähigkeiten und defensive Blue-Team-Fähigkeiten in einer einzigen Plattform. Kernkomponenten:
+Purple Bruce ist eine Sicherheitsplattform für Penetrationstester und Security-Teams, die Angriffssimulation und Verteidigung in einem einzigen, kontrollierten Werkzeug kombiniert. Das Produkt ist kein Konzept – Version 6.0 läuft produktiv.
 
-- **Self-Healing AI-Team:** Drei Provider (Grok-3, Venice/Llama-3.3-70b, GPT-4o) mit automatischem Failover, Health-Tracking und 60-Sekunden-Schlüsselprüfung
-- **Lucy – AI-Operator:** Disziplinierter Agent mit Chain-of-Thought, Approval-Mode für Shellaktionen
-- **Voice v2:** Push-to-Talk, ElevenLabs-TTS, 8-Bar-Visualizer
-- **Netrunner CLI (Tier 5):** doctor, deck, team, overclock, scan, quickhack, start (tmux 3-Pane)
-- **Black Ice – ATT&CK-Modul:** 11 MITRE-mappte Module (cred-dump, lateral, c2-https, ransomware, fileless, sched-task, dns-exfil, persistence, recon, discovery, exfiltration)
-- **SOC-Daemon (Blue Team):** Auto-Quarantäne, forensische Snapshots, Alert-Stream
+**Was die Software konkret tut:**
+
+- **Drei-KI-Failover:** Grok-3, Venice/Llama-3.3 und GPT-4o laufen parallel. Fällt ein Anbieter aus oder überschreitet sein Latenzlimit, übernimmt der nächste automatisch – ohne Neustart, ohne manuelle Umkonfiguration, innerhalb von 60 Sekunden.
+- **Kontrollierter Operator-Workflow:** Jede von der KI vorgeschlagene Aktion – ob Shell-Befehl, Netzwerkscan oder Dateioperationen – muss vom Operator explizit bestätigt werden. Keine autonome Ausführung.
+- **Angriffssimulation mit MITRE-Mapping:** 11 editierbare Module decken reale Angriffsmuster ab (Credential-Dump, Lateral Movement, DNS-Exfiltration, C2-Kommunikation u.a.) – alle mit direkter Referenz auf das MITRE ATT&CK-Framework.
+- **Parallele Verteidigungsprotokollierung:** Während ein Angriffsszenario läuft, erfasst ein Hintergrunddienst Systemveränderungen, erstellt forensische Snapshots und schlägt bei kritischen Ereignissen Alarm.
+- **Revisionssicheres Audit-Log:** Jede Aktion – KI-Vorschlag, Operator-Entscheidung, Systemreaktion – wird vollständig und unveränderbar protokolliert. Das Log ist direkt in Pentest-Berichte und Compliance-Exporte überführbar.
+- **Sprachsteuerung und Terminal-Interface:** Sprachbefehl (Push-to-Talk mit Transkription) und strukturiertes CLI-Interface zeigen denselben Systemzustand – der Operator wählt die Bedienform situativ.
 
 ### 2.2 Entwicklungsstand
 
@@ -189,19 +191,20 @@ Purple Bruce = **Operator-First-Cyberdeck** für disziplinierte, auditierbare, s
 
 ### 5.1 Marketingstrategie
 
-Technisch, präzise, ohne Marketing-Phrasen. Hauptkanäle:
-- Fachvorträge (BSidesVienna, DeepSec, CanSecWest DACH)
-- Live-Demos mit echtem Operator-Workflow
-- Hochwertige technische Dokumentation
-- Community-Channels (privater Operator-Discord)
+Zwei Kanäle – konsequent umgesetzt, nicht fünf halb. Qualität schlägt Quantität.
+
+**Kanal 1 – Fachvorträge auf DACH-Security-Konferenzen (BSidesVienna, DeepSec Salzburg):**
+Zwei Auftritte pro Jahr mit einer Live-Demo des echten Operator-Workflows – kein Slide-Deck ohne laufendes System. Ziel ist Glaubwürdigkeit bei Praktikern, nicht bei Marketing-Entscheidern. Jeder Vortrag endet mit einem konkreten Angebot: 90-Tage-Pilotlizenz zum Sonderpreis für Konferenzteilnehmer.
+
+**Kanal 2 – Privater Operator-Discord mit Referral-Zugang:**
+Kein offenes Forum. Zugang ausschließlich über Empfehlung eines aktiven Operators. Innerhalb der Community: wöchentliche technische Walkthrough-Videos, ehrliche Changelogs, direkter Draht zum Entwicklungsteam. Diese Hürde ist gewollt – sie filtert auf echte Praktiker und verhindert Verwässerung der Marke.
 
 ### 5.2 Vertriebsstrategie
 
-- **Direktvertrieb:** HES-Marketing-Sales, KMU- und MSSP-Segment
-- **Channel:** Reseller-Partnerschaften mit IT-Sicherheitshäusern
-- **Pilotprogramm:** 90-Tage-Pilot mit klarem Rückgaberecht
-- **Education:** Vergünstigte Lizenzen für FHs/Universitäten
-- **Air-Gap-Demo-Tour:** Für Behörden und KRITIS-Betreiber (Purple-Compute-Node als Demo-Unit)
+- **Pilotprogramm (90 Tage):** Einstieg für jeden neuen Kunden – mit klarem Rückgaberecht und begleitetem Onboarding. Kein Kaltverkauf.
+- **MSSP-Direktkontakt:** Persönlicher Erstkontakt mit IT-Sicherheitshäusern im DACH-Raum – kein Cold-Mailing, sondern warme Übergaben aus dem Konferenz- und Community-Netzwerk.
+- **Education:** Vergünstigte Lizenzen für FHs/Universitäten über Sovereign Youth als Bildungspartner.
+- **Air-Gap-Demo für Behörden:** Purple-Compute-Node als mobile Demo-Unit für KRITIS-Betreiber und Behörden – physisch im Haus, kein Cloudanschluss nötig.
 
 ### 5.3 Preisgestaltung
 
@@ -222,7 +225,20 @@ Technisch, präzise, ohne Marketing-Phrasen. Hauptkanäle:
 
 Purple Bruce ist ein Geschäftsbereich der HES Marketing FlexCo, Sitz Salzburg. Eine separate Verwertungsgesellschaft wird ab Erreichen eines definierten Lizenzvolumens (> 500 k€ ARR) geprüft.
 
-### 6.2 Kooperationspartnerschaften
+### 6.2 Management & Team
+
+Die Kerntechnik von Purple Bruce wurde intern entwickelt. Folgende Personen tragen direkte inhaltliche und technische Verantwortung – keine externen Berater, kein ausgelagertes Entwicklungsteam:
+
+| Rolle | Person | Credentials & Hintergrund |
+|---|---|---|
+| Produktleitung / AI-Architektur | Carl Friedrich | Geschäftsführung HES Marketing FlexCo und Sovereign Youth; Strategie, Multi-Provider-AI-Routing, Förderanträge, operatives Management; 5+ Jahre Projektleitung |
+| Head of Cybersecurity / Security Engineering | Terence Nwaeke | Offensive & defensive Security-Praxis (Kali Linux, Metasploit, MITRE ATT&CK); Netzwerk-Forensik, Penetrationstests; Head of Cybersecurity Sovereign Youth; reale Lab-Erfahrung im Digital Coil Security Lab |
+| Security Engineering (stv.) / Infrastruktur | Alex Holzer | Netzwerk-Security, Infrastrukturarchitektur, Firewall/IDS-Konfiguration; stv. Head of Cybersecurity; Linux-Systemadministration, VPN/Segmentierung |
+| Backend-Entwicklung / CLI | [Besetzung in Vorbereitung] | Python/Bash, tmux-Automation, REST-API-Integration, ArduinoESP32 (M5Stick-Firmware); Stellenprofil liegt vor, Besetzung bis Q3 2026 |
+
+> _Detaillierte Lebensläufe und Referenzprojekte werden auf Anfrage bereitgestellt._
+
+### 6.3 Kooperationspartnerschaften
 
 - AI-Provider (xAI, Venice, OpenAI) – kommerzielle Verträge auf Plattform-Ebene
 - AWS / Hetzner – Cloud-Infrastruktur für SaaS-Variante
@@ -257,7 +273,7 @@ Purple Bruce ist ein Geschäftsbereich der HES Marketing FlexCo, Sitz Salzburg. 
 | – Security Engineer / CLI | 36.000 € | | CLI, Black-Ice-Module, SOC-Daemon, Audit-Trail |
 | **Purple Compute Stufe 1 (Edge-Server)** | 22.000 € | 15 % | Hardware + Colocation + Setup (siehe Kap. 3.2) |
 | **AI-Provider-API-Kosten (1 Jahr)** | 12.000 € | 8 % | Grok, Venice, OpenAI – je ~4.000 €/Jahr bei Betabetrieb |
-| **Rechtliche Absicherung (IP, Marke, Patent)** | 10.000 € | 7 % | Markenanmeldung (AT/DE), Gebrauchsmuster, Patentvorprüfung |
+| **Rechtliche Absicherung (IP, Marke)** | 10.000 € | 7 % | Markenanmeldung (AT/DE), Gebrauchsmuster (AT), Lizenzrecht-Beratung, NDA-Templates |
 | **Security Audit (extern, unabhängig)** | 8.000 € | 5 % | 1 Pentest der eigenen Plattform (Österreichischer Anbieter) |
 | **Marketing / Messen / Events** | 8.000 € | 5 % | BSidesVienna, DeepSec, Flyermaterial, Website-Relaunch |
 | **Cloud-Infrastruktur (AWS/Hetzner)** | 6.000 € | 4 % | SaaS-Infrastruktur, CI/CD, Lizenz-Server-Hosting |
