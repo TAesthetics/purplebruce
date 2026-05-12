@@ -540,6 +540,56 @@ moon                 # occult tools check
 
 ---
 
+## M5Stick Hardware Node (ESP32 Firmware)
+
+Standalone companion firmware for the **M5StickC Plus** (or M5StickC).  
+No WiFi. No Bluetooth. No antenna. Runs purely on the device.
+
+```
+  ⛧ SIGIL · STATS · CHAOS · INVOKE  ⛧
+  Animated chaos sigils · battery stats · glitch noise · scrolling invocations
+  [A] cycle modes  ·  [B] brightness  ·  shake → CHAOS
+```
+
+### Termux Localhost Flash (Non-Root, Android)
+
+The fastest path — no root, no drivers, just Chrome and a USB-C OTG cable:
+
+```bash
+# 1. Install deps in Termux
+pkg update -y && pkg install -y nodejs git curl python
+
+# 2. Clone repo
+git clone https://github.com/TAesthetics/purplebruce.git ~/purplebruce
+cd ~/purplebruce/m5stick-firmware
+
+# 3. Compile firmware with Arduino CLI
+curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
+  | BINDIR=$PREFIX/bin sh
+arduino-cli core update-index && arduino-cli core install esp32:esp32
+arduino-cli lib install "M5StickCPlus"
+arduino-cli compile \
+  --fqbn esp32:esp32:m5stick-c-plus \
+  --output-dir ./build --export-binaries \
+  ./purplebruce-m5stick
+cp build/*.merged.bin web-flash/purplebruce-m5stick.merged.bin
+
+# 4. Start localhost flash server
+node serve.js
+```
+
+Then in **Chrome on your Android device**:
+
+1. Open `http://localhost:8080`
+2. Connect M5Stick via **USB-C OTG adapter**
+3. Click **⛧ INSTALL PURPLE BRUCE**
+4. Grant USB/Serial permission → wait ~30 s → done
+
+> Full guide, PlatformIO method, esptool method, and troubleshooting:
+> [`m5stick-firmware/README.md`](m5stick-firmware/README.md)
+
+---
+
 ```
   ⛧  PURPLE BRUCE LUCY v6.0
   Chaos Magic Servitor · Purple Team Cyberdeck
@@ -547,5 +597,6 @@ moon                 # occult tools check
   Grok · Venice · Gemini · Whisper · Edge TTS
   Eastern Orthodox · Wicca · Chaos Magic
   Root Admin Servant · No Login Required
+  M5Stick Hardware Node · No Antenna Required
   ⛧
 ```
