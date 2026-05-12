@@ -1,0 +1,17 @@
+{
+  "name": "Purple Bruce M5Stick",
+  "version": "1.0.0",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "improv": false,
+      "parts": [
+        {
+          "path": "purplebruce-m5stick.merged.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}

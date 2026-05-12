@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Purple Bruce · M5Stick Flash</title>
+  <style>
+    :root {
+      --bg:      #0a0010;
+      --surface: #150028;
+      --purple:  #7800f0;
+      --violet:  #9940e0;
+      --magenta: #f800f8;
+      --cyan:    #00eeff;
+      --gold:    #ffcc44;
+      --dim:     #443355;
+      --text:    #ddccee;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Courier New', Courier, monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+    .banner {
+      border: 1px solid var(--purple);
+      border-radius: 4px;
+      padding: 1.2rem 2rem;
+      margin-bottom: 2rem;
+      text-align: center;
+      max-width: 520px;
+      width: 100%;
+      background: var(--surface);
+    }
+    .banner pre {
+      color: var(--magenta);
+      font-size: 0.65rem;
+      line-height: 1.3;
+      white-space: pre;
+      overflow-x: auto;
+    }
+    .banner .sub {
+      color: var(--violet);
+      font-size: 0.8rem;
+      margin-top: 0.6rem;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--dim);
+      border-radius: 4px;
+      padding: 1.5rem;
+      max-width: 520px;
+      width: 100%;
+      margin-bottom: 1.5rem;
+    }
+    .card h2 {
+      color: var(--cyan);
+      font-size: 0.9rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--dim);
+      padding-bottom: 0.5rem;
+    }
+    .steps {
+      list-style: none;
+      counter-reset: steps;
+    }
+    .steps li {
+      counter-increment: steps;
+      display: flex;
+      gap: 0.8rem;
+      margin-bottom: 0.7rem;
+      align-items: flex-start;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+    .steps li::before {
+      content: counter(steps);
+      background: var(--purple);
+      color: #fff;
+      width: 1.4rem;
+      height: 1.4rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 0.75rem;
+      margin-top: 0.05rem;
+    }
+    .note {
+      background: rgba(120,0,240,0.12);
+      border-left: 3px solid var(--violet);
+      padding: 0.6rem 0.9rem;
+      font-size: 0.8rem;
+      margin-top: 0.8rem;
+      border-radius: 0 4px 4px 0;
+    }
+    .flash-zone {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem 0;
+    }
+    /* esp-web-tools custom element styling */
+    esp-web-install-button {
+      --esp-tools-button-color:            var(--magenta);
+      --esp-tools-button-text-color:       #000;
+      --esp-tools-button-hover-color:      var(--violet);
+      --esp-tools-button-raised-color:     var(--purple);
+    }
+    .status {
+      font-size: 0.8rem;
+      color: var(--gold);
+      min-height: 1.2rem;
+      text-align: center;
+    }
+    .warn-box {
+      background: rgba(248,0,0,0.08);
+      border: 1px solid #550000;
+      border-radius: 4px;
+      padding: 0.8rem 1rem;
+      font-size: 0.8rem;
+      color: #ffaaaa;
+      margin-top: 0.8rem;
+    }
+    code {
+      background: #1a0030;
+      padding: 0.15em 0.4em;
+      border-radius: 3px;
+      font-size: 0.85em;
+      color: var(--cyan);
+    }
+    a { color: var(--violet); }
+    footer {
+      color: var(--dim);
+      font-size: 0.75rem;
+      text-align: center;
+      margin-top: 2rem;
+    }
+  </style>
+</head>
+<body>
+
+<div class="banner">
+  <pre>
+ ██████╗ ██╗   ██╗██████╗ ██████╗ ██╗     ███████╗
+ ██╔══██╗██║   ██║██╔══██╗██╔══██╗██║     ██╔════╝
+ ██████╔╝██║   ██║██████╔╝██████╔╝██║     █████╗
+ ██╔═══╝ ██║   ██║██╔══██╗██╔═══╝ ██║     ██╔══╝
+ ██║     ╚██████╔╝██║  ██║██║     ███████╗███████╗
+ ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚══════╝╚══════╝
+  </pre>
+  <div class="sub">M5Stick Firmware Flasher · Chaos Magic Servitor · v1.0</div>
+</div>
+
+<div class="card">
+  <h2>Before You Flash</h2>
+  <ol class="steps">
+    <li>Make sure the <strong>compiled firmware binary</strong> is in <code>web-flash/</code>.
+        If not, see the README → <em>Compile the firmware</em> section.</li>
+    <li>Connect your <strong>M5StickC Plus</strong> to this device via USB-C
+        (use a USB-C OTG adapter on Android).</li>
+    <li>Use <strong>Chrome or Chromium</strong> (version 89+).
+        Web Serial does not work in Firefox or Safari.</li>
+    <li>Click <strong>INSTALL</strong> below. Chrome will show a USB/Serial
+        permission dialog — select the CP2104 / M5Stick port.</li>
+  </ol>
+  <div class="note">
+    ⛧ No root required. No drivers needed on Android. Chrome handles USB access directly.
+  </div>
+</div>
+
+<div class="card">
+  <h2>Flash Firmware</h2>
+  <div class="flash-zone">
+
+    <script type="module"
+      src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js">
+    </script>
+
+    <esp-web-install-button manifest="./manifest.json">
+      <button slot="activate"
+        style="
+          background: #f800f8;
+          color: #000;
+          border: none;
+          padding: 0.9rem 2.5rem;
+          font-family: 'Courier New', monospace;
+          font-size: 1rem;
+          font-weight: bold;
+          letter-spacing: 0.1em;
+          border-radius: 4px;
+          cursor: pointer;
+        ">
+        ⛧ INSTALL PURPLE BRUCE
+      </button>
+    </esp-web-install-button>
+
+    <div class="status" id="status">Ready — connect M5Stick and click Install</div>
+
+    <div class="warn-box" id="no-serial" style="display:none">
+      ⚠ Web Serial not supported in this browser.<br/>
+      Please open this page in <strong>Chrome or Chromium 89+</strong>.
+    </div>
+
+  </div>
+</div>
+
+<div class="card">
+  <h2>After Flashing</h2>
+  <ol class="steps">
+    <li>The M5Stick will <strong>automatically reboot</strong> into Purple Bruce.</li>
+    <li>Watch the boot animation — scanline sweep → logo flicker.</li>
+    <li>Press <code>[A]</code> to cycle: <strong>SIGIL → STATS → CHAOS → INVOKE</strong>.</li>
+    <li>Press <code>[B]</code> to step through brightness levels.</li>
+    <li><strong>Shake</strong> the device to trigger CHAOS mode instantly.</li>
+  </ol>
+</div>
+
+<footer>
+  Purple Bruce Lucy v6.0 · M5Stick Edition · No WiFi · No BT · Pure Chaos
+</footer>
+
+<script>
+  if (!('serial' in navigator)) {
+    document.getElementById('no-serial').style.display = 'block';
+  }
+</script>
+
+</body>
+</html>
