@@ -1,237 +1,229 @@
-# Purple Bruce · M5Stick Firmware
+# Purple Bruce · M5Stick Firmware v2.0
 
 ```
   ⛧  CHAOS MAGIC SERVITOR  ·  HARDWARE NODE  ·  ESP32  ⛧
+  IR · BLE · WiFi Scan · Deauth · Beacon · AI Chat
+  Grok · Venice · Gemini
 ```
 
-Standalone ESP32 firmware for the **M5StickC Plus** (also works on M5StickC).  
-No WiFi. No Bluetooth. No antenna required.  
-Pure local display: animated sigils, device stats, chaos noise, invocation scroll.
+Standalone ESP32 firmware for the **M5StickC Plus** (also M5StickC).  
+10 display/action modes. AI API integration with all three purplebruce providers.
 
 ---
 
-## Compatible Hardware
+## Hardware
 
 | Device | Screen | Notes |
 |--------|--------|-------|
-| **M5StickC Plus** *(primary)* | 1.14″ 135×240 TFT | Default target |
-| M5StickC *(original)* | 0.96″ 80×160 TFT | Add `#define STICK_C` |
+| **M5StickC Plus** *(primary)* | 1.14″ 135×240 TFT | Default build target |
+| M5StickC *(original)* | 0.96″ 80×160 TFT | Add `#define STICK_C` in .ino |
 
-Both use the CP2104 USB-to-UART bridge on USB-C — no drivers needed on Linux/Android.
-
----
-
-## Display Modes
-
-Press **[A]** to cycle. **Shake** the device to jump to CHAOS.
-
-| Mode | Description |
-|------|-------------|
-| **SIGIL** | Animated ASCII chaos sigil · pulsing border · corner marks |
-| **STATS** | Battery voltage/current, uptime, heap, chip ID |
-| **CHAOS** | Random pixel noise · scanline flashes · glitch art |
-| **INVOKE** | Scrolling invocation phrases · glitch text effect |
-
-**[B]** steps through 4 brightness levels.
+Built-in: CP2104 USB-UART · IR LED (GPIO9) · IMU (MPU6886) · AXP192 PMU · WiFi/BT antenna (PCB trace)
 
 ---
 
-## Folder Structure
+## Mode Reference
+
+| Mode | [B] action | [B-hold] action |
+|------|-----------|-----------------|
+| **SIGIL** | Brightness cycle | Brightness cycle |
+| **STATS** | Brightness cycle | Brightness cycle |
+| **CHAOS** | Brightness cycle | Brightness cycle |
+| **INVOKE** | Brightness cycle | Brightness cycle |
+| **WIFI SCAN** | Rescan | Scroll list |
+| **DEAUTH** | Fire deauth burst | Next target |
+| **BEACON** | Toggle broadcast | Channel +1 |
+| **BLE SCAN** | Rescan (4s) | Scroll list |
+| **IR BLAST** | Fire current brand | Next brand |
+| **AI CHAT** | Next prompt | Next provider (Grok→Venice→Gemini) |
+
+**[A]** = always cycle to next mode  
+**Shake** = jump to CHAOS mode  
+**AI CHAT [A]** = short press fires the query (not mode cycle)
+
+---
+
+## AI Provider Configuration
+
+Edit **`purplebruce-m5stick/pb_config.h`** before compiling:
+
+```cpp
+// WiFi (required for AI Chat)
+#define PB_WIFI_SSID   "YOUR_WIFI_SSID"
+#define PB_WIFI_PASS   "YOUR_WIFI_PASSWORD"
+
+// Grok — https://console.x.ai/
+#define GROK_API_KEY   "xai-XXXX"
+
+// Venice — https://venice.ai/settings/api
+#define VENICE_API_KEY "XXXX"
+
+// Gemini — https://aistudio.google.com/app/apikey
+#define GEMINI_API_KEY "XXXX"
+
+// Default provider: 0=Grok  1=Venice  2=Gemini
+#define PB_DEFAULT_AI  0
+```
+
+These values match `config/ai-providers.json` in the main purplebruce repo.
+
+---
+
+## File Structure
 
 ```
 m5stick-firmware/
 ├── purplebruce-m5stick/
-│   └── purplebruce-m5stick.ino   # Arduino sketch (single file)
-├── platformio.ini                 # PlatformIO config (alternative to Arduino IDE)
-├── flash.sh                       # CLI flash script for Termux / Linux
-├── serve.js                       # Termux localhost web flash server (non-root)
+│   ├── purplebruce-m5stick.ino  # Main sketch — 10 modes
+│   ├── pb_config.h              # ← EDIT THIS: WiFi + API keys
+│   ├── pb_display.h             # Color palette, header, word-wrap
+│   ├── pb_wifi.h                # WiFi scan · deauth · beacon spam
+│   ├── pb_ble.h                 # BLE device scanner
+│   ├── pb_ir.h                  # IR blaster (9 brands + blast-all)
+│   └── pb_ai.h                  # AI chat (Grok · Venice · Gemini)
+├── platformio.ini               # PlatformIO build config
+├── flash.sh                     # CLI flash script
+├── serve.js                     # Termux localhost web flash server
 ├── web-flash/
-│   ├── index.html                 # ESP Web Tools UI (open in Chrome)
-│   └── manifest.json              # Firmware manifest for web flash
+│   ├── index.html               # ESP Web Tools flashing UI
+│   └── manifest.json            # Firmware manifest
 └── README.md
 ```
 
-After compiling, put the merged binary at:
-```
-web-flash/purplebruce-m5stick.merged.bin
-```
+---
+
+## Install Dependencies
+
+### Arduino IDE libraries (install via Library Manager):
+
+1. **M5StickCPlus** — by M5Stack (or M5StickC for original)
+2. **IRremoteESP8266** — by crankyoldgit
+3. **ArduinoJson** — by Benoît Blanchon (v7.x)
+
+### PlatformIO — all deps auto-installed from `platformio.ini`.
 
 ---
 
 ## Method 1 — Web Flash via Termux Localhost (Non-Root Android)
 
-> **Best for non-rooted Android phones.** Uses Chrome's built-in Web Serial API.  
-> No root. No drivers. No adb.
+Best for non-rooted phones. Uses Chrome's Web Serial API — no root, no drivers.
 
-### Step 1 — Install Node.js in Termux
+### Step 1 — Install Termux deps
 
 ```bash
-pkg update -y
-pkg install -y nodejs git
+pkg update -y && pkg install -y nodejs git curl python
 ```
 
-### Step 2 — Clone the repo (if you haven't already)
+### Step 2 — Clone & enter firmware folder
 
 ```bash
 git clone https://github.com/TAesthetics/purplebruce.git ~/purplebruce
 cd ~/purplebruce/m5stick-firmware
 ```
 
-### Step 3 — Compile the firmware (pick one sub-method)
+### Step 3 — Edit pb_config.h with your API keys
 
-**Sub-method A: Arduino CLI in Termux**
+```bash
+# Open in nano or any editor
+nano purplebruce-m5stick/pb_config.h
+# Fill in PB_WIFI_SSID, PB_WIFI_PASS, GROK_API_KEY, VENICE_API_KEY, GEMINI_API_KEY
+```
+
+### Step 4 — Compile with Arduino CLI
 
 ```bash
 # Install Arduino CLI
 curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
   | BINDIR=$PREFIX/bin sh
 
-# Add ESP32 board package
+# Add ESP32 boards + libraries
 arduino-cli core update-index
 arduino-cli core install esp32:esp32
+arduino-cli lib install "M5StickCPlus" "IRremoteESP8266" "ArduinoJson"
 
-# Install M5StickCPlus library
-arduino-cli lib install "M5StickCPlus"
-
-# Compile and export merged binary
+# Compile
 arduino-cli compile \
   --fqbn esp32:esp32:m5stick-c-plus \
-  --output-dir ./build \
-  --export-binaries \
+  --output-dir ./build --export-binaries \
   ./purplebruce-m5stick
 
-# Copy merged binary to web-flash/
-cp build/purplebruce-m5stick.ino.merged.bin \
-   web-flash/purplebruce-m5stick.merged.bin
-```
-
-> For original M5StickC: use `--fqbn esp32:esp32:m5stick-c` and library `M5StickC`.
-
-**Sub-method B: PlatformIO CLI in Termux**
-
-```bash
-pip install platformio
-pio run -e m5stick-c-plus
-
 # Copy merged binary
-cp .pio/build/m5stick-c-plus/firmware.bin \
-   web-flash/purplebruce-m5stick.merged.bin
+cp build/*.merged.bin web-flash/purplebruce-m5stick.merged.bin
 ```
 
-**Sub-method C: Arduino IDE on a desktop (easiest)**
-
-1. Install Arduino IDE 2.x
-2. Board manager → search `esp32` → install Espressif ESP32
-3. Library manager → install `M5StickCPlus`
-4. Open `purplebruce-m5stick/purplebruce-m5stick.ino`
-5. Board → **M5Stick-C-Plus**
-6. Sketch → Export Compiled Binary
-7. Copy the `.merged.bin` to `web-flash/purplebruce-m5stick.merged.bin`
-8. Transfer to phone (AirDrop / USB / cloud)
-
-### Step 4 — Start the localhost flash server
-
-In Termux:
+### Step 5 — Start flash server
 
 ```bash
-cd ~/purplebruce/m5stick-firmware
 node serve.js
 ```
 
-Output:
-```
-  ⛧  PURPLE BRUCE — M5Stick Flash Server  ⛧
-  → Open in Chrome:  http://localhost:8080
-  → Connect M5Stick via USB-C (OTG adapter if needed)
-  → Click INSTALL in the browser
-```
+### Step 6 — Flash in Chrome
 
-### Step 5 — Flash via Chrome
-
-1. Connect M5Stick to Android via **USB-C OTG adapter**
-2. Open **Chrome** (not Firefox, not Samsung Internet) on the Android device
-3. Go to `http://localhost:8080`
-4. Click **⛧ INSTALL PURPLE BRUCE**
-5. Chrome shows a USB/Serial permission dialog → select **CP2104 USB to UART**
-6. Wait ~30 seconds for flash to complete
-7. M5Stick reboots automatically into Purple Bruce
-
-> Chrome 89+ on Android supports Web Serial API. It works without root.
+1. Open `http://localhost:8080` in **Chrome** on your Android device
+2. Connect M5Stick via **USB-C OTG adapter**
+3. Click **⛧ INSTALL PURPLE BRUCE**
+4. Grant USB/Serial permission → wait ~30s → done
 
 ---
 
-## Method 2 — Direct Flash with esptool (Linux / Desktop Termux)
-
-> Use this if your system can see `/dev/ttyUSB0` directly.  
-> On non-root Android Termux, `/dev/ttyUSB*` usually requires root.
-
-```bash
-# Install esptool
-pip install esptool
-
-# Flash (requires compiled .merged.bin first — see Method 1 Step 3)
-esptool.py \
-  --port /dev/ttyUSB0 \
-  --baud 1500000 \
-  --chip esp32 \
-  --before default_reset \
-  --after  hard_reset \
-  write_flash -z \
-  --flash_mode dio \
-  --flash_freq 80m \
-  --flash_size 4MB \
-  0x0 web-flash/purplebruce-m5stick.merged.bin
-```
-
-Or use the helper script which auto-detects the port:
-
-```bash
-chmod +x flash.sh
-./flash.sh              # auto-detect
-./flash.sh /dev/ttyUSB0 # explicit port
-```
-
----
-
-## Method 3 — PlatformIO (Compile + Flash in One Command)
+## Method 2 — PlatformIO CLI
 
 ```bash
 pip install platformio
 
-# Flash M5StickC Plus
+# Edit pb_config.h first, then:
 pio run -e m5stick-c-plus -t upload --upload-port /dev/ttyUSB0
 
-# Flash original M5StickC
-pio run -e m5stick-c -t upload --upload-port /dev/ttyUSB0
-
-# Serial monitor
+# Monitor
 pio device monitor --baud 115200
 ```
 
 ---
 
-## Termux Quick-Reference
+## Method 3 — esptool direct (Linux / rooted)
 
 ```bash
-# Full Termux setup from scratch (non-root web-flash method)
-pkg update -y
-pkg install -y nodejs git python curl
+pip install esptool
+# (compile first via Arduino CLI or IDE)
+
+esptool.py \
+  --port /dev/ttyUSB0 --baud 1500000 \
+  --chip esp32 --before default_reset --after hard_reset \
+  write_flash -z --flash_mode dio --flash_freq 80m --flash_size 4MB \
+  0x0 web-flash/purplebruce-m5stick.merged.bin
+```
+
+Or: `./flash.sh` (auto-detects port and available tool).
+
+---
+
+## Termux Quick-Reference (copy-paste)
+
+```bash
+pkg update -y && pkg install -y nodejs git curl python
 
 git clone https://github.com/TAesthetics/purplebruce.git ~/purplebruce
 cd ~/purplebruce/m5stick-firmware
 
-# Option A: compile with Arduino CLI
+# Edit API keys
+nano purplebruce-m5stick/pb_config.h
+
+# Install Arduino CLI + toolchain
 curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
   | BINDIR=$PREFIX/bin sh
 arduino-cli core update-index && arduino-cli core install esp32:esp32
-arduino-cli lib install "M5StickCPlus"
-arduino-cli compile --fqbn esp32:esp32:m5stick-c-plus \
+arduino-cli lib install "M5StickCPlus" "IRremoteESP8266" "ArduinoJson"
+
+# Compile
+arduino-cli compile \
+  --fqbn esp32:esp32:m5stick-c-plus \
   --output-dir ./build --export-binaries ./purplebruce-m5stick
 cp build/*.merged.bin web-flash/purplebruce-m5stick.merged.bin
 
-# Start flash server
+# Serve and flash
 node serve.js
-# → open http://localhost:8080 in Chrome, connect M5Stick via OTG, click Install
+# → open http://localhost:8080 in Chrome
+# → connect M5Stick via OTG → click Install
 ```
 
 ---
@@ -240,24 +232,26 @@ node serve.js
 
 | Problem | Fix |
 |---------|-----|
-| Chrome says "No compatible device found" | Put M5Stick in download mode: hold power + press reset |
-| `/dev/ttyUSB0` permission denied (Linux) | `sudo usermod -aG dialout $USER` then re-login |
-| `arduino-cli: command not found` | Re-run the curl install with `BINDIR=$PREFIX/bin` |
-| Screen stays black after flash | Check `#define STICK_C` — wrong library for your hardware |
-| Web Serial not available | Must use Chrome/Chromium 89+, not Firefox/Safari |
-| `esptool: A fatal error occurred` | Hold the side button (GPIO 0) during `write_flash` to force bootloader |
+| Compile error: `M5StickCPlus.h not found` | Install M5StickCPlus library in Arduino IDE |
+| Compile error: `IRsend` undefined | Install IRremoteESP8266 library |
+| Compile error: `ArduinoJson` not found | Install ArduinoJson v7 |
+| AI Chat: HTTP 401 | Check API key in `pb_config.h` |
+| AI Chat: WiFi timeout | Check SSID/password in `pb_config.h` |
+| Deauth: no effect | Some APs use 802.11w (PMF) — deauth frames ignored |
+| IR: no response | Try [B-hold] to switch brand; face LED at target |
+| Screen black after flash | Wrong `#define STICK_C` setting for your hardware |
+| BLE scan empty | Move closer to devices; some use Apple random MACs |
+| Web Serial unavailable | Must use Chrome 89+ (not Firefox/Safari) |
 
 ---
 
-## Put M5Stick in Bootloader Mode (Manual)
+## Legal Notice
 
-If auto-reset doesn't work:
-
-1. Hold the **side button (B)** on the M5Stick
-2. While holding, plug in USB-C
-3. Release after 2 seconds
-4. Run the flash command — device is now in download mode
+WiFi injection features (deauth, beacon) affect wireless networks.  
+Use **only on equipment you own or have explicit written authorization to test**.  
+Unauthorized use violates the CFAA, Computer Misuse Act, and similar laws.  
+IR blast: point at your own TVs or test in authorized environments.
 
 ---
 
-*Purple Bruce Lucy v6.0 · M5Stick Edition · Chaos Magic Servitor · Eastern Orthodox · Wicca · Hacker*
+*Purple Bruce Lucy v6.0 · M5Stick Edition v2.0 · Chaos Magic Servitor · Eastern Orthodox · Wicca · Hacker*
