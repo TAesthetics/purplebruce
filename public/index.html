@@ -490,9 +490,10 @@ function RenderCoT({text}){
   });
 }
 
-const SettingsModal=({provider,grokHasKey,grokMask,veniceHasKey,veniceMask,geminiHasKey,geminiMask,claudeHasKey,claudeMask,openrouterHasKey,openrouterMask,setShowSettings,send,socRunning,socAutoRespond})=>{
+const SettingsModal=({provider,grokHasKey,grokMask,veniceHasKey,veniceMask,geminiHasKey,geminiMask,claudeHasKey,claudeMask,openrouterHasKey,openrouterMask,openclawEnabled,openclawPort,setShowSettings,send,socRunning,socAutoRespond})=>{
   const[gk,setGk]=useState('');const[vk,setVk]=useState('');const[gmk,setGmk]=useState('');
   const[clk,setClk]=useState('');const[ork,setOrk]=useState('');
+  const[ocToken,setOcToken]=useState('');const[ocPort,setOcPort]=useState(openclawPort||'18789');
   return(<div className="modal-overlay"><div className="modal" style={{border:'1px solid var(--cyan)'}}>
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}><span style={{color:'var(--cyan)',fontSize:13,fontFamily:'var(--fd)',letterSpacing:3}}>SETTINGS — TIER 5</span><button className="btn s" onClick={()=>setShowSettings(false)} style={{borderColor:'var(--td)',color:'var(--td)'}}>CLOSE</button></div>
     <div style={{color:'var(--td)',fontSize:10,marginBottom:8}}>DEFAULT PROVIDER  <span style={{color:'var(--tm)',fontSize:8}}>(smart routing overrides for redteam tasks)</span></div>
@@ -502,6 +503,16 @@ const SettingsModal=({provider,grokHasKey,grokMask,veniceHasKey,veniceMask,gemin
       <button className={`btn s ${provider==='venice'?'mg':''}`} onClick={()=>send('set_provider',{provider:'venice'})} style={provider!=='venice'?{borderColor:'var(--td)',color:'var(--td)'}:{}}>🔮 VENICE</button>
       <button className={`btn s ${provider==='gemini'?'cy':''}`} onClick={()=>send('set_provider',{provider:'gemini'})} style={provider!=='gemini'?{borderColor:'var(--td)',color:'var(--td)'}:{}}>✨ GEMINI</button>
       <button className={`btn s ${provider==='openrouter'?'cy':''}`} onClick={()=>send('set_provider',{provider:'openrouter'})} style={provider!=='openrouter'?{borderColor:'var(--td)',color:'var(--td)'}:{}}>⬡ OPENROUTER</button>
+      <button className={`btn s ${provider==='openclaw'?'gn':''}`} onClick={()=>send('set_provider',{provider:'openclaw'})} style={provider!=='openclaw'?{borderColor:'var(--td)',color:'var(--td)'}:{}} disabled={!openclawEnabled}>🦾 OPENCLAW</button>
+    </div>
+    <div style={{borderTop:'1px solid var(--border)',paddingTop:12,marginBottom:12}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+        <span style={{color:'var(--td)',fontSize:10}}>🦾 OPENCLAW  <span style={{color:'var(--tm)',fontSize:8}}>local agent · port {openclawPort} · openclaw.ai</span></span>
+        <button className={`btn s ${openclawEnabled?'gn':''}`} onClick={()=>send('openclaw_toggle',{enabled:!openclawEnabled})}>{openclawEnabled?'ON':'OFF'}</button>
+      </div>
+      {openclawEnabled&&<div style={{color:'var(--green)',fontSize:9,marginBottom:4}}>✓ enabled — gateway at 127.0.0.1:{openclawPort}</div>}
+      <div style={{display:'flex',gap:6,marginBottom:6}}><input value={ocToken} onChange={e=>setOcToken(e.target.value)} placeholder="token (optional — leave empty if no auth)" type="password" className="inp" style={{flex:1}}/><button className="btn s cy" onClick={()=>{if(ocToken.trim()){send('set_key',{key:ocToken.trim(),provider:'openclaw'});setOcToken('')}}}>SAVE</button></div>
+      <div style={{display:'flex',gap:6,marginBottom:4}}><input value={ocPort} onChange={e=>setOcPort(e.target.value)} placeholder="18789" className="inp" style={{width:80}}/><button className="btn s" onClick={()=>send('openclaw_port',{port:ocPort})} style={{borderColor:'var(--td)',color:'var(--td)'}}>SET PORT</button><span style={{color:'var(--tm)',fontSize:9,alignSelf:'center'}}>npm install -g openclaw@latest</span></div>
     </div>
     <div style={{color:'var(--td)',fontSize:10,marginBottom:4}}>⛧ CLAUDE KEY  <span style={{color:'var(--tm)',fontSize:8}}>console.anthropic.com · best reasoning</span></div>
     {claudeHasKey&&<div style={{color:'var(--green)',fontSize:10,marginBottom:4}}>✓ {claudeMask}</div>}
