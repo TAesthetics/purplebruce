@@ -147,6 +147,11 @@ for entry in "${_tools[@]}"; do
 done
 echo "\n  \e[38;5;240mpacman -S blackarch-<category>  or  pacman -S <toolname>\e[0m\n"
 '
+# ── OpenClaw (local AI agent) ────────────────────────────────────
+alias ocstart='openclaw onboard --install-daemon 2>/dev/null; openclaw dashboard &'
+alias ocstop='pkill -f openclaw 2>/dev/null && echo "[✔] OpenClaw stopped"'
+alias oc='openclaw'
+
 alias ba='pacman -Ss blackarch'
 alias pac='pacman -S --noconfirm --needed'
 

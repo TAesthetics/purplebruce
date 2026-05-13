@@ -122,14 +122,24 @@ else
   warn "netrunner bin not found at $NETRUNNER_BIN — start/lucy aliases use direct node fallback"
 fi
 
-# ── 7. Additional hacking tools ───────────────────────────────────
+# ── 7. OpenClaw — local AI agent ─────────────────────────────────
+info "Installing OpenClaw (local AI agent)..."
+if command -v npm >/dev/null 2>&1; then
+  npm install -g openclaw@latest 2>/dev/null \
+    && ok "OpenClaw installed — run: openclaw onboard --install-daemon" \
+    || warn "OpenClaw install failed — try: npm install -g openclaw@latest"
+else
+  warn "npm not found — install nodejs first, then: npm install -g openclaw@latest"
+fi
+
+# ── 8. Additional hacking tools ───────────────────────────────────
 info "Installing additional tools..."
 pacman -S --noconfirm --needed \
   vim neovim tmux fzf bat fd ripgrep \
   python-rich python-click \
   2>/dev/null && ok "Extra tools installed" || warn "Some extras skipped"
 
-# ── 8. Set zsh as default shell ───────────────────────────────────
+# ── 9. Set zsh as default shell ───────────────────────────────────
 if command -v zsh >/dev/null 2>&1; then
   ZSH_PATH=$(command -v zsh)
   if ! grep -q "$ZSH_PATH" /etc/shells 2>/dev/null; then
@@ -138,7 +148,7 @@ if command -v zsh >/dev/null 2>&1; then
   chsh -s "$ZSH_PATH" 2>/dev/null && ok "zsh set as default shell" || warn "chsh failed — run: exec zsh"
 fi
 
-# ── 9. PATH in all shells ─────────────────────────────────────────
+# ── 10. PATH in all shells ────────────────────────────────────────
 for rc in "${HOME}/.bashrc" "${HOME}/.zshrc"; do
   [ -f "$rc" ] || continue
   grep -q '\.local/bin' "$rc" 2>/dev/null \

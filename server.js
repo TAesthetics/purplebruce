@@ -145,13 +145,15 @@ function getProviderStatus() {
     geminiHasKey:     !!gmk, geminiMask:     gmk ? gmk.slice(0,8)+'...' : null,
     claudeHasKey:     !!clk, claudeMask:     clk ? clk.slice(0,8)+'...' : null,
     openrouterHasKey: !!ork, openrouterMask: ork ? ork.slice(0,8)+'...' : null,
+    openclawEnabled:  getConfig('openclaw_enabled') === '1',
+    openclawPort:     getConfig('openclaw_port') || '18789',
     elevenHasKey:     !!ek,  elevenMask:     ek  ? ek.slice(0,8)+'...'  : null,
     elevenVoiceId: vid || null,
     routing: {
       redteam:   vk  ? 'venice' : clk ? 'claude' : (p === 'gemini' ? 'gemini' : 'grok'),
       reasoning: clk ? 'claude' : p === 'venice' ? 'grok' : p,
       voice:     gmk ? 'gemini' : (gk ? 'grok' : p),
-      fallback:  ork ? 'openrouter' : gk ? 'grok' : (gmk ? 'gemini' : 'venice')
+      fallback:  getConfig('openclaw_enabled') === '1' ? 'openclaw' : ork ? 'openrouter' : gk ? 'grok' : (gmk ? 'gemini' : 'venice')
     }
   };
 }
@@ -166,15 +168,18 @@ const team = {
     gemini:      { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
     claude:      { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
     openrouter:  { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
+    openclaw:    { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
   },
   healLog: [],
 };
-const TEAM_PROVIDERS = ['grok', 'venice', 'gemini', 'claude', 'openrouter'];
+const TEAM_PROVIDERS = ['grok', 'venice', 'gemini', 'claude', 'openrouter', 'openclaw'];
+// Providers that work without an API key (local services)
+const LOCAL_PROVIDERS = new Set(['openclaw']);
 
 function teamProviderSummary(name) {
   const p = team.providers[name];
-  const hasKey = !!getConfig(`${name}_api_key`);
-  const status = !hasKey ? 'NO_KEY' : p.healthy === false ? `OFFLINE(${p.errors}err)` : p.latency ? `${p.latency}ms` : 'READY';
+  const hasKey = LOCAL_PROVIDERS.has(name) ? (getConfig('openclaw_enabled') === '1') : !!getConfig(`${name}_api_key`);
+  const status = !hasKey ? (LOCAL_PROVIDERS.has(name) ? 'DISABLED' : 'NO_KEY') : p.healthy === false ? `OFFLINE(${p.errors}err)` : p.latency ? `${p.latency}ms` : 'READY';
   return { name, hasKey, healthy: hasKey && p.healthy !== false, latency: p.latency, errors: p.errors, lastSuccess: p.lastSuccess, status };
 }
 
@@ -219,7 +224,9 @@ function teamUpdateHealth(provider, ok, latencyMs) {
 function teamStatusCheck() {
   let changed = false;
   for (const name of TEAM_PROVIDERS) {
-    const hasKey = !!getConfig(`${name}_api_key`);
+    const hasKey = LOCAL_PROVIDERS.has(name)
+      ? (getConfig('openclaw_enabled') === '1')
+      : !!getConfig(`${name}_api_key`);
     if (!hasKey && team.providers[name].healthy !== null) {
       team.providers[name].healthy = null;
       changed = true;
@@ -247,8 +254,10 @@ async function callAI(messages) {
       ? ['claude', 'grok', 'venice', 'gemini', 'openrouter']
       : [configured, ...TEAM_PROVIDERS.filter(p => p !== configured)];
 
-  // Only providers that have keys configured
-  const available = order.filter(p => !!getConfig(`${p}_api_key`));
+  // Only providers that are ready (key configured or local+enabled)
+  const available = order.filter(p =>
+    LOCAL_PROVIDERS.has(p) ? getConfig('openclaw_enabled') === '1' : !!getConfig(`${p}_api_key`)
+  );
   if (!available.length) {
     broadcast('active_provider', { provider: configured, task: type, status: 'no_key' });
     return null;
@@ -274,6 +283,7 @@ async function callAI(messages) {
       else if (provider === 'gemini')     result = await callGemini(messages);
       else if (provider === 'claude')     result = await callClaude(messages);
       else if (provider === 'openrouter') result = await callOpenRouter(messages);
+      else if (provider === 'openclaw')   result = await callOpenClaw(messages);
     } catch {}
     const latency = Date.now() - t0;
 
@@ -378,6 +388,28 @@ async function callOpenRouter(msgs) {
     if (!r.ok) { console.error('[OPENROUTER]', r.status, JSON.stringify(d).slice(0,300)); return null; }
     return d?.choices?.[0]?.message?.content || null;
   } catch (e) { console.error('[OPENROUTER]', e.message || e); return null; }
+}
+
+async function callOpenClaw(msgs) {
+  if (getConfig('openclaw_enabled') !== '1') return null;
+  const port  = getConfig('openclaw_port')  || '18789';
+  const token = getConfig('openclaw_token') || '';
+  const model = getConfig('openclaw_model') || 'openclaw';
+  try {
+    const ac = new AbortController(), t = setTimeout(() => ac.abort(), 90000);
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const r = await fetch(`http://127.0.0.1:${port}/v1/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ model, messages: msgs, temperature: 0.9, max_tokens: 4000 }),
+      signal: ac.signal,
+    });
+    clearTimeout(t);
+    const d = await r.json();
+    if (!r.ok) { console.error('[OPENCLAW]', r.status, JSON.stringify(d).slice(0,300)); return null; }
+    return d?.choices?.[0]?.message?.content || null;
+  } catch (e) { console.error('[OPENCLAW]', e.message || e); return null; }
 }
 
 // ═══ MICROSOFT EDGE TTS — free, neural, no API key ═══
@@ -1106,9 +1138,11 @@ async function handleWs(ws, msg) {
     case 'red_preview': { const p = await doRedPreview(msg.tactic); ws.send(JSON.stringify({ type: 'red_preview', data: p })); break; }
     case 'red_execute': { try { await doRedExecute(msg.tactic, msg.commandIndices); } catch (e) { broadcast('terminal', { type: 'error', text: `[ERR] ${e.message}`, channel: 'red' }, 'red'); broadcast('red_done', { tactic: msg.tactic }); } break; }
     case 'exec_cmd': { if (msg.cmd) { const r = rawExec(msg.cmd, 'web'); broadcast('cmd_result', { cmd: msg.cmd, output: r.output, ok: r.ok }); } break; }
-    case 'set_key': { if (msg.key && msg.provider) { const keyMap = { grok: 'grok_api_key', venice: 'venice_api_key', gemini: 'gemini_api_key', claude: 'claude_api_key', openrouter: 'openrouter_api_key', elevenlabs: 'elevenlabs_api_key', groq: 'groq_api_key' }; const cfg = keyMap[msg.provider]; if (cfg) { setConfig(cfg, msg.key); ws.send(JSON.stringify({ type: 'key_saved', data: { provider: msg.provider } })); broadcast('provider_status', getProviderStatus()); } } break; }
+    case 'set_key': { if (msg.key && msg.provider) { const keyMap = { grok: 'grok_api_key', venice: 'venice_api_key', gemini: 'gemini_api_key', claude: 'claude_api_key', openrouter: 'openrouter_api_key', openclaw: 'openclaw_token', elevenlabs: 'elevenlabs_api_key', groq: 'groq_api_key' }; const cfg = keyMap[msg.provider]; if (cfg) { setConfig(cfg, msg.key); ws.send(JSON.stringify({ type: 'key_saved', data: { provider: msg.provider } })); broadcast('provider_status', getProviderStatus()); } } break; }
     case 'set_voice_id': { if (msg.voiceId) { setConfig('elevenlabs_voice_id', msg.voiceId); ws.send(JSON.stringify({ type: 'voice_id_saved' })); broadcast('provider_status', getProviderStatus()); } break; }
     case 'set_provider': setConfig('ai_provider', msg.provider); broadcast('provider_status', getProviderStatus()); break;
+    case 'openclaw_toggle': setConfig('openclaw_enabled', msg.enabled ? '1' : '0'); broadcast('provider_status', getProviderStatus()); break;
+    case 'openclaw_port':   setConfig('openclaw_port', String(msg.port || '18789')); broadcast('provider_status', getProviderStatus()); break;
     case 'get_provider': ws.send(JSON.stringify({ type: 'provider_status', data: getProviderStatus() })); break;
     case 'get_chat_history': ws.send(JSON.stringify({ type: 'chat_history', data: db.prepare('SELECT role,content,meta,timestamp FROM chat_history ORDER BY id').all() })); break;
     case 'clear_chat': db.prepare('DELETE FROM chat_history').run(); ws.send(JSON.stringify({ type: 'chat_cleared' })); break;
@@ -1135,7 +1169,7 @@ app.post('/api/cli', async (req, res) => {
       case 'report': res.json({ lines: await doReport() }); break;
       case 'tasks': res.json(listTasks()); break;
       case 'kill': killTask(id); res.json({ message: `Killed ${id}` }); break;
-      case 'set_key': { const keyMap = { grok: 'grok_api_key', venice: 'venice_api_key', gemini: 'gemini_api_key', claude: 'claude_api_key', openrouter: 'openrouter_api_key', elevenlabs: 'elevenlabs_api_key', groq: 'groq_api_key' }; const cfg = keyMap[provider]; if (!cfg) { res.json({ error: `Unknown provider: ${provider}` }); break; } setConfig(cfg, key); broadcast('provider_status', getProviderStatus()); res.json({ message: `${provider} key saved.` }); break; }
+      case 'set_key': { const keyMap = { grok: 'grok_api_key', venice: 'venice_api_key', gemini: 'gemini_api_key', claude: 'claude_api_key', openrouter: 'openrouter_api_key', openclaw: 'openclaw_token', elevenlabs: 'elevenlabs_api_key', groq: 'groq_api_key' }; const cfg = keyMap[provider]; if (!cfg) { res.json({ error: `Unknown provider: ${provider}` }); break; } setConfig(cfg, key); broadcast('provider_status', getProviderStatus()); res.json({ message: `${provider} key saved.` }); break; }
       case 'set_voice_id': { if (!req.body.voiceId) { res.json({ error: 'voiceId required' }); break; } setConfig('elevenlabs_voice_id', req.body.voiceId); broadcast('provider_status', getProviderStatus()); res.json({ message: 'Voice ID saved.' }); break; }
       case 'set_provider': setConfig('ai_provider', provider); broadcast('provider_status', getProviderStatus()); res.json({ message: `Provider: ${provider}` }); break;
       case 'autonomous': { agent.autonomous = req.body.mode === 'on'; broadcast('agent_status', getAgentStatus()); res.json({ message: `Autonomous: ${agent.autonomous ? 'ON' : 'OFF'}` }); break; }
