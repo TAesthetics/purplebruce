@@ -101,16 +101,9 @@ ok ".tmux.conf deployed"
 # p10k config (if exists)
 [ -f "${DOT_DIR}/p10k.zsh" ] && cp "${DOT_DIR}/p10k.zsh" "${HOME}/.p10k.zsh" && ok ".p10k.zsh deployed"
 
-# ── 6. Occult tools + netrunner CLI ──────────────────────────────
-info "Setting up occult tools + netrunner CLI..."
+# ── 6. netrunner CLI ─────────────────────────────────────────────
+info "Setting up netrunner CLI..."
 mkdir -p "${HOME}/.local/bin"
-chmod +x "${PB_DIR}/netrunner/occult/"*.py 2>/dev/null || true
-
-# Occult tool symlinks
-for tool in sigil moon tarot rune ritual; do
-  ln -sf "${PB_DIR}/netrunner/occult/${tool}.py" "${HOME}/.local/bin/${tool}"
-done
-ok "Occult tools linked: sigil moon tarot rune ritual"
 
 # netrunner CLI symlink — required for start/lucy/pb/scan aliases
 NETRUNNER_BIN="${PB_DIR}/netrunner/bin/netrunner"
@@ -166,15 +159,11 @@ echo -e "  ${V}Apply now:${RS}"
 echo -e "    ${Y}exec zsh${RS}          ${D}← switch to new shell immediately${RS}"
 echo -e "    ${Y}source ~/.zshrc${RS}   ${D}← reload config in current shell${RS}"
 echo
-echo -e "  ${V}Occult tools:${RS}"
-echo -e "    ${Y}moon${RS}     ${D}← current moon phase + magical timing${RS}"
-echo -e "    ${Y}sigil${RS}    ${D}← chaos magic sigil generator${RS}"
-echo -e "    ${Y}tarot${RS}    ${D}← tarot card draw${RS}"
-echo -e "    ${Y}rune${RS}     ${D}← Elder Futhark rune cast${RS}"
-echo -e "    ${Y}ritual${RS}   ${D}← ritual protocol builder${RS}"
-echo
 echo -e "  ${V}Purple Bruce:${RS}"
 echo -e "    ${Y}pbstart${RS}  ${D}← launch server (tmux)${RS}"
 echo -e "    ${Y}go${RS}       ${D}← same, short form${RS}"
 echo -e "    ${Y}lucy${RS}     ${D}← netrunner menu${RS}"
+echo -e "    ${Y}oc${RS}       ${D}← openclaw CLI${RS}"
+echo -e "    ${Y}toolcheck${RS} ${D}← verify BlackArch arsenal${RS}"
+echo -e "    ${Y}pbupdate${RS} ${D}← update + redeploy${RS}"
 echo
