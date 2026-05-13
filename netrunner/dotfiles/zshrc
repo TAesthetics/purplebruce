@@ -113,6 +113,9 @@ _pb_update() {
 alias pbupdate='_pb_update'
 alias update='_pb_update'
 
+# ── Firmware ─────────────────────────────────────────────────────
+alias bruce-flash='bash "${HOME}/purplebruce/netrunner/firmware/flash-bruce.sh"'
+
 # ── OpenClaw ─────────────────────────────────────────────────────
 alias ocstart='openclaw onboard --install-daemon 2>/dev/null; openclaw dashboard &'
 alias ocstop='pkill -f openclaw 2>/dev/null && echo "[✔] OpenClaw stopped"'
