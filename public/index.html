@@ -490,16 +490,25 @@ function RenderCoT({text}){
   });
 }
 
-const SettingsModal=({provider,grokHasKey,grokMask,veniceHasKey,veniceMask,geminiHasKey,geminiMask,setShowSettings,send,socRunning,socAutoRespond})=>{
+const SettingsModal=({provider,grokHasKey,grokMask,veniceHasKey,veniceMask,geminiHasKey,geminiMask,claudeHasKey,claudeMask,openrouterHasKey,openrouterMask,setShowSettings,send,socRunning,socAutoRespond})=>{
   const[gk,setGk]=useState('');const[vk,setVk]=useState('');const[gmk,setGmk]=useState('');
+  const[clk,setClk]=useState('');const[ork,setOrk]=useState('');
   return(<div className="modal-overlay"><div className="modal" style={{border:'1px solid var(--cyan)'}}>
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}><span style={{color:'var(--cyan)',fontSize:13,fontFamily:'var(--fd)',letterSpacing:3}}>SETTINGS — TIER 5</span><button className="btn s" onClick={()=>setShowSettings(false)} style={{borderColor:'var(--td)',color:'var(--td)'}}>CLOSE</button></div>
     <div style={{color:'var(--td)',fontSize:10,marginBottom:8}}>DEFAULT PROVIDER  <span style={{color:'var(--tm)',fontSize:8}}>(smart routing overrides for redteam tasks)</span></div>
     <div style={{display:'flex',gap:6,marginBottom:14,flexWrap:'wrap'}}>
-      <button className={`btn s ${provider==='grok'?'gn':''}`} onClick={()=>send('set_provider',{provider:'grok'})} style={provider!=='grok'?{borderColor:'var(--td)',color:'var(--td)'}:{}}>⚡ GROK-3</button>
+      <button className={`btn s ${provider==='grok'?'gn':''}`} onClick={()=>send('set_provider',{provider:'grok'})} style={provider!=='grok'?{borderColor:'var(--td)',color:'var(--td)'}:{}}>⚡ GROK</button>
+      <button className={`btn s ${provider==='claude'?'gn':''}`} onClick={()=>send('set_provider',{provider:'claude'})} style={provider!=='claude'?{borderColor:'var(--td)',color:'var(--td)'}:{}}>⛧ CLAUDE</button>
       <button className={`btn s ${provider==='venice'?'mg':''}`} onClick={()=>send('set_provider',{provider:'venice'})} style={provider!=='venice'?{borderColor:'var(--td)',color:'var(--td)'}:{}}>🔮 VENICE</button>
       <button className={`btn s ${provider==='gemini'?'cy':''}`} onClick={()=>send('set_provider',{provider:'gemini'})} style={provider!=='gemini'?{borderColor:'var(--td)',color:'var(--td)'}:{}}>✨ GEMINI</button>
+      <button className={`btn s ${provider==='openrouter'?'cy':''}`} onClick={()=>send('set_provider',{provider:'openrouter'})} style={provider!=='openrouter'?{borderColor:'var(--td)',color:'var(--td)'}:{}}>⬡ OPENROUTER</button>
     </div>
+    <div style={{color:'var(--td)',fontSize:10,marginBottom:4}}>⛧ CLAUDE KEY  <span style={{color:'var(--tm)',fontSize:8}}>console.anthropic.com · best reasoning</span></div>
+    {claudeHasKey&&<div style={{color:'var(--green)',fontSize:10,marginBottom:4}}>✓ {claudeMask}</div>}
+    <div style={{display:'flex',gap:6,marginBottom:10}}><input value={clk} onChange={e=>setClk(e.target.value)} placeholder="sk-ant-api03-..." type="password" className="inp" style={{flex:1}}/><button className="btn s gn" onClick={()=>{if(clk.trim()){send('set_key',{key:clk.trim(),provider:'claude'});setClk('')}}}>SAVE</button></div>
+    <div style={{color:'var(--td)',fontSize:10,marginBottom:4}}>⬡ OPENROUTER KEY  <span style={{color:'var(--tm)',fontSize:8}}>openrouter.ai · free models available</span></div>
+    {openrouterHasKey&&<div style={{color:'var(--green)',fontSize:10,marginBottom:4}}>✓ {openrouterMask}</div>}
+    <div style={{display:'flex',gap:6,marginBottom:10}}><input value={ork} onChange={e=>setOrk(e.target.value)} placeholder="sk-or-v1-..." type="password" className="inp" style={{flex:1}}/><button className="btn s cy" onClick={()=>{if(ork.trim()){send('set_key',{key:ork.trim(),provider:'openrouter'});setOrk('')}}}>SAVE</button></div>
     <div style={{color:'var(--td)',fontSize:10,marginBottom:4}}>⚡ GROK KEY</div>
     {grokHasKey&&<div style={{color:'var(--green)',fontSize:10,marginBottom:4}}>✓ {grokMask}</div>}
     <div style={{display:'flex',gap:6,marginBottom:10}}><input value={gk} onChange={e=>setGk(e.target.value)} placeholder="xai-..." type="password" className="inp" style={{flex:1}}/><button className="btn s gn" onClick={()=>{if(gk.trim()){send('set_key',{key:gk.trim(),provider:'grok'});setGk('')}}}>SAVE</button></div>
@@ -843,7 +852,7 @@ function App(){
   const[huntOut,setHuntOut]=useState([]);const[hunting,setHunting]=useState(false);
   const[redOut,setRedOut]=useState([]);const[redRunning,setRedRunning]=useState(false);const[redPreview,setRedPreview]=useState(null);
   const[showSettings,setShowSettings]=useState(false);const[showTasks,setShowTasks]=useState(false);const[tasks,setTasks]=useState([]);
-  const[providerInfo,setProviderInfo]=useState({provider:'grok',grokHasKey:false,veniceHasKey:false,geminiHasKey:false});
+  const[providerInfo,setProviderInfo]=useState({provider:'grok',grokHasKey:false,veniceHasKey:false,geminiHasKey:false,claudeHasKey:false,openrouterHasKey:false});
   const[agentStatus,setAgentStatus]=useState({running:false,autonomous:false,round:0,pendingCmd:null});
   const[socStatus,setSocStatus]=useState({running:false,autoRespond:true,alertCount:0,cycle:0});
   const[chat,setChat]=useState([]);const[thinking,setThinking]=useState(false);const[pending,setPending]=useState(null);
@@ -901,7 +910,7 @@ function App(){
   useEffect(()=>{const l=hardenOut[hardenOut.length-1];if(l?.text?.includes('complete'))setHardening(false)},[hardenOut]);
   useEffect(()=>{const l=huntOut[huntOut.length-1];if(l?.text?.includes('complete'))setHunting(false)},[huntOut]);
 
-  const hasKey=providerInfo.provider==='venice'?providerInfo.veniceHasKey:providerInfo.provider==='gemini'?providerInfo.geminiHasKey:providerInfo.grokHasKey;
+  const hasKey={grok:providerInfo.grokHasKey,venice:providerInfo.veniceHasKey,gemini:providerInfo.geminiHasKey,claude:providerInfo.claudeHasKey,openrouter:providerInfo.openrouterHasKey}[providerInfo.provider]??providerInfo.grokHasKey;
   const doScan=()=>{if(!scanTarget.trim())return;setScanning(true);setScanOut([]);send('scan',{target:scanTarget.trim(),mode:scanMode})};
   const doHarden=()=>{setHardening(true);setHardenOut([]);send('harden')};
   const doHunt=()=>{setHunting(true);setHuntOut([]);send('hunt')};
@@ -938,7 +947,7 @@ function App(){
         {(()=>{const ps=teamStatus?.providers||{};const keys=['grok','venice','gemini'];const anyKey=keys.some(n=>ps[n]?.hasKey);const allOk=keys.every(n=>!ps[n]?.hasKey||ps[n]?.healthy!==false);return(<span className={`pill ${anyKey?(allOk?'on':'off'):''}`} title="AI Team health"><span className="dot" style={{background:anyKey?(allOk?'var(--green)':'var(--red)'):'var(--tm)'}}></span>TEAM</span>);})()}
         <span className={`pill ${socStatus.running?'soc-on':'soc-off'}`}>🛡 {socStatus.running?`SOC·${socStatus.alertCount}`:'SOC OFF'}</span>
         <span className={`pill ${activeProvider?.provider==='venice'?'mg':activeProvider?.provider==='gemini'?'cy':'vio'}`} title={activeProvider?`task: ${activeProvider.task}`:''}>
-          {activeProvider?{grok:'⚡ GROK',venice:'🔮 VEN',gemini:'✨ GEM'}[activeProvider.provider]||activeProvider.provider.toUpperCase():(providerInfo.provider==='venice'?'🔮 VEN':providerInfo.provider==='gemini'?'✨ GEM':'⚡ GROK')}
+          {activeProvider?{grok:'⚡ GROK',venice:'🔮 VEN',gemini:'✨ GEM',claude:'⛧ CLAUDE',openrouter:'⬡ OR'}[activeProvider.provider]||activeProvider.provider.toUpperCase():({grok:'⚡ GROK',venice:'🔮 VEN',gemini:'✨ GEM',claude:'⛧ CLAUDE',openrouter:'⬡ OR'}[providerInfo.provider]||'⚡ GROK')}
         </span>
         <span className="pill cy click" onClick={()=>{send('task_list');setShowTasks(true)}}>⊞{tasks.filter(t=>t.status==='running').length}</span>
         <span className={`pill ${conn?'on':'off'}`}><span className="dot" style={{background:conn?'var(--green)':'var(--red)'}}></span>{conn?'UP':'DOWN'}</span>

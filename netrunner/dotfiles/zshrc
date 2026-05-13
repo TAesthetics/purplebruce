@@ -168,6 +168,21 @@ alias ta='tmux attach -t'
 alias tl='tmux list-sessions'
 alias tk='tmux kill-session -t'
 
+# ── Purple Bruce Update ───────────────────────────────────────────
+_pb_update() {
+  local dir="${HOME}/purplebruce"
+  [[ -d "$dir" ]] || { echo "[✘] ~/purplebruce not found"; return 1; }
+  echo "[→] Pulling latest Purple Bruce..."
+  git -C "$dir" pull origin main || { echo "[⚠] git pull failed — check connection"; return 1; }
+  echo "[→] Installing dependencies..."
+  npm install --prefix "$dir" --silent
+  echo "[→] Redeploying dotfiles..."
+  bash "${dir}/netrunner/dotfiles/install.sh"
+  echo "[✔] Update complete. Run: exec zsh"
+}
+alias pbupdate='_pb_update'
+alias update='_pb_update'
+
 # ── Git ──────────────────────────────────────────────────────────
 alias gs='git status'
 alias gp='git push'

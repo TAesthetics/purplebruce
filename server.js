@@ -134,20 +134,24 @@ app.post('/api/stripe/checkout', async (req, res) => {
 // ═══ AI PROVIDERS ═══
 function getProviderStatus() {
   const p = getConfig('ai_provider') || 'grok';
-  const gk = getConfig('grok_api_key'), vk = getConfig('venice_api_key'), gmk = getConfig('gemini_api_key');
-  const ek = getConfig('elevenlabs_api_key'), vid = getConfig('elevenlabs_voice_id');
+  const gk  = getConfig('grok_api_key'),   vk  = getConfig('venice_api_key');
+  const gmk = getConfig('gemini_api_key'), clk = getConfig('claude_api_key');
+  const ork = getConfig('openrouter_api_key');
+  const ek  = getConfig('elevenlabs_api_key'), vid = getConfig('elevenlabs_voice_id');
   return {
     provider: p,
-    grokHasKey: !!gk,    grokMask:   gk  ? gk.slice(0, 8)  + '...' : null,
-    veniceHasKey: !!vk,  veniceMask: vk  ? vk.slice(0, 8)  + '...' : null,
-    geminiHasKey: !!gmk, geminiMask: gmk ? gmk.slice(0, 8) + '...' : null,
-    elevenHasKey: !!ek,  elevenMask: ek  ? ek.slice(0, 8)  + '...' : null,
+    grokHasKey:       !!gk,  grokMask:       gk  ? gk.slice(0,8)+'...'  : null,
+    veniceHasKey:     !!vk,  veniceMask:     vk  ? vk.slice(0,8)+'...'  : null,
+    geminiHasKey:     !!gmk, geminiMask:     gmk ? gmk.slice(0,8)+'...' : null,
+    claudeHasKey:     !!clk, claudeMask:     clk ? clk.slice(0,8)+'...' : null,
+    openrouterHasKey: !!ork, openrouterMask: ork ? ork.slice(0,8)+'...' : null,
+    elevenHasKey:     !!ek,  elevenMask:     ek  ? ek.slice(0,8)+'...'  : null,
     elevenVoiceId: vid || null,
     routing: {
-      redteam:   vk ? 'venice' : (p === 'gemini' ? 'gemini' : 'grok'),
-      reasoning: p === 'venice' ? 'grok' : p,
+      redteam:   vk  ? 'venice' : clk ? 'claude' : (p === 'gemini' ? 'gemini' : 'grok'),
+      reasoning: clk ? 'claude' : p === 'venice' ? 'grok' : p,
       voice:     gmk ? 'gemini' : (gk ? 'grok' : p),
-      fallback:  gk ? 'grok'   : (gmk ? 'gemini' : 'venice')
+      fallback:  ork ? 'openrouter' : gk ? 'grok' : (gmk ? 'gemini' : 'venice')
     }
   };
 }
@@ -157,13 +161,15 @@ function getProviderStatus() {
 // NO autonomous security actions — only responds to explicit user commands.
 const team = {
   providers: {
-    grok:   { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
-    venice: { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
-    gemini: { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
+    grok:        { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
+    venice:      { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
+    gemini:      { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
+    claude:      { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
+    openrouter:  { healthy: null, latency: null, errors: 0, lastSuccess: null, lastCheck: null },
   },
   healLog: [],
 };
-const TEAM_PROVIDERS = ['grok', 'venice', 'gemini'];
+const TEAM_PROVIDERS = ['grok', 'venice', 'gemini', 'claude', 'openrouter'];
 
 function teamProviderSummary(name) {
   const p = team.providers[name];
@@ -234,10 +240,12 @@ async function callAI(messages) {
   const configured = getConfig('ai_provider') || 'grok';
   const type = detectTaskType(messages);
 
-  // Build priority order: redteam always tries Venice first
+  // Build priority order: redteam → venice/claude first; reasoning → claude/configured first
   const order = type === 'redteam'
-    ? ['venice', 'grok', 'gemini']
-    : [configured, ...TEAM_PROVIDERS.filter(p => p !== configured)];
+    ? ['venice', 'claude', 'grok', 'gemini', 'openrouter']
+    : configured === 'claude'
+      ? ['claude', 'grok', 'venice', 'gemini', 'openrouter']
+      : [configured, ...TEAM_PROVIDERS.filter(p => p !== configured)];
 
   // Only providers that have keys configured
   const available = order.filter(p => !!getConfig(`${p}_api_key`));
@@ -261,9 +269,11 @@ async function callAI(messages) {
     const t0 = Date.now();
     let result = null;
     try {
-      if      (provider === 'grok')   result = await callGrok(messages);
-      else if (provider === 'venice') result = await callVenice(messages);
-      else if (provider === 'gemini') result = await callGemini(messages);
+      if      (provider === 'grok')       result = await callGrok(messages);
+      else if (provider === 'venice')     result = await callVenice(messages);
+      else if (provider === 'gemini')     result = await callGemini(messages);
+      else if (provider === 'claude')     result = await callClaude(messages);
+      else if (provider === 'openrouter') result = await callOpenRouter(messages);
     } catch {}
     const latency = Date.now() - t0;
 
@@ -316,6 +326,58 @@ async function callGemini(msgs) {
     if (!r.ok) { console.error('[GEMINI]', r.status, JSON.stringify(d).slice(0, 300)); return null; }
     return d?.candidates?.[0]?.content?.parts?.map(p => p.text).filter(Boolean).join('') || null;
   } catch (e) { console.error('[GEMINI]', e.message || e); return null; }
+}
+
+async function callClaude(msgs) {
+  const k = getConfig('claude_api_key'); if (!k) return null;
+  const sysMsg = msgs.find(m => m.role === 'system');
+  const convo  = msgs.filter(m => m.role !== 'system');
+  const model  = getConfig('claude_model') || 'claude-sonnet-4-6';
+  try {
+    const ac = new AbortController(), t = setTimeout(() => ac.abort(), 90000);
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': k,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 4000,
+        system: sysMsg?.content || '',
+        messages: convo.map(m => ({ role: m.role, content: m.content || '' })),
+      }),
+      signal: ac.signal,
+    });
+    clearTimeout(t);
+    const d = await r.json();
+    if (!r.ok) { console.error('[CLAUDE]', r.status, JSON.stringify(d).slice(0,300)); return null; }
+    return d?.content?.[0]?.text || null;
+  } catch (e) { console.error('[CLAUDE]', e.message || e); return null; }
+}
+
+async function callOpenRouter(msgs) {
+  const k = getConfig('openrouter_api_key'); if (!k) return null;
+  const model = getConfig('openrouter_model') || 'meta-llama/llama-3.3-70b-instruct:free';
+  try {
+    const ac = new AbortController(), t = setTimeout(() => ac.abort(), 90000);
+    const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${k}`,
+        'HTTP-Referer': 'https://purplebruce.local',
+        'X-Title': 'Purple Bruce Lucy',
+      },
+      body: JSON.stringify({ model, messages: msgs, temperature: 0.9, max_tokens: 4000 }),
+      signal: ac.signal,
+    });
+    clearTimeout(t);
+    const d = await r.json();
+    if (!r.ok) { console.error('[OPENROUTER]', r.status, JSON.stringify(d).slice(0,300)); return null; }
+    return d?.choices?.[0]?.message?.content || null;
+  } catch (e) { console.error('[OPENROUTER]', e.message || e); return null; }
 }
 
 // ═══ MICROSOFT EDGE TTS — free, neural, no API key ═══
@@ -1031,7 +1093,7 @@ function getAgentStatus() { return { running: agent.running, autonomous: agent.a
 
 async function handleWs(ws, msg) {
   switch (msg.action) {
-    case 'chat': { if (!msg.message) return; const p = getConfig('ai_provider') || 'grok'; const k = p === 'venice' ? getConfig('venice_api_key') : getConfig('grok_api_key'); if (!k) { ws.send(JSON.stringify({ type: 'chat_message', data: { role: 'assistant', content: `No ${p} API key. Open settings, Operator.`, meta: 'chat' } })); return; } chatAgent(msg.message); break; }
+    case 'chat': { if (!msg.message) return; const p = getConfig('ai_provider') || 'grok'; const keyMap2 = { grok:'grok_api_key', venice:'venice_api_key', gemini:'gemini_api_key', claude:'claude_api_key', openrouter:'openrouter_api_key' }; const k = getConfig(keyMap2[p] || 'grok_api_key'); if (!k) { ws.send(JSON.stringify({ type: 'chat_message', data: { role: 'assistant', content: `No ${p} API key. Open settings, Operator.`, meta: 'chat' } })); return; } chatAgent(msg.message); break; }
     case 'cmd_approve': if (agent.pendingCmd) agent.pendingCmd.approved = msg.approve; break;
     case 'agent_abort': agent.aborted = true; broadcast('agent_status', getAgentStatus()); break;
     case 'autonomous_toggle': agent.autonomous = !!msg.enabled; broadcast('agent_status', getAgentStatus()); break;
@@ -1044,7 +1106,7 @@ async function handleWs(ws, msg) {
     case 'red_preview': { const p = await doRedPreview(msg.tactic); ws.send(JSON.stringify({ type: 'red_preview', data: p })); break; }
     case 'red_execute': { try { await doRedExecute(msg.tactic, msg.commandIndices); } catch (e) { broadcast('terminal', { type: 'error', text: `[ERR] ${e.message}`, channel: 'red' }, 'red'); broadcast('red_done', { tactic: msg.tactic }); } break; }
     case 'exec_cmd': { if (msg.cmd) { const r = rawExec(msg.cmd, 'web'); broadcast('cmd_result', { cmd: msg.cmd, output: r.output, ok: r.ok }); } break; }
-    case 'set_key': { if (msg.key && msg.provider) { const keyMap = { venice: 'venice_api_key', grok: 'grok_api_key', elevenlabs: 'elevenlabs_api_key', groq: 'groq_api_key', gemini: 'gemini_api_key' }; const cfg = keyMap[msg.provider]; if (cfg) { setConfig(cfg, msg.key); ws.send(JSON.stringify({ type: 'key_saved', data: { provider: msg.provider } })); broadcast('provider_status', getProviderStatus()); } } break; }
+    case 'set_key': { if (msg.key && msg.provider) { const keyMap = { grok: 'grok_api_key', venice: 'venice_api_key', gemini: 'gemini_api_key', claude: 'claude_api_key', openrouter: 'openrouter_api_key', elevenlabs: 'elevenlabs_api_key', groq: 'groq_api_key' }; const cfg = keyMap[msg.provider]; if (cfg) { setConfig(cfg, msg.key); ws.send(JSON.stringify({ type: 'key_saved', data: { provider: msg.provider } })); broadcast('provider_status', getProviderStatus()); } } break; }
     case 'set_voice_id': { if (msg.voiceId) { setConfig('elevenlabs_voice_id', msg.voiceId); ws.send(JSON.stringify({ type: 'voice_id_saved' })); broadcast('provider_status', getProviderStatus()); } break; }
     case 'set_provider': setConfig('ai_provider', msg.provider); broadcast('provider_status', getProviderStatus()); break;
     case 'get_provider': ws.send(JSON.stringify({ type: 'provider_status', data: getProviderStatus() })); break;
@@ -1073,7 +1135,7 @@ app.post('/api/cli', async (req, res) => {
       case 'report': res.json({ lines: await doReport() }); break;
       case 'tasks': res.json(listTasks()); break;
       case 'kill': killTask(id); res.json({ message: `Killed ${id}` }); break;
-      case 'set_key': { const keyMap = { venice: 'venice_api_key', grok: 'grok_api_key', elevenlabs: 'elevenlabs_api_key', groq: 'groq_api_key', gemini: 'gemini_api_key' }; const cfg = keyMap[provider]; if (!cfg) { res.json({ error: `Unknown provider: ${provider}` }); break; } setConfig(cfg, key); broadcast('provider_status', getProviderStatus()); res.json({ message: `${provider} key saved.` }); break; }
+      case 'set_key': { const keyMap = { grok: 'grok_api_key', venice: 'venice_api_key', gemini: 'gemini_api_key', claude: 'claude_api_key', openrouter: 'openrouter_api_key', elevenlabs: 'elevenlabs_api_key', groq: 'groq_api_key' }; const cfg = keyMap[provider]; if (!cfg) { res.json({ error: `Unknown provider: ${provider}` }); break; } setConfig(cfg, key); broadcast('provider_status', getProviderStatus()); res.json({ message: `${provider} key saved.` }); break; }
       case 'set_voice_id': { if (!req.body.voiceId) { res.json({ error: 'voiceId required' }); break; } setConfig('elevenlabs_voice_id', req.body.voiceId); broadcast('provider_status', getProviderStatus()); res.json({ message: 'Voice ID saved.' }); break; }
       case 'set_provider': setConfig('ai_provider', provider); broadcast('provider_status', getProviderStatus()); res.json({ message: `Provider: ${provider}` }); break;
       case 'autonomous': { agent.autonomous = req.body.mode === 'on'; broadcast('agent_status', getAgentStatus()); res.json({ message: `Autonomous: ${agent.autonomous ? 'ON' : 'OFF'}` }); break; }
