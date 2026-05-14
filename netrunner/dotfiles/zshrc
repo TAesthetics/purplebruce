@@ -116,6 +116,10 @@ alias update='_pb_update'
 # ── Firmware ─────────────────────────────────────────────────────
 alias bruce-flash='bash "${HOME}/purplebruce/netrunner/firmware/flash-bruce.sh"'
 
+# ── Drone ────────────────────────────────────────────────────────
+alias drone-bridge='pip install websockets -q 2>/dev/null; python3 "${HOME}/purplebruce/netrunner/drone/mini4k.py"'
+alias drone='python3 "${HOME}/purplebruce/netrunner/drone/mini4k.py"'
+
 # ── OpenClaw ─────────────────────────────────────────────────────
 alias ocstart='openclaw onboard --install-daemon 2>/dev/null; openclaw dashboard &'
 alias ocstop='pkill -f openclaw 2>/dev/null && echo "[✔] OpenClaw stopped"'

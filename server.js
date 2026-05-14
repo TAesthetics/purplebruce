@@ -1108,6 +1108,38 @@ function killTask(id) {
 }
 function listTasks() { return db.prepare("SELECT * FROM tasks ORDER BY started DESC LIMIT 50").all().map(t => ({ ...t, alive: !!liveTasks[t.id] })); }
 
+// ═══ DRONE BRIDGE ═══
+const drone = { connected:false, ip:null, model:'DJI Mini 4K', telemetry:{}, bridge:null };
+function getDroneStatus() { return { connected:drone.connected, ip:drone.ip, model:drone.model, telemetry:drone.telemetry, bridgeRunning:!!drone.bridge }; }
+
+function spawnDroneBridge() {
+  if (drone.bridge) return;
+  const script = path.join(__dirname, 'netrunner/drone/mini4k.py');
+  if (!fs.existsSync(script)) { broadcast('drone_log', { text:'mini4k.py not found', level:'error' }); return; }
+  audit('DRONE', 'bridge start', '', 'drone');
+  drone.bridge = spawn('python3', [script], { stdio:['pipe','pipe','pipe'] });
+  drone.bridge.stdout.on('data', d => broadcast('drone_log', { text: d.toString().trim() }));
+  drone.bridge.stderr.on('data', d => broadcast('drone_log', { text: d.toString().trim(), level:'error' }));
+  drone.bridge.on('close', () => {
+    drone.bridge = null; drone.connected = false;
+    broadcast('drone_status', getDroneStatus());
+  });
+  setTimeout(() => {
+    try {
+      const bws = new WS('ws://127.0.0.1:7778');
+      drone.bridge.ws = bws;
+      bws.on('message', raw => {
+        try {
+          const m = JSON.parse(raw.toString());
+          if (m.type === 'telemetry')    { drone.telemetry = m.data; broadcast('drone_telemetry', m.data); }
+          if (m.type === 'drone_status') { Object.assign(drone, { connected: m.data.connected, ip: m.data.ip }); broadcast('drone_status', getDroneStatus()); }
+        } catch {}
+      });
+      bws.on('close', () => { if (drone.bridge) drone.bridge.ws = null; });
+    } catch {}
+  }, 2000);
+}
+
 const clients = new Set();
 wss.on('connection', ws => {
   clients.add(ws);
@@ -1117,6 +1149,7 @@ wss.on('connection', ws => {
   ws.send(JSON.stringify({ type: 'provider_status', data: getProviderStatus() }));
   ws.send(JSON.stringify({ type: 'soc_status',      data: getSocStatus() }));
   ws.send(JSON.stringify({ type: 'team_status',     data: getTeamStatus() }));
+  ws.send(JSON.stringify({ type: 'drone_status',    data: getDroneStatus() }));
 });
 function broadcast(type, data, channel) { const m = JSON.stringify({ type, data, channel }); for (const ws of clients) if (ws.readyState === 1) ws.send(m); }
 
@@ -1151,6 +1184,11 @@ async function handleWs(ws, msg) {
     case 'task_kill': killTask(msg.id); ws.send(JSON.stringify({ type: 'task_list', data: listTasks() })); break;
     case 'get_soc_alerts': ws.send(JSON.stringify({ type: 'soc_alerts', data: db.prepare('SELECT * FROM soc_alerts ORDER BY id DESC LIMIT 50').all() })); break;
     case 'get_team_status': ws.send(JSON.stringify({ type: 'team_status', data: getTeamStatus() })); break;
+    case 'drone_scan':    { spawnDroneBridge(); setTimeout(() => { if (drone.bridge?.ws?.readyState===1) drone.bridge.ws.send(JSON.stringify({type:'scan'})); }, 2500); break; }
+    case 'drone_connect': { const dip = msg.ip || '192.168.2.1'; spawnDroneBridge(); setTimeout(() => { if (drone.bridge?.ws?.readyState===1) drone.bridge.ws.send(JSON.stringify({type:'connect',ip:dip})); }, drone.bridge?0:2500); break; }
+    case 'drone_command': { if (drone.bridge?.ws?.readyState===1) drone.bridge.ws.send(JSON.stringify({type:'command',cmd:msg.cmd,params:msg.params||{}})); break; }
+    case 'drone_disconnect': { if (drone.bridge?.ws?.readyState===1) drone.bridge.ws.send(JSON.stringify({type:'disconnect'})); break; }
+    case 'drone_status':  ws.send(JSON.stringify({ type:'drone_status', data: getDroneStatus() })); break;
   }
 }
 
@@ -1267,10 +1305,13 @@ app.post('/api/stt', express.raw({ type: 'audio/*', limit: '25mb' }), async (req
   }
 });
 
-app.get('/api/status',    (req, res) => res.json({ version: '6.0.0', ...collectIntel(), agentRunning: agent.running, socRunning: soc.running, provider: getConfig('ai_provider') || 'grok' }));
+app.get('/api/status',    (req, res) => res.json({ version: '7.0.0', ...collectIntel(), agentRunning: agent.running, socRunning: soc.running, provider: getConfig('ai_provider') || 'grok' }));
 app.get('/api/providers', (req, res) => res.json(getProviderStatus()));
 app.get('/api/team',      (req, res) => res.json(getTeamStatus()));
-app.get('/api/tasks', (req, res) => res.json(listTasks()));
+app.get('/api/tasks',     (req, res) => res.json(listTasks()));
+app.get('/api/drone',     (req, res) => res.json(getDroneStatus()));
+app.get('/hud',   (req, res) => res.sendFile(path.join(__dirname, 'public', 'hud.html')));
+app.get('/drone', (req, res) => res.sendFile(path.join(__dirname, 'public', 'drone.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 process.on('uncaughtException', e => { try { audit('UNCAUGHT', e.message || String(e), e.stack?.slice(0, 400) || '', 'system'); console.error('[UNCAUGHT]', e); } catch {} });
