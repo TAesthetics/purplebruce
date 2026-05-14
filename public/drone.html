@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>DRONE — PURPLE BRUCE</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --v: #aa44ff; --c: #00ffff; --g: #00ff88; --y: #ffdd00;
+  --r: #ff3355; --bg: #05050a; --panel: #0a0a14; --border: #1a1a2e;
+}
+html,body { background:var(--bg); color:#cdf; font-family:'Courier New',monospace;
+            min-height:100vh; }
+
+.topbar { display:flex; align-items:center; gap:10px; padding:8px 14px;
+          border-bottom:1px solid var(--v); background:#08000f; }
+.topbar h1 { font-size:14px; color:var(--v); letter-spacing:3px; margin-right:auto; }
+.status-chip { padding:3px 8px; border:1px solid #334; font-size:10px; }
+.status-chip.on  { border-color:var(--g); color:var(--g); }
+.status-chip.off { border-color:#334; color:#556; }
+.home-btn { padding:3px 10px; border:1px solid var(--c); color:var(--c);
+            background:transparent; font-family:inherit; font-size:11px; cursor:pointer;
+            text-decoration:none; }
+
+.grid { display:grid; grid-template-columns:220px 1fr 200px; grid-template-rows:1fr auto;
+        gap:4px; padding:4px; height:calc(100vh - 38px); }
+
+/* panels */
+.panel { background:var(--panel); border:1px solid var(--border); padding:10px; overflow:auto; }
+.panel h2 { font-size:10px; color:var(--v); letter-spacing:2px; margin-bottom:8px;
+            padding-bottom:4px; border-bottom:1px solid #1a1a2e; }
+
+/* ── LEFT: telemetry ─────────────────────────────────── */
+.telem { grid-column:1; grid-row:1; }
+.telem-row { display:flex; justify-content:space-between; padding:4px 0;
+             border-bottom:1px solid #0d0d1a; font-size:12px; }
+.telem-row .k { color:#668; }
+.telem-row .v { color:var(--c); font-weight:bold; }
+.telem-row .v.warn { color:var(--y); }
+.telem-row .v.crit { color:var(--r); animation:blink .5s infinite; }
+@keyframes blink { 50%{opacity:.3} }
+
+.bat-bar { height:6px; background:#111; margin-top:4px; }
+.bat-fill { height:100%; background:var(--g); transition:width .5s; }
+.bat-fill.low  { background:var(--y); }
+.bat-fill.crit { background:var(--r); }
+
+.compass { width:80px; height:80px; margin:10px auto; position:relative; }
+.compass-ring { width:80px; height:80px; border-radius:50%;
+                border:2px solid #334; position:absolute; }
+.compass-n { position:absolute; top:50%; left:50%; width:2px; background:var(--r);
+             transform-origin:bottom center; transition:transform .3s; }
+.compass-n { height:30px; margin-left:-1px; margin-top:-30px; }
+.compass-label { position:absolute; font-size:9px; color:#556; }
+.compass-label.n { top:2px; left:50%; transform:translateX(-50%); color:var(--r); }
+.compass-label.s { bottom:2px; left:50%; transform:translateX(-50%); }
+.compass-label.e { right:4px; top:50%; transform:translateY(-50%); }
+.compass-label.w { left:4px; top:50%; transform:translateY(-50%); }
+.heading-val { text-align:center; font-size:18px; color:var(--c); margin-top:4px; }
+
+/* ── CENTER: video + controls ───────────────────────── */
+.center { grid-column:2; grid-row:1; display:flex; flex-direction:column; gap:4px; }
+.video-box { flex:1; background:#000; border:1px solid #1a1a2e; position:relative;
+             display:flex; align-items:center; justify-content:center; overflow:hidden; }
+#drone-video { width:100%; height:100%; object-fit:contain; }
+.video-placeholder { text-align:center; color:#334; }
+.video-placeholder .icon { font-size:48px; margin-bottom:8px; }
+.video-overlay { position:absolute; inset:0; pointer-events:none; }
+/* HUD crosshair */
+.crosshair { position:absolute; top:50%; left:50%; width:40px; height:40px;
+             transform:translate(-50%,-50%); }
+.crosshair::before, .crosshair::after { content:''; position:absolute;
+  background:rgba(0,255,255,.4); }
+.crosshair::before { width:1px; height:40px; left:50%; }
+.crosshair::after  { width:40px; height:1px; top:50%; }
+
+.video-info { position:absolute; top:8px; left:8px; font-size:10px; color:var(--c);
+              text-shadow:0 0 8px rgba(0,255,255,.5); opacity:.8; }
+.rtsp-bar { display:flex; gap:4px; align-items:center; }
+#rtsp-url { flex:1; background:#0a0010; border:1px solid #334; color:var(--c);
+            font-family:inherit; font-size:11px; padding:3px 6px; outline:none; }
+.btn-sm { padding:3px 8px; border:1px solid var(--c); background:transparent;
+          color:var(--c); font-family:inherit; font-size:10px; cursor:pointer; }
+.btn-sm:hover { background:var(--c); color:#000; }
+
+.controls { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.ctrl-group { border:1px solid #1a1a2e; padding:6px; }
+.ctrl-group h3 { font-size:9px; color:#556; margin-bottom:6px; letter-spacing:1px; }
+.ctrl-pad { display:grid; grid-template-columns:repeat(3,1fr); gap:3px; }
+.ctrl-btn { padding:8px 4px; border:1px solid #223; background:#0a0010;
+            color:var(--c); font-family:inherit; font-size:11px; cursor:pointer;
+            text-align:center; user-select:none; }
+.ctrl-btn:active { background:var(--v); color:#000; border-color:var(--v); }
+.ctrl-btn.mid { color:var(--v); }
+.ctrl-btn.empty { background:transparent; border-color:transparent; cursor:default; }
+
+/* ── RIGHT: connection + mission ────────────────────── */
+.right { grid-column:3; grid-row:1; display:flex; flex-direction:column; gap:4px; }
+.connect-panel { }
+.scan-list { max-height:80px; overflow-y:auto; font-size:10px; margin-top:4px; }
+.scan-item { padding:3px 4px; cursor:pointer; border-bottom:1px solid #111;
+             display:flex; justify-content:space-between; }
+.scan-item:hover { background:#0d0d1a; }
+.scan-item .ssid { color:var(--c); }
+.scan-item .sig  { color:#556; }
+
+#drone-ip { width:100%; background:#050510; border:1px solid #334; color:var(--c);
+            font-family:inherit; font-size:11px; padding:4px; margin-top:4px; outline:none; }
+.btn-full { width:100%; padding:6px; border:1px solid var(--c); background:transparent;
+            color:var(--c); font-family:inherit; font-size:11px; cursor:pointer; margin-top:4px; }
+.btn-full:hover { background:var(--c); color:#000; }
+.btn-full.green { border-color:var(--g); color:var(--g); }
+.btn-full.green:hover { background:var(--g); color:#000; }
+
+.waypoints { flex:1; }
+.wp-list { max-height:120px; overflow-y:auto; font-size:10px; margin-top:4px; }
+.wp-item { padding:3px 4px; border-bottom:1px solid #111; display:flex;
+           justify-content:space-between; align-items:center; }
+.wp-item .del { color:var(--r); cursor:pointer; }
+.wp-form { display:grid; grid-template-columns:1fr 1fr; gap:2px; margin-top:4px; }
+.wp-form input { background:#050510; border:1px solid #334; color:var(--c);
+                 font-family:inherit; font-size:10px; padding:2px 4px; outline:none; }
+.wp-form input::placeholder { color:#334; }
+
+.log { grid-column:1/-1; grid-row:2; max-height:80px; overflow-y:auto; font-size:10px;
+       color:#556; line-height:1.4; padding:4px 8px; border-top:1px solid #1a1a2e; }
+.log .ok   { color:var(--g); }
+.log .err  { color:var(--r); }
+.log .warn { color:var(--y); }
+
+/* ── BOTTOM: emergency ───────────────────────────────── */
+.emergency { position:fixed; bottom:12px; right:12px; padding:12px 20px;
+             background:var(--r); border:none; color:#fff;
+             font-family:'Courier New',monospace; font-size:14px; font-weight:bold;
+             letter-spacing:2px; cursor:pointer; z-index:100;
+             box-shadow:0 0 20px rgba(255,51,85,.5); }
+.emergency:active { transform:scale(.95); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>⬡ DRONE CONTROL — DJI MINI 4K</h1>
+  <span class="status-chip off" id="chip-conn">OFFLINE</span>
+  <span class="status-chip" id="chip-bat">BAT --</span>
+  <span class="status-chip" id="chip-mode">IDLE</span>
+  <a href="/" class="home-btn">HOME</a>
+  <a href="/hud" class="home-btn">HUD</a>
+</div>
+
+<div class="grid">
+
+  <!-- LEFT: Telemetry -->
+  <div class="panel telem">
+    <h2>TELEMETRY</h2>
+    <div class="telem-row"><span class="k">Battery</span><span class="v" id="t-bat">-- %</span></div>
+    <div class="bat-bar"><div class="bat-fill" id="t-bat-bar" style="width:0%"></div></div>
+    <div class="telem-row"><span class="k">Altitude</span><span class="v" id="t-alt">-- m</span></div>
+    <div class="telem-row"><span class="k">Speed H</span><span class="v" id="t-spd-h">-- m/s</span></div>
+    <div class="telem-row"><span class="k">Speed V</span><span class="v" id="t-spd-v">-- m/s</span></div>
+    <div class="telem-row"><span class="k">Temp</span><span class="v" id="t-temp">--°C</span></div>
+    <div class="telem-row"><span class="k">ToF</span><span class="v" id="t-tof">-- cm</span></div>
+    <div class="telem-row"><span class="k">Flight time</span><span class="v" id="t-ft">0s</span></div>
+    <div class="telem-row"><span class="k">SDK</span><span class="v" id="t-sdk">--</span></div>
+    <div class="telem-row"><span class="k">S/N</span><span class="v" id="t-sn" style="font-size:9px">--</span></div>
+
+    <div style="margin-top:10px;">
+      <div class="compass">
+        <div class="compass-ring"></div>
+        <div class="compass-n" id="compass-needle"></div>
+        <div class="compass-label n">N</div>
+        <div class="compass-label s">S</div>
+        <div class="compass-label e">E</div>
+        <div class="compass-label w">W</div>
+      </div>
+      <div class="heading-val"><span id="t-hdg">0</span>°</div>
+    </div>
+  </div>
+
+  <!-- CENTER: Video + Controls -->
+  <div class="center">
+    <div class="video-box" id="video-box">
+      <div class="video-placeholder" id="vid-placeholder">
+        <div class="icon">🚁</div>
+        <div>No video stream</div>
+        <div style="font-size:10px;color:#445;margin-top:4px;">Connect drone to enable</div>
+      </div>
+      <img id="drone-video" style="display:none" alt="drone feed">
+      <div class="video-overlay">
+        <div class="crosshair"></div>
+        <div class="video-info" id="vid-info"></div>
+      </div>
+    </div>
+
+    <div class="rtsp-bar">
+      <input id="rtsp-url" placeholder="rtsp://192.168.2.1/live  or  http://…/video.mjpg" value="">
+      <button class="btn-sm" onclick="startVideo()">▶ STREAM</button>
+      <button class="btn-sm" onclick="stopVideo()">■ STOP</button>
+    </div>
+
+    <div class="controls">
+      <!-- Throttle / Yaw (left stick) -->
+      <div class="ctrl-group">
+        <h3>THROTTLE / YAW</h3>
+        <div class="ctrl-pad">
+          <div class="ctrl-btn empty"></div>
+          <div class="ctrl-btn" onmousedown="hold('up')" onmouseup="stopHold()" ontouchstart="hold('up')" ontouchend="stopHold()">▲ UP</div>
+          <div class="ctrl-btn empty"></div>
+          <div class="ctrl-btn" onmousedown="hold('ccw')" onmouseup="stopHold()">◁ YAW</div>
+          <div class="ctrl-btn mid" onclick="sendCmd('hover')">HOVER</div>
+          <div class="ctrl-btn" onmousedown="hold('cw')" onmouseup="stopHold()">YAW ▷</div>
+          <div class="ctrl-btn empty"></div>
+          <div class="ctrl-btn" onmousedown="hold('down')" onmouseup="stopHold()">▼ DOWN</div>
+          <div class="ctrl-btn empty"></div>
+        </div>
+      </div>
+      <!-- Forward / Lateral (right stick) -->
+      <div class="ctrl-group">
+        <h3>FORWARD / LATERAL</h3>
+        <div class="ctrl-pad">
+          <div class="ctrl-btn empty"></div>
+          <div class="ctrl-btn" onmousedown="hold('forward')" onmouseup="stopHold()">▲ FWD</div>
+          <div class="ctrl-btn empty"></div>
+          <div class="ctrl-btn" onmousedown="hold('left')" onmouseup="stopHold()">◁ LEFT</div>
+          <div class="ctrl-btn mid" onclick="sendCmd('hover')">STOP</div>
+          <div class="ctrl-btn" onmousedown="hold('right')" onmouseup="stopHold()">RIGHT ▷</div>
+          <div class="ctrl-btn empty"></div>
+          <div class="ctrl-btn" onmousedown="hold('back')" onmouseup="stopHold()">▼ BACK</div>
+          <div class="ctrl-btn empty"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Connect + Mission -->
+  <div class="right">
+    <!-- Connection -->
+    <div class="panel connect-panel">
+      <h2>CONNECTION</h2>
+      <button class="btn-full" onclick="scanWifi()">⬡ SCAN WIFI</button>
+      <div class="scan-list" id="scan-list"></div>
+      <input id="drone-ip" placeholder="192.168.2.1" value="192.168.2.1">
+      <button class="btn-full green" onclick="connectDrone()">▶ CONNECT</button>
+      <button class="btn-full" onclick="disconnectDrone()" style="border-color:#f35;color:#f35">■ DISCONNECT</button>
+    </div>
+
+    <!-- Flight actions -->
+    <div class="panel">
+      <h2>FLIGHT</h2>
+      <button class="btn-full green" onclick="sendCmd('takeoff')">⬆ TAKEOFF</button>
+      <button class="btn-full" onclick="sendCmd('land')" style="margin-top:4px">⬇ LAND</button>
+      <button class="btn-full" onclick="sendCmd('streamon')" style="margin-top:4px;border-color:#0f0;color:#0f0">▶ VIDEO ON</button>
+    </div>
+
+    <!-- Waypoints -->
+    <div class="panel waypoints">
+      <h2>WAYPOINTS</h2>
+      <div class="wp-list" id="wp-list"></div>
+      <div class="wp-form">
+        <input id="wp-x" placeholder="X (cm)" type="number">
+        <input id="wp-y" placeholder="Y (cm)" type="number">
+        <input id="wp-z" placeholder="Z (cm)" type="number">
+        <input id="wp-spd" placeholder="Speed" type="number" value="50">
+      </div>
+      <button class="btn-full" onclick="addWaypoint()" style="margin-top:4px">+ ADD WP</button>
+      <button class="btn-full green" onclick="runMission()" style="margin-top:2px">▶ RUN MISSION</button>
+    </div>
+  </div>
+
+  <!-- LOG BAR -->
+  <div class="log" id="log"></div>
+</div>
+
+<button class="emergency" onclick="emergency()">⚠ EMERGENCY STOP</button>
+
+<script>
+let ws, pbWs, reconnect;
+let waypoints = [];
+let holdTimer = null;
+let droneConnected = false;
+
+// ── Bridge WebSocket (mini4k.py on 7778) ─────────────────────────────────────
+function connectBridge() {
+  ws = new WebSocket('ws://127.0.0.1:7778');
+  ws.onopen  = () => log('Bridge connected', 'ok');
+  ws.onclose = () => { log('Bridge disconnected — retrying…', 'warn'); setTimeout(connectBridge, 4000); };
+  ws.onmessage = e => {
+    try { handleBridge(JSON.parse(e.data)); } catch {}
+  };
+  ws.onerror = () => log('Bridge offline — run: drone-bridge', 'err');
+}
+
+// ── Purple Bruce WS (for HUD integration) ────────────────────────────────────
+function connectPB() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  pbWs = new WebSocket(`${proto}://${location.host}`);
+  pbWs.onopen  = () => {};
+  pbWs.onclose = () => setTimeout(connectPB, 3000);
+  pbWs.onmessage = e => {
+    try {
+      const m = JSON.parse(e.data);
+      if (m.type === 'drone_telemetry') updateTelem(m.data);
+      if (m.type === 'drone_status')    updateStatus(m.data);
+    } catch {}
+  };
+}
+
+function handleBridge(m) {
+  if (m.type === 'telemetry')     updateTelem(m.data);
+  else if (m.type === 'drone_status') updateStatus(m.data);
+  else if (m.type === 'scan_result')  showScanResult(m);
+  else if (m.type === 'connected')    log(`Connected to drone ${m.ip}`, 'ok');
+  else if (m.type === 'error')        log(`Error: ${m.msg}`, 'err');
+  else if (m.type === 'cmd_response') log(`CMD ${m.cmd} → ${m.resp}`, m.resp==='ok'?'ok':'warn');
+  else if (m.type === 'scan_start')   log('Scanning for DJI networks…');
+  else if (m.type === 'connecting')   log(`Connecting to ${m.ip}…`);
+}
+
+function bSend(obj) {
+  if (ws?.readyState === 1) ws.send(JSON.stringify(obj));
+  else log('Bridge not connected — run: drone-bridge', 'err');
+}
+
+// ── Telemetry ─────────────────────────────────────────────────────────────────
+function updateTelem(t) {
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  const bat = t.battery;
+  set('t-bat', bat != null ? bat + ' %' : '-- %');
+  set('chip-bat', 'BAT ' + (bat != null ? bat + '%' : '--'));
+  const bar = document.getElementById('t-bat-bar');
+  if (bar && bat != null) {
+    bar.style.width = bat + '%';
+    bar.className = 'bat-fill' + (bat < 10 ? ' crit' : bat < 25 ? ' low' : '');
+  }
+  set('t-alt',   t.altitude  != null ? t.altitude.toFixed(1) + ' m'   : '-- m');
+  set('t-spd-h', t.speed_h   != null ? t.speed_h.toFixed(1)  + ' m/s' : '-- m/s');
+  set('t-spd-v', t.speed_v   != null ? t.speed_v.toFixed(1)  + ' m/s' : '-- m/s');
+  set('t-temp',  t.temp_high != null ? t.temp_high + '°C'              : '--°C');
+  set('t-tof',   t.tof       != null ? t.tof + ' cm'                   : '-- cm');
+  set('t-ft',    t.flight_time!= null ? t.flight_time + 's'            : '0s');
+  if (t.sdk) set('t-sdk', t.sdk);
+  if (t.sn)  set('t-sn',  t.sn);
+
+  const hdg = t.heading ?? 0;
+  set('t-hdg', Math.round(hdg));
+  const needle = document.getElementById('compass-needle');
+  if (needle) needle.style.transform = `rotate(${hdg}deg)`;
+
+  set('chip-mode', t.mode || 'IDLE');
+  set('vid-info', t.altitude != null ? `ALT ${t.altitude.toFixed(1)}m  SPD ${(t.speed_h||0).toFixed(1)}m/s` : '');
+}
+
+function updateStatus(d) {
+  droneConnected = d.connected;
+  const chip = document.getElementById('chip-conn');
+  chip.textContent = d.connected ? 'CONNECTED' : 'OFFLINE';
+  chip.className = 'status-chip ' + (d.connected ? 'on' : 'off');
+  if (d.telemetry) updateTelem(d.telemetry);
+}
+
+// ── Scan result ───────────────────────────────────────────────────────────────
+function showScanResult(m) {
+  const list = document.getElementById('scan-list');
+  if (!m.networks?.length && !m.detected_ip) {
+    list.innerHTML = '<div style="color:#556;padding:4px">No DJI networks found</div>';
+  } else {
+    let html = '';
+    if (m.detected_ip) {
+      html += `<div class="scan-item" onclick="useIp('${m.detected_ip}')">
+        <span class="ssid">✔ ${m.detected_ip}</span><span class="sig">AUTO</span></div>`;
+    }
+    (m.networks || []).forEach(n => {
+      html += `<div class="scan-item" onclick="useIp('${n.ssid}')">
+        <span class="ssid">${n.ssid}</span><span class="sig">${n.signal}</span></div>`;
+    });
+    list.innerHTML = html || '<div style="color:#556;padding:4px">None found</div>';
+  }
+  if (m.detected_ip) document.getElementById('drone-ip').value = m.detected_ip;
+}
+
+function useIp(ip) {
+  document.getElementById('drone-ip').value = ip;
+}
+
+// ── Flight commands ───────────────────────────────────────────────────────────
+function sendCmd(cmd, params = {}) {
+  bSend({ type: 'command', cmd, params });
+}
+
+function scanWifi()       { bSend({ type: 'scan' }); log('Scanning WiFi…'); }
+function connectDrone()   { const ip = document.getElementById('drone-ip').value.trim() || '192.168.2.1'; bSend({ type: 'connect', ip }); log(`Connecting to ${ip}…`); }
+function disconnectDrone(){ bSend({ type: 'disconnect' }); }
+function emergency()      { sendCmd('emergency'); log('⚠ EMERGENCY STOP sent', 'err'); }
+
+let holdInterval = null;
+function hold(cmd) {
+  sendCmd(cmd);
+  holdInterval = setInterval(() => sendCmd(cmd), 300);
+}
+function stopHold() {
+  clearInterval(holdInterval);
+  sendCmd('hover');
+}
+
+// ── Waypoints ─────────────────────────────────────────────────────────────────
+function addWaypoint() {
+  const x = parseInt(document.getElementById('wp-x').value) || 0;
+  const y = parseInt(document.getElementById('wp-y').value) || 0;
+  const z = parseInt(document.getElementById('wp-z').value) || 100;
+  const s = parseInt(document.getElementById('wp-spd').value) || 50;
+  waypoints.push({ x, y, z, speed: s });
+  renderWaypoints();
+}
+
+function renderWaypoints() {
+  document.getElementById('wp-list').innerHTML = waypoints.map((wp, i) =>
+    `<div class="wp-item">
+      <span style="color:var(--c)">WP${i+1}: ${wp.x},${wp.y},${wp.z}cm @${wp.speed}</span>
+      <span class="del" onclick="delWp(${i})">✕</span>
+    </div>`
+  ).join('') || '<div style="color:#445;font-size:10px">No waypoints</div>';
+}
+
+function delWp(i) { waypoints.splice(i, 1); renderWaypoints(); }
+
+async function runMission() {
+  if (!waypoints.length) { log('No waypoints', 'warn'); return; }
+  log(`Running mission: ${waypoints.length} waypoints`);
+  sendCmd('takeoff');
+  await delay(3000);
+  for (const wp of waypoints) {
+    sendCmd('go', wp);
+    log(`→ WP ${wp.x},${wp.y},${wp.z}`);
+    await delay(4000);
+  }
+  sendCmd('land');
+  log('Mission complete', 'ok');
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Video ─────────────────────────────────────────────────────────────────────
+function startVideo() {
+  const url = document.getElementById('rtsp-url').value.trim();
+  if (!url) return;
+  const vid = document.getElementById('drone-video');
+  const ph  = document.getElementById('vid-placeholder');
+  vid.src = url;
+  vid.style.display = 'block';
+  ph.style.display  = 'none';
+  log(`Stream: ${url}`, 'ok');
+}
+
+function stopVideo() {
+  const vid = document.getElementById('drone-video');
+  vid.src = '';
+  vid.style.display = 'none';
+  document.getElementById('vid-placeholder').style.display = 'flex';
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  const k = e.key.toLowerCase();
+  if (k === 't') sendCmd('takeoff');
+  else if (k === 'l') sendCmd('land');
+  else if (k === ' ') { e.preventDefault(); emergency(); }
+  else if (k === 'w' || k === 'arrowup')    sendCmd('forward', { dist: 30 });
+  else if (k === 's' || k === 'arrowdown')  sendCmd('back',    { dist: 30 });
+  else if (k === 'a' || k === 'arrowleft')  sendCmd('left',    { dist: 30 });
+  else if (k === 'd' || k === 'arrowright') sendCmd('right',   { dist: 30 });
+  else if (k === 'q') sendCmd('ccw', { deg: 30 });
+  else if (k === 'e') sendCmd('cw',  { deg: 30 });
+  else if (k === 'r') sendCmd('up',  { dist: 30 });
+  else if (k === 'f') sendCmd('down',{ dist: 30 });
+});
+
+// ── Log ───────────────────────────────────────────────────────────────────────
+function log(txt, cls='') {
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  line.className = cls;
+  line.textContent = `${new Date().toTimeString().slice(0,8)} ${txt}`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+  while (el.children.length > 60) el.removeChild(el.firstChild);
+}
+
+renderWaypoints();
+connectBridge();
+connectPB();
+log('Drone panel ready. Start bridge: drone-bridge', 'warn');
+</script>
+</body>
+</html>

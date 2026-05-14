@@ -226,7 +226,13 @@ fi
 info "Installing npm dependencies..."
 (cd "$PB_DIR" && npm install 2>&1 | tail -5) \
   && ok "npm dependencies installed" \
-  || die "npm install failed — run 'cd ~/purplebruce && npm install' manually"
+  || warn "npm install failed — run: cd ~/purplebruce && npm install"
+
+# ─── Deploy full dotfiles (zshrc + aliases) ────────────────────────────────────
+info "Deploying Purple Bruce dotfiles..."
+bash "${PB_DIR}/netrunner/dotfiles/install.sh" \
+  && ok "Dotfiles deployed (zshrc, aliases, netrunner symlink)" \
+  || warn "Dotfiles deploy failed — run: bash ~/purplebruce/netrunner/dotfiles/install.sh"
 
 # ─── Log + quarantine dirs ────────────────────────────────────────────────────
 mkdir -p "${HOME}/.purplebruce/quarantine" "${HOME}/.purplebruce/forensics"
