@@ -1,11 +1,21 @@
 {
   "name": "purplebruce",
-  "version": "6.0.0",
-  "description": "Purple Bruce Cyberdeck v6.0 — TERTRATRONIC RIPPLER TIER 5 — Kali NetHunter Full Rootless",
+  "version": "7.0.0",
+  "description": "Purple Bruce Lucy v7.0 — Purple Team AI Agent · Self-healing 6-provider AI · SOC + Red Team · Drone + Smart Glasses · Runs on Android via Termux + Arch proot",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "NODE_ENV=development node server.js",
+    "health": "curl -s http://127.0.0.1:3000/api/health | python3 -m json.tool"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "purple-team", "ai-agent", "security", "red-team", "blue-team",
+    "android", "termux", "blackarch", "drone", "cybersecurity"
+  ],
+  "license": "MIT",
   "dependencies": {
     "better-sqlite3": "^11.10.0",
     "express": "^4.22.1",

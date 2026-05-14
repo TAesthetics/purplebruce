@@ -64,6 +64,26 @@ db.prepare("UPDATE tasks SET status='crashed' WHERE status='running'").run();
 function getConfig(k) { const r = db.prepare('SELECT value FROM config WHERE key=?').get(k); return r ? r.value : null; }
 function setConfig(k, v) { db.prepare('INSERT OR REPLACE INTO config (key,value) VALUES (?,?)').run(k, v); }
 
+// ═══ OPERATOR AUTH + RATE LIMITING ═══
+const crypto = require('crypto');
+let OPERATOR_TOKEN = process.env.OPERATOR_TOKEN || getConfig('operator_token');
+if (!OPERATOR_TOKEN) {
+  OPERATOR_TOKEN = crypto.randomBytes(20).toString('hex');
+  setConfig('operator_token', OPERATOR_TOKEN);
+  try { fs.writeFileSync(path.join(PB_DIR, 'operator.txt'), `OPERATOR_TOKEN=${OPERATOR_TOKEN}\n`, { mode: 0o600 }); } catch {}
+}
+function validToken(t) { return t === OPERATOR_TOKEN; }
+
+const _rate = new Map();
+function rateOk(key, max = 60) {
+  const now = Date.now();
+  let b = _rate.get(key);
+  if (!b || now > b.t) b = { n: 0, t: now + 60000 };
+  b.n++; _rate.set(key, b);
+  return b.n <= max;
+}
+setInterval(() => { const now = Date.now(); for (const [k, v] of _rate) if (now > v.t) _rate.delete(k); }, 120000);
+
 // ═══ COMMAND EXECUTION (ROOT ACCESS) ═══
 function rawExec(cmd, channel = 'agent') {
   const start = Date.now();
@@ -120,7 +140,7 @@ app.post('/api/stripe/checkout', async (req, res) => {
   try {
     const stripe = require('stripe')(STRIPE_KEY);
     const session = await stripe.checkout.sessions.create({
-      customer_email: req.user.email,
+      customer_email: req.body?.email || undefined,
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
@@ -635,10 +655,16 @@ function socStop() {
 }
 const safeExec = (cmd, source) => { const res = rawExec(cmd, source); return { ok: res.ok, output: res.output, blocked: false }; };
 
+// Validate scan target: hostnames, IPs, optional port — block shell metacharacters
+function validateScanTarget(t) {
+  return typeof t === 'string' && /^[a-zA-Z0-9.\-_:\[\]]{1,255}$/.test(t) && t.length > 0;
+}
+
 // ═══ SECURITY TOOLS (ROOT) ═══
 async function doScan(target, mode) {
   const ch = 'scan', tid = registerTask('scan', `Scan ${target} [${mode}]`, null, null), output = [];
   const send = (t, tp = 'info') => { const l = { type: tp, text: t, channel: ch }; output.push(l); broadcast('terminal', l, ch); };
+  if (!validateScanTarget(target)) { send(`[ERR] Invalid target: ${String(target).slice(0,60)}`, 'error'); completeTask(tid); return []; }
   audit('SCAN', `${target} ${mode}`, '', 'scan');
   send(`[RECON] Scanning ${target} | Mode: ${mode}`);
   const ping = await runCommand('ping', ['-c', '1', '-W', '2', target], ch); output.push(...ping.output);
@@ -952,11 +978,7 @@ async function chatAgent(userMessage) {
 
   if (agent.running) return;
 
-  if (!agent.autonomous && looksAutonomous(userMessage)) {
-    agent.autonomous = true;
-    broadcast('agent_status', getAgentStatus());
-    audit('AUTONOMOUS_AUTO', 'intent match', userMessage.slice(0, 200), 'agent');
-  }
+  // Autonomous mode requires explicit toggle — never auto-enable from chat text (security)
 
   agent.running = true; agent.aborted = false; agent.round = 0;
   agent.sessionId = uuidv4(); agent.pendingCmd = null;
@@ -1157,6 +1179,21 @@ const agent = { running: false, autonomous: false, voiceMode: false, round: 0, a
 function getAgentStatus() { return { running: agent.running, autonomous: agent.autonomous, voiceMode: agent.voiceMode, round: agent.round, pendingCmd: agent.pendingCmd }; }
 
 async function handleWs(ws, msg) {
+  // Global rate limit: 120 messages/min per server
+  if (!rateOk('ws_global', 120)) { ws.send(JSON.stringify({ type: 'error', data: 'Rate limit exceeded' })); return; }
+
+  // Operator token check for sensitive actions
+  const AUTHED_ACTIONS = new Set([
+    'exec_cmd','scan','harden','hunt','red_preview','red_execute',
+    'drone_scan','drone_connect','drone_command','drone_disconnect',
+    'autonomous_toggle','set_key','set_provider','set_voice_id','openclaw_toggle','openclaw_port',
+  ]);
+  if (AUTHED_ACTIONS.has(msg.action) && !validToken(msg.token)) {
+    ws.send(JSON.stringify({ type: 'auth_required', data: { action: msg.action } }));
+    audit('AUTH_FAIL', msg.action, `token:${String(msg.token || '').slice(0, 6)}...`, 'ws');
+    return;
+  }
+
   switch (msg.action) {
     case 'chat': { if (!msg.message) return; const p = getConfig('ai_provider') || 'grok'; const keyMap2 = { grok:'grok_api_key', venice:'venice_api_key', gemini:'gemini_api_key', claude:'claude_api_key', openrouter:'openrouter_api_key' }; const k = getConfig(keyMap2[p] || 'grok_api_key'); if (!k) { ws.send(JSON.stringify({ type: 'chat_message', data: { role: 'assistant', content: `No ${p} API key. Open settings, Operator.`, meta: 'chat' } })); return; } chatAgent(msg.message); break; }
     case 'cmd_approve': if (agent.pendingCmd) agent.pendingCmd.approved = msg.approve; break;
@@ -1184,9 +1221,21 @@ async function handleWs(ws, msg) {
     case 'task_kill': killTask(msg.id); ws.send(JSON.stringify({ type: 'task_list', data: listTasks() })); break;
     case 'get_soc_alerts': ws.send(JSON.stringify({ type: 'soc_alerts', data: db.prepare('SELECT * FROM soc_alerts ORDER BY id DESC LIMIT 50').all() })); break;
     case 'get_team_status': ws.send(JSON.stringify({ type: 'team_status', data: getTeamStatus() })); break;
-    case 'drone_scan':    { spawnDroneBridge(); setTimeout(() => { if (drone.bridge?.ws?.readyState===1) drone.bridge.ws.send(JSON.stringify({type:'scan'})); }, 2500); break; }
-    case 'drone_connect': { const dip = msg.ip || '192.168.2.1'; spawnDroneBridge(); setTimeout(() => { if (drone.bridge?.ws?.readyState===1) drone.bridge.ws.send(JSON.stringify({type:'connect',ip:dip})); }, drone.bridge?0:2500); break; }
-    case 'drone_command': { if (drone.bridge?.ws?.readyState===1) drone.bridge.ws.send(JSON.stringify({type:'command',cmd:msg.cmd,params:msg.params||{}})); break; }
+    case 'drone_scan': {
+      const wasReady = drone.bridge?.ws?.readyState === 1;
+      if (!wasReady) spawnDroneBridge();
+      setTimeout(() => { if (drone.bridge?.ws?.readyState===1) drone.bridge.ws.send(JSON.stringify({type:'scan'})); else broadcast('drone_log',{text:'Bridge not ready — retry in 3s',level:'warn'}); }, wasReady ? 0 : 2800);
+      break;
+    }
+    case 'drone_connect': {
+      const dip = msg.ip || '192.168.2.1';
+      if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(dip)) { ws.send(JSON.stringify({type:'error',data:'Invalid drone IP format'})); break; }
+      const wasReady = drone.bridge?.ws?.readyState === 1;
+      if (!wasReady) spawnDroneBridge();
+      setTimeout(() => { if (drone.bridge?.ws?.readyState===1) drone.bridge.ws.send(JSON.stringify({type:'connect',ip:dip})); else broadcast('drone_log',{text:`Bridge not ready for ${dip} — retry`,level:'warn'}); }, wasReady ? 0 : 2800);
+      break;
+    }
+    case 'drone_command': { if (drone.bridge?.ws?.readyState===1) drone.bridge.ws.send(JSON.stringify({type:'command',cmd:String(msg.cmd||''),params:msg.params||{}})); break; }
     case 'drone_disconnect': { if (drone.bridge?.ws?.readyState===1) drone.bridge.ws.send(JSON.stringify({type:'disconnect'})); break; }
     case 'drone_status':  ws.send(JSON.stringify({ type:'drone_status', data: getDroneStatus() })); break;
   }
@@ -1305,6 +1354,7 @@ app.post('/api/stt', express.raw({ type: 'audio/*', limit: '25mb' }), async (req
   }
 });
 
+app.get('/api/health',    (req, res) => res.json({ status:'ok', version:'7.0.0', ts: new Date().toISOString(), uptime: Math.floor(process.uptime()), agent: agent.running, soc: soc.running, providers: TEAM_PROVIDERS.filter(p => LOCAL_PROVIDERS.has(p) ? getConfig('openclaw_enabled')==='1' : !!getConfig(`${p}_api_key`)).length }));
 app.get('/api/status',    (req, res) => res.json({ version: '7.0.0', ...collectIntel(), agentRunning: agent.running, socRunning: soc.running, provider: getConfig('ai_provider') || 'grok' }));
 app.get('/api/providers', (req, res) => res.json(getProviderStatus()));
 app.get('/api/team',      (req, res) => res.json(getTeamStatus()));
@@ -1317,16 +1367,28 @@ app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.ht
 process.on('uncaughtException', e => { try { audit('UNCAUGHT', e.message || String(e), e.stack?.slice(0, 400) || '', 'system'); console.error('[UNCAUGHT]', e); } catch {} });
 process.on('unhandledRejection', e => { try { audit('UNHANDLED', (e && e.message) || String(e), '', 'system'); console.error('[UNHANDLED]', e); } catch {} });
 
+function gracefulShutdown(sig) {
+  console.log(`\n[SHUTDOWN] ${sig} — closing gracefully...`);
+  audit('SHUTDOWN', sig, '', 'system');
+  if (drone.bridge) { try { drone.bridge.kill('SIGTERM'); } catch {} }
+  server.close(() => { try { db.close(); } catch {} process.exit(0); });
+  setTimeout(() => process.exit(1), 5000);
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+
 server.listen(PORT, '0.0.0.0', () => {
-  audit('BOOT', `server port:${PORT}`, '', 'system');
+  audit('BOOT', `server port:${PORT} token:${OPERATOR_TOKEN.slice(0,8)}...`, '', 'system');
   socStart();
-  setInterval(teamStatusCheck, 60_000); // key-presence check, no API calls
+  setInterval(teamStatusCheck, 60_000);
   console.log(`
-╔══════════════════════════════════════════════════════════════╗
-║  PURPLE BRUCE v6.0 — TERTRATRONIC RIPPLER TIER 5             ║
-║  Port: ${PORT} | Multi-Provider AI Router | SOC: ACTIVE         ║
-║  Routing: Grok(reason) › Venice(redteam) › Gemini(fallback)  ║
-║  Scope: UNRESTRICTED | Audit: ON | /api/providers: LIVE       ║
-╚══════════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════════╗
+║  PURPLE BRUCE LUCY  v7.0  ·  Purple Team AI  ·  BlackArch       ║
+║  Port: ${String(PORT).padEnd(5)} | 6 AI Providers | SOC: ACTIVE              ║
+║  /  /hud  /drone  /api/health  |  Audit log: ON                 ║
+╠══════════════════════════════════════════════════════════════════╣
+║  OPERATOR TOKEN: ${OPERATOR_TOKEN}  ║
+║  (saved to ~/.purplebruce/operator.txt)                         ║
+╚══════════════════════════════════════════════════════════════════╝
   `);
 });

@@ -261,31 +261,8 @@ for rc in "${HOME}/.bashrc" "${HOME}/.zshrc"; do
 done
 export PATH="$HOME/.local/bin:$PATH"
 
-# ─── LAYER 2 aliases (inside Arch proot) ──────────────────────────────────────
-if ! grep -q "purplebruce aliases" "$SHELL_RC" 2>/dev/null; then
-  cat >> "$SHELL_RC" <<'L2_ALIASES'
-
-# ── Purple Bruce Lucy — Layer 2 aliases (Arch proot) ──
-alias pb='netrunner'
-alias lucy='netrunner'
-alias purple='netrunner'
-alias bruce='netrunner'
-alias pbstart='netrunner start'
-alias go='netrunner start'
-alias stop='pkill -f "node server.js" 2>/dev/null && echo "[✔] Stopped." || echo "[⚠] Not running."'
-alias pbstop='pkill -f "node server.js" 2>/dev/null && echo "[✔] Stopped." || echo "[⚠] Not running."'
-alias logs='tail -f ~/.purplebruce/audit.log'
-alias doctor='netrunner doctor'
-alias deck='netrunner deck'
-alias team='netrunner team'
-alias overclock='netrunner overclock'
-alias scan='netrunner scan'
-alias chat='cd ~/purplebruce && node server.js &; sleep 2; curl -s http://127.0.0.1:3000/api/status | python3 -m json.tool 2>/dev/null || echo "Server starting..."'
-alias toolcheck='command -v nmap nikto sqlmap ffuf gobuster hydra masscan metasploit-framework impacket crackmapexec hashcat john wireshark-cli 2>&1 | grep -v "^$"'
-alias ba='pacman -Ss blackarch'
-L2_ALIASES
-  ok "Layer 2 aliases added to ${SHELL_RC}"
-fi
+# ─── LAYER 2 aliases: handled by dotfiles/install.sh (zshrc deployed above) ──
+ok "Aliases deployed via dotfiles/zshrc"
 
 # ─── LAYER 1 wrapper (Termux-side) ────────────────────────────────────────────
 # Detect Termux home directory — write Layer 1 aliases there

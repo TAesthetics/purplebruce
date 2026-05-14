@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(npm:*)",
+      "Bash(node:*)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(curl http://127.0.0.1:*)",
+      "Bash(wc:*)",
+      "Bash(jq:*)",
+      "Bash(python3:*)"
+    ]
+  }
+}
