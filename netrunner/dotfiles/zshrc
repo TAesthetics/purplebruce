@@ -114,6 +114,8 @@ alias pbupdate='_pb_update'
 alias update='_pb_update'
 
 # ── Firmware ─────────────────────────────────────────────────────
+alias tui='_nr tui'
+alias dashboard='_nr tui'
 alias bruce-flash='bash "${HOME}/purplebruce/netrunner/firmware/flash-bruce.sh"'
 
 # ── Drone ────────────────────────────────────────────────────────
@@ -241,8 +243,8 @@ _pb_banner() {
   echo ""
   echo "  ${G}⚡${RS} ${W}pbstart${RS}    ${D}→ launch server${RS}"
   echo "  ${G}⚡${RS} ${W}go${RS}         ${D}→ same (short)${RS}"
+  echo "  ${M}⬡${RS} ${W}tui${RS}        ${D}→ interactive TUI dashboard${RS}"
   echo "  ${C}⬡${RS} ${W}oc${RS}         ${D}→ openclaw CLI${RS}"
-  echo "  ${C}⬡${RS} ${W}ocstart${RS}    ${D}→ start openclaw gateway${RS}"
   echo "  ${D}──────────────────────────────${RS}"
   echo "  ${C}toolcheck${RS}   ${D}→ verify BlackArch arsenal${RS}"
   echo "  ${C}pbupdate${RS}    ${D}→ update + redeploy${RS}"

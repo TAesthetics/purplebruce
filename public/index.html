@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,interactive-widget=resizes-content,viewport-fit=cover">
-<title>PURPLE BRUCE v6.0 — CHAOS MAGIC SERVITOR</title>
+<title>PURPLE BRUCE v7.0 — PURPLE TEAM AI AGENT</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 :root{--void:#000;--bg:#0d0d0d;--surface:#111;--card:#161616;--border:#2c2c2c;--border-accent:#4a1a7a;--violet:#7700cc;--violet-deep:#550099;--violet-soft:#9933dd;--vg:#7700cc44;--vg-strong:#7700cc99;--red:#cc2200;--rg:#cc220066;--cyan:#0099bb;--cg:#0099bb44;--mag:#880055;--gold:#887700;--green:#226622;--purple:#7755aa;--text:#cccccc;--tb:#eeeeee;--td:#777777;--tm:#444444;--f:'Share Tech Mono','Courier New',monospace;--fd:'Share Tech Mono','Courier New',monospace;--rad-pill:2px;--rad-lg:2px;--rad-md:2px;--rad-sm:0px}
@@ -154,8 +154,9 @@ function useWS(){
   useEffect(()=>{connect();return()=>ws.current?.close()},[connect]);
   const send=useCallback((a,d={})=>{
     if(ws.current?.readyState===1){
-      console.log('[WS] send',a,d);
-      ws.current.send(JSON.stringify({action:a,...d}));
+      const tok=localStorage.getItem('pb_operator_token')||'';
+      const payload={action:a,...(tok?{token:tok}:{}),...d};
+      ws.current.send(JSON.stringify(payload));
     }else{
       console.warn('[WS] not open, drop',a,'state=',ws.current?.readyState);
     }
@@ -494,8 +495,19 @@ const SettingsModal=({provider,grokHasKey,grokMask,veniceHasKey,veniceMask,gemin
   const[gk,setGk]=useState('');const[vk,setVk]=useState('');const[gmk,setGmk]=useState('');
   const[clk,setClk]=useState('');const[ork,setOrk]=useState('');
   const[ocToken,setOcToken]=useState('');const[ocPort,setOcPort]=useState(openclawPort||'18789');
+  const[tok,setTok]=useState(()=>localStorage.getItem('pb_operator_token')||'');
+  const[tokSaved,setTokSaved]=useState(false);
+  const saveTok=()=>{localStorage.setItem('pb_operator_token',tok.trim());setTokSaved(true);setTimeout(()=>setTokSaved(false),2000)};
+  const clearTok=()=>{localStorage.removeItem('pb_operator_token');setTok('')};
+  const tokStored=!!localStorage.getItem('pb_operator_token');
   return(<div className="modal-overlay"><div className="modal" style={{border:'1px solid var(--cyan)'}}>
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}><span style={{color:'var(--cyan)',fontSize:13,fontFamily:'var(--fd)',letterSpacing:3}}>SETTINGS — TIER 5</span><button className="btn s" onClick={()=>setShowSettings(false)} style={{borderColor:'var(--td)',color:'var(--td)'}}>CLOSE</button></div>
+    <div style={{borderBottom:'1px solid var(--border)',paddingBottom:12,marginBottom:12}}>
+      <div style={{color:'var(--td)',fontSize:10,marginBottom:4}}>🔑 OPERATOR TOKEN  <span style={{color:'var(--tm)',fontSize:8}}>~/.purplebruce/operator.txt — required for scan/exec/drone/keys</span></div>
+      {tokStored&&!tokSaved&&<div style={{color:'var(--green)',fontSize:9,marginBottom:4}}>✓ token set</div>}
+      {tokSaved&&<div style={{color:'var(--green)',fontSize:9,marginBottom:4}}>✓ saved</div>}
+      <div style={{display:'flex',gap:6}}><input value={tok} onChange={e=>setTok(e.target.value)} placeholder="40-char hex token from operator.txt" type="password" className="inp" style={{flex:1}}/><button className="btn s gn" onClick={saveTok}>SAVE</button><button className="btn s rd" onClick={clearTok} style={{padding:'7px 8px'}}>CLR</button></div>
+    </div>
     <div style={{color:'var(--td)',fontSize:10,marginBottom:8}}>DEFAULT PROVIDER  <span style={{color:'var(--tm)',fontSize:8}}>(smart routing overrides for redteam tasks)</span></div>
     <div style={{display:'flex',gap:6,marginBottom:14,flexWrap:'wrap'}}>
       <button className={`btn s ${provider==='grok'?'gn':''}`} onClick={()=>send('set_provider',{provider:'grok'})} style={provider!=='grok'?{borderColor:'var(--td)',color:'var(--td)'}:{}}>⚡ GROK</button>
@@ -915,6 +927,7 @@ function App(){
     on('soc_alert',d=>{setChat(p=>[...p,{role:'system',content:`🛡 SOC [${d.severity}] ${d.type}\n${d.detail}`,meta:'soc'}]);setSocStatus(s=>({...s,alertCount:s.alertCount+1}))});
     on('soc_response',d=>{setChat(p=>[...p,{role:'system',content:`🛡 SOC AUTO-RESPONSE: ${d.actions.join(' | ')}`,meta:'soc'}])});
     on('red_preview',d=>setRedPreview(d));
+    on('auth_required',d=>{setChat(p=>[...p,{role:'system',content:`🔑 AUTH REQUIRED — ${d.action}: enter operator token in Settings (⚙)`,meta:'error'}]);});
   },[on,send]);
   useEffect(()=>{if(conn){send('get_provider');send('get_status');send('task_list');send('get_chat_history');send('get_team_status');}},[conn,send]);
   useEffect(()=>{const l=scanOut[scanOut.length-1];if(l?.text?.includes('complete'))setScanning(false)},[scanOut]);

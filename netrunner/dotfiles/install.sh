@@ -17,7 +17,7 @@ PB_DIR="${PURPLEBRUCE_DIR:-$HOME/purplebruce}"
 DOT_DIR="${PB_DIR}/netrunner/dotfiles"
 
 echo -e "\n${M}  ╔══════════════════════════════════════════════╗"
-echo    "  ║  PURPLE BRUCE LUCY — Environment Setup v6.0  ║"
+echo    "  ║  PURPLE BRUCE LUCY — Environment Setup v7.0  ║"
 echo -e "  ╚══════════════════════════════════════════════╝${RS}\n"
 
 [ -d "$PB_DIR" ] || die "Purple Bruce not found at $PB_DIR — run install-arch.sh first"
@@ -162,6 +162,7 @@ echo
 echo -e "  ${V}Purple Bruce:${RS}"
 echo -e "    ${Y}pbstart${RS}  ${D}← launch server (tmux)${RS}"
 echo -e "    ${Y}go${RS}       ${D}← same, short form${RS}"
+echo -e "    ${Y}tui${RS}      ${D}← interactive TUI dashboard${RS}"
 echo -e "    ${Y}lucy${RS}     ${D}← netrunner menu${RS}"
 echo -e "    ${Y}oc${RS}       ${D}← openclaw CLI${RS}"
 echo -e "    ${Y}toolcheck${RS} ${D}← verify BlackArch arsenal${RS}"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# TERTRATRONIC RIPPLER v6.0 — TIER 5 — STUFE 2
-# Purple Bruce NetRunner CLI — Full-Stack Cyberdeck Tool
+# PURPLE BRUCE LUCY v7.0 — NetRunner CLI
+# Purple Team · AI Agent · BlackArch · Cyberdeck Tool
 
 set -uo pipefail
 
@@ -521,6 +521,7 @@ usage() {
   echo -e "  ${BM}quickhack${RS}            interactive hack menu"
   echo -e "  ${BM}quickhack <target>${RS}   direct target injection"
   echo -e "  ${BM}start${RS}                launch tmux 3-pane layout"
+  echo -e "  ${BM}tui${RS}                  interactive TUI dashboard (Layer 1/2)"
   echo
 }
 
@@ -537,5 +538,6 @@ case "${1:-}" in
     if [[ -n "${2:-}" ]]; then cmd_quickhack_target "$2"
     else cmd_quickhack_menu; fi ;;
   start)     cmd_start ;;
+  tui)       exec bash "${PB_DIR}/netrunner/tui.sh" ;;
   *)         usage ;;
 esac
