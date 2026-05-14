@@ -25,7 +25,7 @@ warn() { echo -e "${Y}[⚠]${RS} ${1}"; }
 die()  { echo -e "${R}[✘] FATAL: ${1}${RS}"; exit 1; }
 
 echo -e "\n${M}╔══════════════════════════════════════════════════════════╗"
-echo    "║  PURPLE BRUCE LUCY v6.0 — Arch + BlackArch proot LAYER 2 ║"
+echo    "║  PURPLE BRUCE LUCY v7.0 — Arch + BlackArch proot LAYER 2 ║"
 echo -e "╚══════════════════════════════════════════════════════════╝${RS}\n"
 
 # ─── Detect environment ────────────────────────────────────────────────────────
@@ -60,6 +60,12 @@ pacman -S --noconfirm --needed \
   base-devel python python-pip python-setuptools \
   openssl ca-certificates \
   2>/dev/null && ok "Base packages installed" || warn "Some base packages failed"
+
+# Refresh dynamic linker cache — critical after nettle/openssl upgrades in proot.
+# Nettle 4.0 changed SONAME (.so.6 → .so.7); without ldconfig, wget/curl/git
+# fail with "cannot open shared object file: libhogweed.so.6".
+info "Refreshing library cache (ldconfig)..."
+ldconfig 2>/dev/null && ok "ldconfig done" || warn "ldconfig failed — may affect wget/git"
 
 # ─── Node.js ──────────────────────────────────────────────────────────────────
 info "Installing Node.js..."
@@ -193,17 +199,27 @@ else
     mv "$PB_DIR" "${PB_DIR}.bak"
   fi
   info "Cloning Purple Bruce..."
-  git clone https://github.com/TAesthetics/purplebruce.git "$PB_DIR" 2>/dev/null \
-    && ok "Cloned to ${PB_DIR}" \
-    || {
-      warn "git clone failed — wget tarball fallback..."
-      wget -qO /tmp/pb.tar.gz https://github.com/TAesthetics/purplebruce/archive/refs/heads/main.tar.gz \
-        && mkdir -p "$PB_DIR" \
-        && tar -xzf /tmp/pb.tar.gz -C "$PB_DIR" --strip-components=1 \
-        && rm -f /tmp/pb.tar.gz \
-        && ok "Downloaded via tarball to ${PB_DIR}" \
-        || die "Both git clone and wget tarball failed — check connection"
-    }
+  PB_URL="https://github.com/TAesthetics/purplebruce/archive/refs/heads/main.tar.gz"
+
+  _extract_tarball() {
+    mkdir -p "$PB_DIR"
+    tar -xzf /tmp/pb.tar.gz -C "$PB_DIR" --strip-components=1
+    rm -f /tmp/pb.tar.gz
+  }
+
+  if git clone https://github.com/TAesthetics/purplebruce.git "$PB_DIR" 2>/dev/null; then
+    ok "Cloned via git to ${PB_DIR}"
+  elif wget -qO /tmp/pb.tar.gz "$PB_URL" 2>/dev/null && _extract_tarball; then
+    ok "Downloaded via wget tarball to ${PB_DIR}"
+  elif python3 -c "
+import urllib.request, sys
+print('[→] Downloading via Python urllib...')
+urllib.request.urlretrieve('$PB_URL', '/tmp/pb.tar.gz')
+" 2>/dev/null && _extract_tarball; then
+    ok "Downloaded via python3 urllib to ${PB_DIR}"
+  else
+    die "All download methods failed (git / wget / python3 urllib) — check internet connection"
+  fi
 fi
 
 # ─── npm install ──────────────────────────────────────────────────────────────
@@ -248,9 +264,10 @@ alias pb='netrunner'
 alias lucy='netrunner'
 alias purple='netrunner'
 alias bruce='netrunner'
-alias start='netrunner start'
+alias pbstart='netrunner start'
+alias go='netrunner start'
 alias stop='pkill -f "node server.js" 2>/dev/null && echo "[✔] Stopped." || echo "[⚠] Not running."'
-alias restart='stop; sleep 1; start'
+alias pbstop='pkill -f "node server.js" 2>/dev/null && echo "[✔] Stopped." || echo "[⚠] Not running."'
 alias logs='tail -f ~/.purplebruce/audit.log'
 alias doctor='netrunner doctor'
 alias deck='netrunner deck'
