@@ -69,9 +69,14 @@ state = {
     'flight_time': 0,
     'sdk': None,
     'sn': None,
-    'mode': 'IDLE',  # IDLE, HOVERING, FLYING, LANDING
-    'error': None,
+    'mode':            'IDLE',  # IDLE, HOVERING, FLYING, LANDING
+    'tracking_locked': False,
+    'tracker_active':  False,
+    'error':           None,
 }
+
+def _clamp(v, lo=-100, hi=100) -> int:
+    return max(lo, min(hi, int(v)))
 
 sock_cmd   : Optional[socket.socket] = None
 sock_state : Optional[socket.socket] = None
@@ -291,6 +296,12 @@ COMMANDS = {
     'battery':        lambda p: send_cmd('battery?'),
     'altitude':       lambda p: send_cmd('height?'),
     'go':             lambda p: send_cmd(f'go {p["x"]} {p["y"]} {p["z"]} {p.get("speed", SPEED)}'),
+    # rc: continuous velocity control — a=lr b=fb c=ud d=yaw  (-100 to 100)
+    'rc':             lambda p: send_cmd(
+                          f'rc {_clamp(p.get("lr",0))} {_clamp(p.get("fb",0))} '
+                          f'{_clamp(p.get("ud",0))} {_clamp(p.get("yaw",0))}'
+                      ),
+    'rc_stop':        lambda p: send_cmd('rc 0 0 0 0'),
 }
 
 
@@ -345,6 +356,20 @@ async def ws_handler(websocket):
                     params = msg.get('params', {})
                     resp = dispatch_command(cmd, params)
                     await broadcast_all({'type': 'cmd_response', 'cmd': cmd, 'resp': resp})
+
+                elif action == 'track_frame':
+                    # Tracker sends annotated frame + tracking state for broadcast to UI clients
+                    await broadcast_all({
+                        'type': 'track_frame',
+                        'locked': msg.get('locked', False),
+                        'bbox':   msg.get('bbox'),
+                        'frame':  msg.get('frame'),  # base64 JPEG (optional, heavy)
+                    })
+
+                elif action == 'tracker_status':
+                    state['tracking_locked'] = msg.get('locked', False)
+                    state['tracker_active']   = msg.get('active', False)
+                    await broadcast_all({'type': 'drone_status', 'data': dict(state)})
 
                 elif action == 'get_status':
                     await websocket.send(json.dumps({'type': 'drone_status', 'data': dict(state)}))

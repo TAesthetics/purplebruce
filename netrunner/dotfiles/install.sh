@@ -115,7 +115,22 @@ else
   warn "netrunner bin not found at $NETRUNNER_BIN — start/lucy aliases use direct node fallback"
 fi
 
-# ── 7. Additional hacking tools ───────────────────────────────────
+# ── 7. NemoClaw CLI AI agent ─────────────────────────────────────
+info "Installing NemoClaw (CLI AI agent)..."
+NC_SCRIPT="${PB_DIR}/netrunner/nemoclaw/nemoclaw.py"
+if [ -f "$NC_SCRIPT" ]; then
+  chmod +x "$NC_SCRIPT"
+  ln -sf "$NC_SCRIPT" "${HOME}/.local/bin/nemoclaw"
+  ok "NemoClaw linked → ~/.local/bin/nemoclaw  (run: nc)"
+  # Install Python deps for NemoClaw + drone tracker
+  pacman -S --noconfirm --needed \
+    python-requests python-websockets python-opencv python-numpy \
+    2>/dev/null && ok "NemoClaw/tracker Python deps installed" || warn "Some Python deps skipped"
+else
+  warn "nemoclaw.py not found at $NC_SCRIPT"
+fi
+
+# ── 8. Additional hacking tools ───────────────────────────────────
 info "Installing additional tools..."
 pacman -S --noconfirm --needed \
   vim neovim tmux fzf bat fd ripgrep \

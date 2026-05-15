@@ -133,14 +133,25 @@ _pb_update() {
 alias pbupdate='_pb_update'
 alias update='_pb_update'
 
+# ── NemoClaw — CLI AI agent ──────────────────────────────────────
+alias nc='nemoclaw'
+alias nemo='nemoclaw'
+alias nct='nemoclaw -t'   # tool use mode
+alias ncg='nemoclaw -p gemini'
+alias ncc='nemoclaw -p claude'
+
 # ── Firmware ─────────────────────────────────────────────────────
 alias tui='_nr tui'
 alias dashboard='_nr tui'
-alias bruce-flash='bash "${HOME}/purplebruce/netrunner/firmware/flash-bruce.sh"'
+alias bruce-flash='bash "${HOME}/purplebruce/netrunner/hardware/flash-bruce.sh" 2>/dev/null || bash "${HOME}/purplebruce/netrunner/firmware/flash-bruce.sh"'
+alias drone-flash='bash "${HOME}/purplebruce/netrunner/hardware/drone-remote/flash.sh" 2>/dev/null || echo "[⚠] No drone-remote flash script found"'
 
 # ── Drone ────────────────────────────────────────────────────────
-alias drone-bridge='pip install websockets -q 2>/dev/null; python3 "${HOME}/purplebruce/netrunner/drone/mini4k.py"'
+alias drone-bridge='python3 "${HOME}/purplebruce/netrunner/drone/mini4k.py"'
 alias drone='python3 "${HOME}/purplebruce/netrunner/drone/mini4k.py"'
+alias drone-track='python3 "${HOME}/purplebruce/netrunner/drone/tracker.py"'
+alias drone-track-auto='python3 "${HOME}/purplebruce/netrunner/drone/tracker.py" --auto-person'
+alias drone-track-hl='python3 "${HOME}/purplebruce/netrunner/drone/tracker.py" --headless'
 
 # ── Hacking ──────────────────────────────────────────────────────
 alias nse='ls /usr/share/nmap/scripts/ | grep'
@@ -256,10 +267,12 @@ _pb_banner() {
   echo "  ${V}│${RS}  ${D}Arch Linux proot  [LAYER 2]${RS}               ${V}│${RS}"
   echo "  ${V}╰────────────────────────────────────────────╯${RS}"
   echo ""
-  echo "  ${G}⚡${RS} ${W}pbstart${RS}    ${D}→ launch server${RS}"
-  echo "  ${G}⚡${RS} ${W}go${RS}         ${D}→ same (short)${RS}"
-  echo "  ${M}⬡${RS} ${W}tui${RS}        ${D}→ interactive TUI dashboard${RS}"
-  echo "  ${D}──────────────────────────────${RS}"
+  echo "  ${G}⚡${RS} ${W}pbstart${RS}      ${D}→ launch server${RS}"
+  echo "  ${G}⚡${RS} ${W}go${RS}           ${D}→ same (short)${RS}"
+  echo "  ${M}◈${RS} ${W}nc${RS}           ${D}→ NemoClaw CLI AI agent${RS}"
+  echo "  ${M}⬡${RS} ${W}tui${RS}          ${D}→ interactive TUI dashboard${RS}"
+  echo "  ${C}⬡${RS} ${W}drone-track${RS}  ${D}→ autonomous drone tracker${RS}"
+  echo "  ${D}──────────────────────────────────${RS}"
   echo "  ${C}toolcheck${RS}   ${D}→ verify BlackArch arsenal${RS}"
   echo "  ${C}pbupdate${RS}    ${D}→ update + redeploy${RS}"
   echo ""

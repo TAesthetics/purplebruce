@@ -25,7 +25,7 @@ banner() {
   echo '  ██║╚██╗██║██╔══╝     ██║   ██╔══██╗██║   ██║██║╚██╗██║██║╚██╗██║██╔══╝  ██╔══██╗'
   echo '  ██║ ╚████║███████╗   ██║   ██║  ██║╚██████╔╝██║ ╚████║██║ ╚████║███████╗██║  ██║'
   echo '  ╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝'
-  echo -e "${DM}${C}  TERTRATRONIC RIPPLER v6.0  ·  TIER 5  ·  STUFE 2  ·  PURPLEBRUCE GRID${RS}"
+  echo -e "${DM}${C}  PURPLE BRUCE LUCY v7.0  ·  Purple Team · AI Agent · BlackArch${RS}"
   echo -e "${K}  ══════════════════════════════════════════════════════════════════════════${RS}"
 }
 
@@ -522,6 +522,10 @@ usage() {
   echo -e "  ${BM}quickhack <target>${RS}   direct target injection"
   echo -e "  ${BM}start${RS}                launch tmux 3-pane layout"
   echo -e "  ${BM}tui${RS}                  interactive TUI dashboard (Layer 1/2)"
+  echo -e "  ${BM}nc${RS}                   NemoClaw CLI AI agent (interactive REPL)"
+  echo -e "  ${BM}nc <prompt>${RS}          NemoClaw one-shot query"
+  echo -e "  ${BM}track${RS}                start drone autonomous tracker"
+  echo -e "  ${BM}track auto${RS}           tracker with auto person detection"
   echo
 }
 
@@ -539,5 +543,15 @@ case "${1:-}" in
     else cmd_quickhack_menu; fi ;;
   start)     cmd_start ;;
   tui)       exec bash "${PB_DIR}/netrunner/tui.sh" ;;
+  nc|nemo|nemoclaw)
+             shift 2>/dev/null || true
+             exec python3 "${PB_DIR}/netrunner/nemoclaw/nemoclaw.py" "$@" ;;
+  track)
+             shift 2>/dev/null || true
+             if [ "${1:-}" = "auto" ]; then
+               exec python3 "${PB_DIR}/netrunner/drone/tracker.py" --auto-person
+             else
+               exec python3 "${PB_DIR}/netrunner/drone/tracker.py" "$@"
+             fi ;;
   *)         usage ;;
 esac
