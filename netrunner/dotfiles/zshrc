@@ -101,9 +101,29 @@ alias logs='tail -f ~/.purplebruce/audit.log 2>/dev/null || tail -f ~/purplebruc
 # ── Update ───────────────────────────────────────────────────────
 _pb_update() {
   local dir="${HOME}/purplebruce"
-  [[ -d "$dir" ]] || { echo "[✘] ~/purplebruce not found"; return 1; }
-  echo "[→] Pulling latest..."
-  git -C "$dir" pull origin main || { echo "[⚠] git pull failed"; return 1; }
+  [[ -d "$dir" ]] || { echo "[✘] ~/purplebruce not found — run install-arch.sh first"; return 1; }
+  echo "[→] Checking for updates..."
+  if [[ -d "${dir}/.git" ]]; then
+    git -C "$dir" pull origin main && echo "[✔] git pull OK" || echo "[⚠] git pull failed — using local files"
+  else
+    echo "[⚠] Not a git repo — downloading latest from GitHub..."
+    local tmp="/tmp/pb_update_$$"
+    mkdir -p "$tmp"
+    local url="https://github.com/TAesthetics/purplebruce/archive/refs/heads/main.tar.gz"
+    if wget -qO "${tmp}/pb.tar.gz" "$url" 2>/dev/null || \
+       python3 -c "import urllib.request; urllib.request.urlretrieve('${url}', '${tmp}/pb.tar.gz')" 2>/dev/null; then
+      local bak="${dir}.bak.$(date +%s)"
+      mv "$dir" "$bak"
+      mkdir -p "$dir"
+      tar -xzf "${tmp}/pb.tar.gz" -C "$dir" --strip-components=1
+      rm -rf "$tmp"
+      echo "[✔] Downloaded latest — old version backed up to $(basename $bak)"
+    else
+      rm -rf "$tmp"
+      echo "[✘] Download failed — check internet and try again"
+      return 1
+    fi
+  fi
   echo "[→] npm install..."
   npm install --prefix "$dir" --silent
   echo "[→] Deploying dotfiles..."
@@ -121,11 +141,6 @@ alias bruce-flash='bash "${HOME}/purplebruce/netrunner/firmware/flash-bruce.sh"'
 # ── Drone ────────────────────────────────────────────────────────
 alias drone-bridge='pip install websockets -q 2>/dev/null; python3 "${HOME}/purplebruce/netrunner/drone/mini4k.py"'
 alias drone='python3 "${HOME}/purplebruce/netrunner/drone/mini4k.py"'
-
-# ── OpenClaw ─────────────────────────────────────────────────────
-alias ocstart='openclaw onboard --install-daemon 2>/dev/null; openclaw dashboard &'
-alias ocstop='pkill -f openclaw 2>/dev/null && echo "[✔] OpenClaw stopped"'
-alias oc='openclaw'
 
 # ── Hacking ──────────────────────────────────────────────────────
 alias nse='ls /usr/share/nmap/scripts/ | grep'
@@ -244,7 +259,6 @@ _pb_banner() {
   echo "  ${G}⚡${RS} ${W}pbstart${RS}    ${D}→ launch server${RS}"
   echo "  ${G}⚡${RS} ${W}go${RS}         ${D}→ same (short)${RS}"
   echo "  ${M}⬡${RS} ${W}tui${RS}        ${D}→ interactive TUI dashboard${RS}"
-  echo "  ${C}⬡${RS} ${W}oc${RS}         ${D}→ openclaw CLI${RS}"
   echo "  ${D}──────────────────────────────${RS}"
   echo "  ${C}toolcheck${RS}   ${D}→ verify BlackArch arsenal${RS}"
   echo "  ${C}pbupdate${RS}    ${D}→ update + redeploy${RS}"

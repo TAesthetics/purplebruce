@@ -115,17 +115,7 @@ else
   warn "netrunner bin not found at $NETRUNNER_BIN — start/lucy aliases use direct node fallback"
 fi
 
-# ── 7. OpenClaw — local AI agent ─────────────────────────────────
-info "Installing OpenClaw (local AI agent)..."
-if command -v npm >/dev/null 2>&1; then
-  npm install -g openclaw@latest 2>/dev/null \
-    && ok "OpenClaw installed — run: openclaw onboard --install-daemon" \
-    || warn "OpenClaw install failed — try: npm install -g openclaw@latest"
-else
-  warn "npm not found — install nodejs first, then: npm install -g openclaw@latest"
-fi
-
-# ── 8. Additional hacking tools ───────────────────────────────────
+# ── 7. Additional hacking tools ───────────────────────────────────
 info "Installing additional tools..."
 pacman -S --noconfirm --needed \
   vim neovim tmux fzf bat fd ripgrep \
@@ -164,7 +154,6 @@ echo -e "    ${Y}pbstart${RS}  ${D}← launch server (tmux)${RS}"
 echo -e "    ${Y}go${RS}       ${D}← same, short form${RS}"
 echo -e "    ${Y}tui${RS}      ${D}← interactive TUI dashboard${RS}"
 echo -e "    ${Y}lucy${RS}     ${D}← netrunner menu${RS}"
-echo -e "    ${Y}oc${RS}       ${D}← openclaw CLI${RS}"
 echo -e "    ${Y}toolcheck${RS} ${D}← verify BlackArch arsenal${RS}"
 echo -e "    ${Y}pbupdate${RS} ${D}← update + redeploy${RS}"
 echo
