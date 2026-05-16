@@ -397,7 +397,7 @@ async def telemetry_broadcast_loop():
     while True:
         if connected_clients and state['connected']:
             await broadcast_all({'type': 'telemetry', 'data': dict(state)})
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.1)
 
 
 async def main():

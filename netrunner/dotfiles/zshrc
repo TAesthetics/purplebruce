@@ -230,7 +230,9 @@ alias drone-flash='bash "${HOME}/purplebruce/netrunner/hardware/drone-remote/fla
 alias drone='python3 "${HOME}/purplebruce/netrunner/drone/mini4k.py"'
 alias drone-bridge='python3 "${HOME}/purplebruce/netrunner/drone/mini4k.py"'
 alias drone-track='python3 "${HOME}/purplebruce/netrunner/drone/tracker.py"'
+alias drone-track-face='python3 "${HOME}/purplebruce/netrunner/drone/tracker.py" --face'
 alias drone-track-auto='python3 "${HOME}/purplebruce/netrunner/drone/tracker.py" --auto-person'
+alias drone-track-hl='python3 "${HOME}/purplebruce/netrunner/drone/tracker.py" --face --headless'
 
 # ── Bluetooth Audio — HOCO EQ3 ───────────────────────────────────
 _bt_connect() {

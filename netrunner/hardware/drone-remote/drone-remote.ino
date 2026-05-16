@@ -46,6 +46,8 @@
 #define COL_BLACK     0x0000
 #define COL_DARKGREY  0x3186
 #define COL_YELLOW    0xFFE0
+#define COL_ARASAKA   0xA800   // Arasaka deep red  #D00000
+#define COL_GOLD      0xFEA0   // Arasaka gold      #FFD000
 
 // ─────────────────────────────────────────────────────────────
 //  MODE ENUM
@@ -83,12 +85,13 @@ bool wsNeedsConnect  = true;
 
 // Telemetry from drone
 struct DroneTelemetry {
-    uint8_t  battery      = 0;
-    float    altitude     = 0.0f;
-    float    speed_h      = 0.0f;
-    String   droneMode    = "UNKNOWN";
+    uint8_t  battery       = 0;
+    float    altitude      = 0.0f;
+    float    speed_h       = 0.0f;
+    String   droneMode     = "UNKNOWN";
     bool     trackingLocked = false;
-    uint32_t lastUpdate   = 0;
+    float    faceConf      = 0.0f;   // face re-ID confidence 0.0-1.0
+    uint32_t lastUpdate    = 0;
 };
 DroneTelemetry telem;
 
@@ -181,16 +184,21 @@ void setup() {
     M5.Lcd.setTextColor(COL_WHITE, COL_BLACK);
     M5.Lcd.setTextSize(1);
 
-    // Splash
-    M5.Lcd.fillScreen(COL_PURPLE);
-    M5.Lcd.setTextColor(COL_WHITE, COL_PURPLE);
+    // Splash — Arasaka Neural Mesh
+    M5.Lcd.fillScreen(COL_BLACK);
+    M5.Lcd.setTextColor(COL_ARASAKA, COL_BLACK);
     M5.Lcd.setTextDatum(MC_DATUM);
-    M5.Lcd.drawString("PURPLE BRUCE", 120, 50, 4);
-    M5.Lcd.drawString("DRONE REMOTE v1.0", 120, 85, 2);
+    M5.Lcd.drawString("A R A S A K A", 120, 38, 2);
+    M5.Lcd.setTextColor(COL_WHITE, COL_BLACK);
+    M5.Lcd.drawString("NEURAL MESH", 120, 60, 3);
+    M5.Lcd.setTextColor(COL_GOLD, COL_BLACK);
+    M5.Lcd.drawString("DRONE REMOTE  v2.0", 120, 92, 1);
+    M5.Lcd.setTextColor(COL_DARKGREY, COL_BLACK);
+    M5.Lcd.drawString("PURPLE BRUCE LUCY", 120, 110, 1);
     M5.Lcd.setTextDatum(TL_DATUM);
 
     Serial.begin(115200);
-    Serial.println(F("[PB-REMOTE] Purple Bruce Drone Remote v1.0"));
+    Serial.println(F("[PB-REMOTE] Arasaka Neural Mesh — Drone Remote v2.0"));
     Serial.printf("[PB-REMOTE] Bridge target: ws://%s:%d\n", bridgeIP, BRIDGE_PORT);
 
     // IMU
@@ -332,13 +340,18 @@ void wsEventHandler(WStype_t type, uint8_t* payload, size_t length) {
             if (strcmp(msgType, "telemetry") == 0) {
                 JsonObject data = doc["data"];
                 if (!data.isNull()) {
-                    telem.battery        = data["battery"]        | telem.battery;
-                    telem.altitude       = data["altitude"]       | telem.altitude;
-                    telem.speed_h        = data["speed_h"]        | telem.speed_h;
-                    telem.droneMode      = data["mode"]           | telem.droneMode.c_str();
+                    telem.battery        = data["battery"]         | telem.battery;
+                    telem.altitude       = data["altitude"]        | telem.altitude;
+                    telem.speed_h        = data["speed_h"]         | telem.speed_h;
+                    telem.droneMode      = data["mode"]            | telem.droneMode.c_str();
                     telem.trackingLocked = data["tracking_locked"] | telem.trackingLocked;
+                    telem.faceConf       = data["face_conf"]       | telem.faceConf;
                     telem.lastUpdate     = millis();
                 }
+            } else if (strcmp(msgType, "tracker_status") == 0) {
+                telem.trackingLocked = doc["locked"]    | telem.trackingLocked;
+                telem.faceConf       = doc["face_conf"] | telem.faceConf;
+                telem.lastUpdate     = millis();
             } else if (strcmp(msgType, "status") == 0) {
                 serverConnected = true;
                 serverUptime    = doc["uptime"] | serverUptime;
@@ -722,14 +735,25 @@ void drawImuCtrlMode() {
     M5.Lcd.setCursor(10, 80);
     M5.Lcd.printf("L/R: %+4d  F/B: %+4d", lr, fb);
 
-    // Target lock
+    // Neural lock + face confidence
     M5.Lcd.setCursor(10, 95);
     if (telem.trackingLocked) {
-        M5.Lcd.setTextColor(COL_GREEN, COL_BLACK);
-        M5.Lcd.print("LOCK: ACQUIRED");
+        M5.Lcd.setTextColor(COL_ARASAKA, COL_BLACK);
+        M5.Lcd.print("NEURAL LOCK  ");
+        // Face confidence bar (only when face re-ID is active)
+        if (telem.faceConf > 0.01f) {
+            uint8_t pct = (uint8_t)(telem.faceConf * 100.0f);
+            M5.Lcd.setTextColor(COL_GOLD, COL_BLACK);
+            M5.Lcd.printf("FACE:%3d%%", pct);
+            // Mini bar below
+            int barW = (int)(telem.faceConf * 60.0f);
+            M5.Lcd.fillRect(10, 107, barW, 4, COL_GOLD);
+            M5.Lcd.fillRect(10 + barW, 107, 60 - barW, 4, COL_DARKGREY);
+        }
     } else {
         M5.Lcd.setTextColor(COL_DARKGREY, COL_BLACK);
-        M5.Lcd.print("LOCK: ---      ");
+        M5.Lcd.print("LOCK: ---           ");
+        M5.Lcd.fillRect(10, 107, 60, 4, COL_DARKGREY);
     }
 
     // Footer
