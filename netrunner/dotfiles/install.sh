@@ -16,9 +16,9 @@ die()  { echo -e "  \033[31m✘ FATAL:${RS} ${1}"; exit 1; }
 PB_DIR="${PURPLEBRUCE_DIR:-$HOME/purplebruce}"
 DOT_DIR="${PB_DIR}/netrunner/dotfiles"
 
-echo -e "\n${M}  ╔══════════════════════════════════════════════╗"
-echo    "  ║  PURPLE BRUCE LUCY — Environment Setup v6.0  ║"
-echo -e "  ╚══════════════════════════════════════════════╝${RS}\n"
+echo -e "\n${M}  ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿${RS}"
+echo -e "  ${V}  PURPLE BRUCE LUCY v7.1 — Neural Setup   ${RS}"
+echo -e "  ${M}⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿${RS}\n"
 
 [ -d "$PB_DIR" ] || die "Purple Bruce not found at $PB_DIR — run install-arch.sh first"
 [ -d "$DOT_DIR" ] || die "Dotfiles dir not found: $DOT_DIR"
@@ -115,14 +115,21 @@ else
   warn "netrunner bin not found at $NETRUNNER_BIN — start/lucy aliases use direct node fallback"
 fi
 
-# ── 7. OpenClaw — local AI agent ─────────────────────────────────
-info "Installing OpenClaw (local AI agent)..."
-if command -v npm >/dev/null 2>&1; then
-  npm install -g openclaw@latest 2>/dev/null \
-    && ok "OpenClaw installed — run: openclaw onboard --install-daemon" \
-    || warn "OpenClaw install failed — try: npm install -g openclaw@latest"
+# ── 7. NemoClaw CLI AI agent ─────────────────────────────────────
+info "Installing NemoClaw (CLI AI agent)..."
+NC_SCRIPT="${PB_DIR}/netrunner/nemoclaw/nemoclaw.py"
+if [ -f "$NC_SCRIPT" ]; then
+  chmod +x "$NC_SCRIPT"
+  ln -sf "$NC_SCRIPT" "${HOME}/.local/bin/nemoclaw"
+  ok "NemoClaw linked → ~/.local/bin/nemoclaw  (run: nc)"
+  # Install Python deps for NemoClaw + drone tracker + patrol
+  pacman -S --noconfirm --needed \
+    python-requests python-websockets python-opencv python-numpy python-rich \
+    2>/dev/null && ok "Python deps installed (NemoClaw / tracker / patrol)" || warn "Some Python deps skipped"
+  # Make patrol script executable
+  chmod +x "${PB_DIR}/netrunner/drone/patrol.py" 2>/dev/null || true
 else
-  warn "npm not found — install nodejs first, then: npm install -g openclaw@latest"
+  warn "nemoclaw.py not found at $NC_SCRIPT"
 fi
 
 # ── 8. Additional hacking tools ───────────────────────────────────
@@ -132,7 +139,37 @@ pacman -S --noconfirm --needed \
   python-rich python-click \
   2>/dev/null && ok "Extra tools installed" || warn "Some extras skipped"
 
-# ── 9. Set zsh as default shell ───────────────────────────────────
+# ── 9. Bluetooth audio deps ──────────────────────────────────────
+info "Installing Bluetooth + audio stack (best-effort)..."
+pacman -S --noconfirm --needed \
+  bluez bluez-utils pulseaudio pulseaudio-bluetooth alsa-utils \
+  2>/dev/null && ok "BT+audio stack installed" || warn "BT packages skipped (may not work in proot without kernel BT)"
+chmod +x "${PB_DIR}/netrunner/audio/bt-setup.sh" 2>/dev/null || true
+
+# ── 10. Single launch alias — write to Termux side if accessible ─
+info "Writing single-command 'pb' alias..."
+LAUNCH_SCRIPT="${PB_DIR}/netrunner/launch.sh"
+chmod +x "$LAUNCH_SCRIPT" 2>/dev/null || true
+# Detect Termux home
+for TERMUX_HOME_TRY in "/data/data/com.termux/files/home" "$HOME/../.."; do
+  if [ -d "$TERMUX_HOME_TRY" ] && [ -w "$TERMUX_HOME_TRY" ]; then
+    for RC in "${TERMUX_HOME_TRY}/.bashrc" "${TERMUX_HOME_TRY}/.zshrc"; do
+      [ -f "$RC" ] || continue
+      if ! grep -q "purplebruce/netrunner/launch.sh" "$RC" 2>/dev/null; then
+        echo "" >> "$RC"
+        echo "# Purple Bruce Lucy v7.1 — single launch alias" >> "$RC"
+        echo "alias pb='proot-distro login archlinux -- bash ~/purplebruce/netrunner/launch.sh'" >> "$RC"
+        ok "Single alias 'pb' written to $RC"
+      else
+        ok "'pb' alias already in $RC"
+      fi
+    done
+    break
+  fi
+done
+ok "From Termux: type 'pb' to enter proot + auto-start server"
+
+# ── 11. Set zsh as default shell ─────────────────────────────────
 if command -v zsh >/dev/null 2>&1; then
   ZSH_PATH=$(command -v zsh)
   if ! grep -q "$ZSH_PATH" /etc/shells 2>/dev/null; then
@@ -151,19 +188,17 @@ ok "PATH updated in shell configs"
 
 # ── Done ──────────────────────────────────────────────────────────
 echo
-echo -e "  ${M}╔══════════════════════════════════════════════╗${RS}"
-echo -e "  ${M}║${RS}  ${G}Environment setup complete!${RS}               ${M}║${RS}"
-echo -e "  ${M}╚══════════════════════════════════════════════╝${RS}"
+echo -e "  ${M}⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿${RS}"
+echo -e "  ${V}  NEURAL SETUP COMPLETE  ·  v7.1     ${RS}"
+echo -e "  ${M}⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿${RS}"
 echo
-echo -e "  ${V}Apply now:${RS}"
-echo -e "    ${Y}exec zsh${RS}          ${D}← switch to new shell immediately${RS}"
-echo -e "    ${Y}source ~/.zshrc${RS}   ${D}← reload config in current shell${RS}"
+echo -e "  ${G}NOW:${RS}        ${Y}exec zsh${RS}       ${D}← activate the new shell${RS}"
+echo -e "  ${G}START:${RS}      ${Y}go${RS}             ${D}← launch server${RS}"
+echo -e "  ${G}AI:${RS}         ${Y}nc${RS}             ${D}← NemoClaw CLI agent${RS}"
+echo -e "  ${G}AUDIO:${RS}      ${Y}bt${RS}             ${D}← HOCO EQ3 Bluetooth${RS}"
+echo -e "  ${G}TRACKER:${RS}    ${Y}drone-track${RS}    ${D}← autonomous drone${RS}"
+echo -e "  ${G}ARSENAL:${RS}    ${Y}toolcheck${RS}      ${D}← BlackArch check${RS}"
 echo
-echo -e "  ${V}Purple Bruce:${RS}"
-echo -e "    ${Y}pbstart${RS}  ${D}← launch server (tmux)${RS}"
-echo -e "    ${Y}go${RS}       ${D}← same, short form${RS}"
-echo -e "    ${Y}lucy${RS}     ${D}← netrunner menu${RS}"
-echo -e "    ${Y}oc${RS}       ${D}← openclaw CLI${RS}"
-echo -e "    ${Y}toolcheck${RS} ${D}← verify BlackArch arsenal${RS}"
-echo -e "    ${Y}pbupdate${RS} ${D}← update + redeploy${RS}"
+echo -e "  ${D}From Termux (outside proot):${RS}"
+echo -e "  ${Y}pb${RS}   ${D}← ONE command enters proot + starts server${RS}"
 echo

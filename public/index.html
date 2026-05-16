@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,interactive-widget=resizes-content,viewport-fit=cover">
-<title>PURPLE BRUCE v6.0 — CHAOS MAGIC SERVITOR</title>
+<title>PURPLE BRUCE v7.0 — PURPLE TEAM AI AGENT</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 :root{--void:#000;--bg:#0d0d0d;--surface:#111;--card:#161616;--border:#2c2c2c;--border-accent:#4a1a7a;--violet:#7700cc;--violet-deep:#550099;--violet-soft:#9933dd;--vg:#7700cc44;--vg-strong:#7700cc99;--red:#cc2200;--rg:#cc220066;--cyan:#0099bb;--cg:#0099bb44;--mag:#880055;--gold:#887700;--green:#226622;--purple:#7755aa;--text:#cccccc;--tb:#eeeeee;--td:#777777;--tm:#444444;--f:'Share Tech Mono','Courier New',monospace;--fd:'Share Tech Mono','Courier New',monospace;--rad-pill:2px;--rad-lg:2px;--rad-md:2px;--rad-sm:0px}
@@ -154,8 +154,9 @@ function useWS(){
   useEffect(()=>{connect();return()=>ws.current?.close()},[connect]);
   const send=useCallback((a,d={})=>{
     if(ws.current?.readyState===1){
-      console.log('[WS] send',a,d);
-      ws.current.send(JSON.stringify({action:a,...d}));
+      const tok=localStorage.getItem('pb_operator_token')||'';
+      const payload={action:a,...(tok?{token:tok}:{}),...d};
+      ws.current.send(JSON.stringify(payload));
     }else{
       console.warn('[WS] not open, drop',a,'state=',ws.current?.readyState);
     }
@@ -494,8 +495,19 @@ const SettingsModal=({provider,grokHasKey,grokMask,veniceHasKey,veniceMask,gemin
   const[gk,setGk]=useState('');const[vk,setVk]=useState('');const[gmk,setGmk]=useState('');
   const[clk,setClk]=useState('');const[ork,setOrk]=useState('');
   const[ocToken,setOcToken]=useState('');const[ocPort,setOcPort]=useState(openclawPort||'18789');
+  const[tok,setTok]=useState(()=>localStorage.getItem('pb_operator_token')||'');
+  const[tokSaved,setTokSaved]=useState(false);
+  const saveTok=()=>{localStorage.setItem('pb_operator_token',tok.trim());setTokSaved(true);setTimeout(()=>setTokSaved(false),2000)};
+  const clearTok=()=>{localStorage.removeItem('pb_operator_token');setTok('')};
+  const tokStored=!!localStorage.getItem('pb_operator_token');
   return(<div className="modal-overlay"><div className="modal" style={{border:'1px solid var(--cyan)'}}>
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}><span style={{color:'var(--cyan)',fontSize:13,fontFamily:'var(--fd)',letterSpacing:3}}>SETTINGS — TIER 5</span><button className="btn s" onClick={()=>setShowSettings(false)} style={{borderColor:'var(--td)',color:'var(--td)'}}>CLOSE</button></div>
+    <div style={{borderBottom:'1px solid var(--border)',paddingBottom:12,marginBottom:12}}>
+      <div style={{color:'var(--td)',fontSize:10,marginBottom:4}}>🔑 OPERATOR TOKEN  <span style={{color:'var(--tm)',fontSize:8}}>~/.purplebruce/operator.txt — required for scan/exec/drone/keys</span></div>
+      {tokStored&&!tokSaved&&<div style={{color:'var(--green)',fontSize:9,marginBottom:4}}>✓ token set</div>}
+      {tokSaved&&<div style={{color:'var(--green)',fontSize:9,marginBottom:4}}>✓ saved</div>}
+      <div style={{display:'flex',gap:6}}><input value={tok} onChange={e=>setTok(e.target.value)} placeholder="40-char hex token from operator.txt" type="password" className="inp" style={{flex:1}}/><button className="btn s gn" onClick={saveTok}>SAVE</button><button className="btn s rd" onClick={clearTok} style={{padding:'7px 8px'}}>CLR</button></div>
+    </div>
     <div style={{color:'var(--td)',fontSize:10,marginBottom:8}}>DEFAULT PROVIDER  <span style={{color:'var(--tm)',fontSize:8}}>(smart routing overrides for redteam tasks)</span></div>
     <div style={{display:'flex',gap:6,marginBottom:14,flexWrap:'wrap'}}>
       <button className={`btn s ${provider==='grok'?'gn':''}`} onClick={()=>send('set_provider',{provider:'grok'})} style={provider!=='grok'?{borderColor:'var(--td)',color:'var(--td)'}:{}}>⚡ GROK</button>
@@ -854,6 +866,92 @@ const RedTab=({send,redOut,preview,setPreview,clearRedOut,running,setRunning})=>
 };
 
 
+/* ═══ IT SUPPORT HOTLINE TAB ═══ */
+const IT_QUICK=[
+  {label:'🌐 No Internet',msg:'I have no internet connection. What should I check first?'},
+  {label:'🖥 PC won\'t start',msg:'My computer won\'t turn on. What could be wrong?'},
+  {label:'🐌 PC very slow',msg:'My computer has become very slow. How do I diagnose and fix it?'},
+  {label:'🖨 Printer error',msg:'My printer is not working. It shows an error / won\'t print.'},
+  {label:'🔐 Password reset',msg:'I need to reset my password but I\'m locked out.'},
+  {label:'📧 Email not working',msg:'My email is not working. I can\'t send or receive messages.'},
+  {label:'🦠 Virus warning',msg:'I got a security warning / possible virus on my computer. What should I do?'},
+  {label:'📶 WiFi drops',msg:'My WiFi keeps disconnecting. How do I stabilize it?'},
+  {label:'💾 Disk full',msg:'My disk is full. How do I find and clean up large files safely?'},
+  {label:'🔵 Windows update stuck',msg:'Windows update is stuck and won\'t complete. How do I fix it?'},
+  {label:'📱 Phone won\'t sync',msg:'My phone won\'t sync with my computer / cloud account.'},
+  {label:'🔒 Locked out of account',msg:'I\'m locked out of my account (email / Microsoft / Google). How do I recover access?'},
+];
+
+const ItSupportTab=({send,itChat,itThinking,clearIT})=>{
+  const[input,setInput]=useState('');
+  const endRef=useRef();
+  useEffect(()=>{endRef.current?.scrollIntoView({behavior:'smooth'})},[itChat,itThinking]);
+  const doSend=(msg)=>{
+    const m=(msg||input).trim();
+    if(!m)return;
+    setInput('');
+    send(m);
+  };
+  const fmt=(txt)=>{
+    return txt.replace(/🔍 DIAGNOSIS:/g,'<span style="color:var(--cyan)">🔍 DIAGNOSIS:</span>')
+      .replace(/🔧 FIX:/g,'<span style="color:var(--green)">🔧 FIX:</span>')
+      .replace(/✅ VERIFY:/g,'<span style="color:var(--green)">✅ VERIFY:</span>')
+      .replace(/❓ QUESTION:/g,'<span style="color:var(--gold)">❓ QUESTION:</span>')
+      .replace(/⚠️ ESCALATION:/g,'<span style="color:var(--red)">⚠️ ESCALATION:</span>')
+      .replace(/ISSUE:/g,'<span style="color:var(--cyan)">ISSUE:</span>')
+      .replace(/STEP (\d+):/g,'<span style="color:var(--violet-soft)">STEP $1:</span>');
+  };
+  return(
+    <div style={{display:'flex',flexDirection:'column',height:'calc(100dvh - 56px)'}}>
+      <div style={{background:'linear-gradient(135deg,rgba(0,153,187,.08),rgba(0,255,136,.04))',borderBottom:'1px solid rgba(0,153,187,.25)',padding:'10px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
+        <div>
+          <div style={{color:'var(--cyan)',fontFamily:'var(--fd)',fontSize:12,letterSpacing:3,fontWeight:700}}>☎ IT SUPPORT HOTLINE</div>
+          <div style={{color:'var(--td)',fontSize:9,marginTop:2}}>AI Helpdesk · 24/7 · Networks · Hardware · Software · Security</div>
+        </div>
+        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+          {itThinking&&<span style={{color:'var(--cyan)',fontSize:10,animation:'pulse 1s infinite'}}>◇ analysing…</span>}
+          <button className="btn s" onClick={clearIT} style={{borderColor:'var(--td)',color:'var(--td)'}}>CLEAR</button>
+        </div>
+      </div>
+      {itChat.length===0&&(
+        <div style={{padding:'12px 16px',flexShrink:0}}>
+          <div style={{color:'var(--td)',fontSize:10,marginBottom:8,fontFamily:'var(--fd)',letterSpacing:2}}>QUICK ISSUES</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}}>
+            {IT_QUICK.map((q,i)=>(
+              <button key={i} onClick={()=>doSend(q.msg)} style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:'var(--rad-md)',padding:'8px 10px',textAlign:'left',cursor:'pointer',color:'var(--text)',fontSize:10,fontFamily:'var(--fd)',letterSpacing:.5,transition:'.2s'}}
+                onMouseEnter={e=>e.target.style.borderColor='var(--cyan)'}
+                onMouseLeave={e=>e.target.style.borderColor='var(--border)'}
+              >{q.label}</button>
+            ))}
+          </div>
+        </div>
+      )}
+      <div style={{flex:1,overflowY:'auto',padding:'12px 16px 0',display:'flex',flexDirection:'column',gap:8,minHeight:0}}>
+        {itChat.map((m,i)=>(
+          <div key={i} style={{maxWidth:'92%',alignSelf:m.role==='user'?'flex-end':'flex-start'}}>
+            {m.role==='user'?(
+              <div style={{background:'linear-gradient(135deg,rgba(0,153,187,.2),rgba(0,153,187,.08))',border:'1px solid rgba(0,153,187,.35)',borderRadius:'var(--rad-lg)',padding:'9px 13px',color:'var(--tb)',fontSize:12,wordBreak:'break-word'}}>{m.content}</div>
+            ):(
+              <div style={{background:'var(--card)',border:'1px solid rgba(0,153,187,.2)',borderRadius:'var(--rad-lg)',padding:'11px 14px',color:'var(--text)',fontSize:11.5,lineHeight:1.75,wordBreak:'break-word',whiteSpace:'pre-wrap'}} dangerouslySetInnerHTML={{__html:fmt(m.content)}}/>
+            )}
+          </div>
+        ))}
+        {itThinking&&(
+          <div style={{alignSelf:'flex-start',background:'var(--card)',border:'1px solid rgba(0,153,187,.2)',borderRadius:'var(--rad-lg)',padding:'9px 14px',display:'flex',gap:6,alignItems:'center'}}>
+            <span style={{color:'var(--cyan)',animation:'pulse 1s infinite'}}>◇</span>
+            <span style={{color:'var(--td)',fontSize:10}}>IT Support is analysing your issue…</span>
+          </div>
+        )}
+        <div ref={endRef}/>
+      </div>
+      <div style={{padding:'10px 12px',paddingBottom:'calc(70px + env(safe-area-inset-bottom,0px))',borderTop:'1px solid var(--border)',background:'var(--surface)',flexShrink:0,display:'flex',gap:8}}>
+        <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&doSend()} placeholder="Describe your IT problem…" className="inp" style={{flex:1}}/>
+        <button className="btn cy" onClick={()=>doSend()} disabled={!input.trim()} style={{height:42,padding:'0 16px',flexShrink:0}}>SEND</button>
+      </div>
+    </div>
+  );
+};
+
 function App(){
   const{send,on,conn}=useWS();
   const[tab,setTab]=useState('home');const[time,setTime]=useState(new Date());const[status,setStatus]=useState({});
@@ -871,6 +969,7 @@ function App(){
   const[voiceMode,setVoiceMode]=useState(false);
   const[activeProvider,setActiveProvider]=useState(null);
   const[teamStatus,setTeamStatus]=useState({providers:{},healLog:[],primary:'grok'});
+  const[itChat,setItChat]=useState([]);const[itThinking,setItThinking]=useState(false);
   const voiceModeRef=useRef(false);
   useEffect(()=>{voiceModeRef.current=voiceMode},[voiceMode]);
 
@@ -915,6 +1014,10 @@ function App(){
     on('soc_alert',d=>{setChat(p=>[...p,{role:'system',content:`🛡 SOC [${d.severity}] ${d.type}\n${d.detail}`,meta:'soc'}]);setSocStatus(s=>({...s,alertCount:s.alertCount+1}))});
     on('soc_response',d=>{setChat(p=>[...p,{role:'system',content:`🛡 SOC AUTO-RESPONSE: ${d.actions.join(' | ')}`,meta:'soc'}])});
     on('red_preview',d=>setRedPreview(d));
+    on('auth_required',d=>{setChat(p=>[...p,{role:'system',content:`🔑 AUTH REQUIRED — ${d.action}: enter operator token in Settings (⚙)`,meta:'error'}]);});
+    on('it_thinking',()=>setItThinking(true));
+    on('it_response',d=>{setItThinking(false);setItChat(p=>[...p,{role:'assistant',content:d.content}]);});
+    on('it_cleared',()=>setItChat([]));
   },[on,send]);
   useEffect(()=>{if(conn){send('get_provider');send('get_status');send('task_list');send('get_chat_history');send('get_team_status');}},[conn,send]);
   useEffect(()=>{const l=scanOut[scanOut.length-1];if(l?.text?.includes('complete'))setScanning(false)},[scanOut]);
@@ -925,6 +1028,8 @@ function App(){
   const doScan=()=>{if(!scanTarget.trim())return;setScanning(true);setScanOut([]);send('scan',{target:scanTarget.trim(),mode:scanMode})};
   const doHarden=()=>{setHardening(true);setHardenOut([]);send('harden')};
   const doHunt=()=>{setHunting(true);setHuntOut([]);send('hunt')};
+  const sendIT=(msg)=>{setItChat(p=>[...p,{role:'user',content:msg}]);send('it_support_chat',{message:msg})};
+  const clearIT=()=>{setItChat([]);send('it_support_clear',{});};
 
   return(<div>
     {showSettings&&<SettingsModal {...providerInfo} setShowSettings={setShowSettings} send={send} socRunning={socStatus.running} socAutoRespond={socStatus.autoRespond}/>}
@@ -971,8 +1076,9 @@ function App(){
     {tab==='hunt'&&<Hunt huntOut={huntOut} hunting={hunting} doHunt={doHunt}/>}
     {tab==='agent'&&<AgentTab send={send} hasKey={hasKey} setShowSettings={setShowSettings} agentStatus={agentStatus} providerInfo={providerInfo} setShowTasks={setShowTasks} chat={chat} thinking={thinking} pending={pending} socAlerts={[]} autonomous={autonomous} setAutonomous={setAutonomous} voiceMode={voiceMode} setVoiceMode={setVoiceMode}/>}
     {tab==='red'&&<RedTab send={send} redOut={redOut} preview={redPreview} setPreview={setRedPreview} clearRedOut={()=>setRedOut([])} running={redRunning} setRunning={setRedRunning}/>}
+    {tab==='it'&&<ItSupportTab send={sendIT} itChat={itChat} itThinking={itThinking} clearIT={clearIT}/>}
     <div className="tbar">
-      {[{id:'home',i:'>_',l:'DECK'},{id:'scan',i:'((◉))',l:'RECON'},{id:'harden',i:'◇',l:'FORT'},{id:'hunt',i:'◎',l:'GHOST'},{id:'agent',i:'⬡',l:'AI'},{id:'red',i:'⚡',l:'ICE'}].map(t=>(<button key={t.id} className={`tbtn ${tab===t.id?'a':''}`} onClick={()=>setTab(t.id)}><span className="i">{t.i}</span><span className="l">{t.l}</span>{tab===t.id&&<div style={{width:16,height:2,background:'var(--violet-soft)',borderRadius:'var(--rad-pill)',marginTop:2}}/>}</button>))}
+      {[{id:'home',i:'>_',l:'DECK'},{id:'scan',i:'◉',l:'RECON'},{id:'agent',i:'⬡',l:'AI'},{id:'it',i:'☎',l:'HELPDESK'},{id:'red',i:'⚡',l:'ICE'},{id:'harden',i:'◇',l:'FORT'}].map(t=>(<button key={t.id} className={`tbtn ${tab===t.id?'a':''}`} onClick={()=>setTab(t.id)}><span className="i">{t.i}</span><span className="l">{t.l}</span>{tab===t.id&&<div style={{width:16,height:2,background:t.id==='it'?'var(--cyan)':'var(--violet-soft)',borderRadius:'var(--rad-pill)',marginTop:2}}/>}</button>))}
     </div>
   </div>);
 }
