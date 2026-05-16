@@ -122,10 +122,12 @@ if [ -f "$NC_SCRIPT" ]; then
   chmod +x "$NC_SCRIPT"
   ln -sf "$NC_SCRIPT" "${HOME}/.local/bin/nemoclaw"
   ok "NemoClaw linked → ~/.local/bin/nemoclaw  (run: nc)"
-  # Install Python deps for NemoClaw + drone tracker
+  # Install Python deps for NemoClaw + drone tracker + patrol
   pacman -S --noconfirm --needed \
-    python-requests python-websockets python-opencv python-numpy \
-    2>/dev/null && ok "NemoClaw/tracker Python deps installed" || warn "Some Python deps skipped"
+    python-requests python-websockets python-opencv python-numpy python-rich \
+    2>/dev/null && ok "Python deps installed (NemoClaw / tracker / patrol)" || warn "Some Python deps skipped"
+  # Make patrol script executable
+  chmod +x "${PB_DIR}/netrunner/drone/patrol.py" 2>/dev/null || true
 else
   warn "nemoclaw.py not found at $NC_SCRIPT"
 fi

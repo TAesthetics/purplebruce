@@ -223,8 +223,10 @@ alias tui='_nr tui'
 alias dashboard='_nr tui'
 
 # ── Hardware ─────────────────────────────────────────────────────
-alias bruce-flash='bash "${HOME}/purplebruce/netrunner/hardware/flash-bruce.sh" 2>/dev/null || bash "${HOME}/purplebruce/netrunner/firmware/flash-bruce.sh" 2>/dev/null || echo "[⚠] Flash script not found"'
-alias drone-flash='bash "${HOME}/purplebruce/netrunner/hardware/drone-remote/flash.sh" 2>/dev/null || echo "[⚠] drone-remote flash script not found"'
+# Bruce firmware (pr3y/Bruce) → M5StickC Plus2
+alias bruce-flash='bash "${HOME}/purplebruce/netrunner/firmware/flash-bruce.sh"'
+# Drone remote firmware → M5StickC Plus2 via PlatformIO
+alias drone-flash='cd "${HOME}/purplebruce/netrunner/hardware/drone-remote" && pio run -t upload && cd -'
 
 # ── Drone ────────────────────────────────────────────────────────
 alias drone='python3 "${HOME}/purplebruce/netrunner/drone/mini4k.py"'
@@ -233,6 +235,9 @@ alias drone-track='python3 "${HOME}/purplebruce/netrunner/drone/tracker.py"'
 alias drone-track-face='python3 "${HOME}/purplebruce/netrunner/drone/tracker.py" --face'
 alias drone-track-auto='python3 "${HOME}/purplebruce/netrunner/drone/tracker.py" --auto-person'
 alias drone-track-hl='python3 "${HOME}/purplebruce/netrunner/drone/tracker.py" --face --headless'
+# Property security patrol — flies perimeter, detects intruders, alerts via HOCO EQ3
+alias drone-patrol='python3 "${HOME}/purplebruce/netrunner/drone/patrol.py"'
+alias drone-patrol-watch='python3 "${HOME}/purplebruce/netrunner/drone/patrol.py" --alert-only'
 
 # ── Bluetooth Audio — HOCO EQ3 ───────────────────────────────────
 _bt_connect() {
